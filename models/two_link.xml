@@ -57,9 +57,6 @@
           <!-- End-effector -->
           <body name="ee_body" pos="0.3 0 0">
             <geom name="ee_sphere" type="sphere" size="0.022" material="ee_mat" mass="0.05"/>
-            <!-- Kucuk gripper uclari -->
-            <geom name="ee_tip1" type="capsule" fromto="0 -0.01 0  0.03 -0.015 0" size="0.006" material="ee_mat" mass="0.01"/>
-            <geom name="ee_tip2" type="capsule" fromto="0  0.01 0  0.03  0.015 0" size="0.006" material="ee_mat" mass="0.01"/>
             <site name="end_effector" pos="0.015 0 0" size="0.005" rgba="1 0 0 0.5"/>
           </body>
         </body>

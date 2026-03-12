@@ -1,54 +1,85 @@
-# MuJoCo Robotics Crash Course Sandbox
+# Sandbox Robotics
 
-2-link planar robot üzerinden kinematik, IK, trajectory generation, PD control ve entegre pipeline çalışmaları için küçük bir çalışma deposu.
+A hands-on robotics lab for (re)learning robotics fundamentals through MuJoCo simulation.
 
-## Neler Tamamlandı?
+Everything is built from scratch on a simple **2-link planar robot arm** — forward kinematics, Jacobians, inverse kinematics, dynamics, trajectory generation, PD control, and computed torque control — culminating in a real integrated task: **drawing a precise Cartesian square**.
 
-- `A1`: MuJoCo model kurulumu ve temel simülasyon kontrolü
-- `A2`: Forward kinematics ve workspace analizi
-- `A3`: Analitik/nümerik Jacobian ve singularity gözlemi
-- `A4`: Analitik IK, `pinv`, `dls`
-- `A5`: Dynamics temelleri, `qfrc_bias`, `qM`
-- `B1`: Cubic, quintic ve cartesian trajectory generation
-- `B2`: PD controller ve gravity compensation karşılaştırması
-- `B3`: Full pipeline demo'ları
-- `B4`: Opsiyonel ROS2 bridge iskeleti
-- `B5`: README, test özeti ve VLA bağlantı notları
+## Showcase: From Scratch to First Real Task
 
-## Dizin Yapısı
+<video src="media/c1_draw_square.mp4" autoplay loop muted playsinline width="640"></video>
 
-- [`models/`](./models): MuJoCo XML robot modelleri
-- [`src/`](./src): Her adımın Python implementasyonları
-- [`docs/`](./docs): öğrenme notları, CSV çıktıları, test kayıtları
-- [`ros2_bridge/`](./ros2_bridge): opsiyonel ROS2 entegrasyon iskeleti
-- [`PROJECT-PLAN.md`](./PROJECT-PLAN.md): takip edilen ana plan
+> **Computed Torque Control** draws a 10 cm square with **0.008 mm RMS tracking error**.
+> Quintic trajectory, analytic IK, Jacobian-based velocity mapping, all running in MuJoCo.
 
-## Hızlı Çalıştırma
+Run `python3 src/c1_record_video.py` to regenerate the video.
+
+## What's Inside
+
+The project is structured as a progressive learning path:
+
+### A — Foundations
+| Module | Topic | Script |
+|--------|-------|--------|
+| A1 | MuJoCo setup & interactive demo | `src/a1_mujoco_setup.py` |
+| A2 | Forward kinematics & workspace | `src/a2_forward_kinematics.py` |
+| A3 | Analytic Jacobian & singularities | `src/a3_jacobian.py` |
+| A4 | Inverse kinematics (analytic, pinv, DLS) | `src/a4_inverse_kinematics.py` |
+| A5 | Dynamics basics (M, C, g from MuJoCo) | `src/a5_dynamics_basics.py` |
+
+### B — Control & Trajectory
+| Module | Topic | Script |
+|--------|-------|--------|
+| B1 | Cubic & quintic trajectory generation | `src/b1_trajectory_generation.py` |
+| B2 | PD control & gravity compensation | `src/b2_pd_controller.py` |
+| B3 | Full pipeline demos (pick-place, circle) | `src/b3_full_pipeline.py` |
+
+### C — Integration
+| Module | Topic | Script |
+|--------|-------|--------|
+| C1 | **Cartesian square drawing** — computed torque control | `src/c1_draw_square.py` |
+
+## Quick Start
 
 ```bash
-python3 src/a3_jacobian.py
-python3 src/a4_inverse_kinematics.py
-python3 src/b1_trajectory_generation.py
-python3 src/b2_pd_controller.py
-python3 src/b3_full_pipeline.py
+# Install dependencies
+pip install mujoco numpy imageio[ffmpeg]
+
+# Run the square drawing demo (opens MuJoCo viewer)
+python3 src/c1_draw_square.py
+
+# Record a video (headless)
+python3 src/c1_record_video.py
 ```
 
-## Test Özeti
+## Project Structure
 
-Detaylı kayıt: [`docs/testing.md`](./docs/testing.md)
+```
+models/          MuJoCo XML robot models (position & torque control variants)
+src/             Python scripts for each module
+docs/            Learning notes and documentation for each topic
+media/           Recorded demo videos
+```
 
-- `A3`: analitik vs numerik Jacobian farkı `1e-10`
-- `A4`: 20 hedefte `pinv` ve `dls` başarı oranı `%100`
-- `B1`: cubic/quintic sınır koşulları doğru, cartesian path sapması `0`
-- `B2`: tracking RMS error `0.008507 rad` (`gravity compensation` açıkken)
-- `B3`: pick-place RMS error `0.003990 m`, circle RMS error `0.002734 m`
+## Key Results
 
-## Humanoid VLA Bağlantısı
+| Metric | Value |
+|--------|-------|
+| Square tracking RMS error | 0.008 mm |
+| Square tracking max error | 0.013 mm |
+| Max torque used | 0.076 Nm |
+| Jacobian analytic vs numeric error | < 1e-10 |
+| IK success rate (20 targets) | 100% |
 
-1. FK/IK bilgisi, VLA action space ile joint-space arasındaki dönüşümü anlamak için doğrudan temel sağlar.
-2. Jacobian, joint velocity limitleri ve güvenlik kısıtlarını task-space üzerinden yönetmek için gereklidir.
-3. Trajectory generation ve PD tracking, veri üretim pipeline'ında motion planning ve düşük seviye takip mantığını somutlaştırır.
+## Documentation
 
-## Not
+Detailed notes for each module are in [`docs/`](docs/):
 
-Bu sandbox'ta `numpy`, `matplotlib`, `mujoco` ve `rclpy` görünmüyor. Kodlar mümkün olduğunca saf Python fallback içerir; gerçek MuJoCo/ROS2 entegrasyonu bağımlılıklar erişilebilir ortamda yeniden çalıştırılmalıdır.
+- [MuJoCo Basics](docs/a1_mujoco_temelleri.md)
+- [Forward Kinematics](docs/a2_forward_kinematics.md)
+- [Jacobian](docs/a3_jacobian.md)
+- [Inverse Kinematics](docs/a4_inverse_kinematics.md)
+- [Dynamics](docs/a5_dynamics.md)
+- [Trajectory Generation](docs/b1_trajectory_generation.md)
+- [PD Control](docs/b2_pd_controller.md)
+- [Full Pipeline](docs/b3_full_pipeline.md)
+- [Draw Square (C1)](docs/c1_draw_square.md)
