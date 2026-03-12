@@ -1,0 +1,23 @@
+# Claude AI working files
+.claude/
+CLAUDE.md
+tasks/
+
+# Session state
+docs/session.md
+docs-turkish/session.md
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,84 @@
+<mujoco model="two_link_torque">
+  <compiler angle="radian"/>
+  <option gravity="0 0 0" timestep="0.002"/>
+
+  <visual>
+    <headlight ambient="0.3 0.3 0.3" diffuse="0.6 0.6 0.6"/>
+    <quality shadowsize="2048"/>
+    <map znear="0.01"/>
+  </visual>
+
+  <default>
+    <joint damping="0.1" armature="0.01"/>
+    <geom contype="1" conaffinity="1"/>
+  </default>
+
+  <asset>
+    <texture name="grid" type="2d" builtin="checker" rgb1="0.85 0.85 0.85" rgb2="0.7 0.7 0.7" width="512" height="512"/>
+    <material name="grid_mat" texture="grid" texrepeat="8 8" reflectance="0.1"/>
+    <material name="base_mat" rgba="0.25 0.25 0.28 1" specular="0.6" shininess="0.8"/>
+    <material name="link1_mat" rgba="0.9 0.45 0.1 1" specular="0.4" shininess="0.5"/>
+    <material name="link2_mat" rgba="0.2 0.6 0.85 1" specular="0.4" shininess="0.5"/>
+    <material name="joint_mat" rgba="0.35 0.35 0.4 1" specular="0.7" shininess="0.9"/>
+    <material name="ee_mat" rgba="0.1 0.8 0.3 1" specular="0.5" shininess="0.6"/>
+  </asset>
+
+  <worldbody>
+    <!-- Isiklandirma -->
+    <light pos="0 -0.5 1.0" dir="0 0.3 -1" diffuse="0.9 0.9 0.9" specular="0.3 0.3 0.3"/>
+    <light pos="0.5 0.5 0.8" dir="-0.3 -0.3 -1" diffuse="0.4 0.4 0.5"/>
+
+    <!-- Zemin -->
+    <geom name="floor" type="plane" size="1 1 0.01" pos="0 0 -0.03" material="grid_mat" contype="0" conaffinity="0"/>
+
+    <!-- Base: masa uzerine montajli sabit platform -->
+    <body name="base" pos="0 0 0">
+      <!-- Base platform (silindir) -->
+      <geom name="base_plate" type="cylinder" size="0.06 0.015" pos="0 0 -0.015" material="base_mat" mass="0"/>
+      <!-- Base kolon -->
+      <geom name="base_column" type="cylinder" size="0.035 0.02" pos="0 0 0.005" material="base_mat" mass="0"/>
+
+      <!-- Link 1 -->
+      <body name="link1" pos="0 0 0">
+        <joint name="joint1" type="hinge" axis="0 0 1" range="-3.14 3.14"/>
+        <!-- Joint 1 silindir (donus noktasi) -->
+        <geom name="joint1_vis" type="cylinder" size="0.028 0.012" pos="0 0 0.02" material="joint_mat" mass="0.1"/>
+        <!-- Link 1 govde -->
+        <geom name="geom1" type="capsule" fromto="0 0 0  0.3 0 0" size="0.022" material="link1_mat" mass="1"/>
+
+        <!-- Link 2 -->
+        <body name="link2" pos="0.3 0 0">
+          <joint name="joint2" type="hinge" axis="0 0 1" range="-3.14 3.14"/>
+          <!-- Joint 2 silindir (donus noktasi) -->
+          <geom name="joint2_vis" type="cylinder" size="0.024 0.012" pos="0 0 0.02" material="joint_mat" mass="0.1"/>
+          <!-- Link 2 govde (biraz daha ince) -->
+          <geom name="geom2" type="capsule" fromto="0 0 0  0.3 0 0" size="0.018" material="link2_mat" mass="0.7"/>
+
+          <!-- End-effector -->
+          <body name="ee_body" pos="0.3 0 0">
+            <geom name="ee_sphere" type="sphere" size="0.022" material="ee_mat" mass="0.05"/>
+            <!-- Kucuk gripper uclari -->
+            <geom name="ee_tip1" type="capsule" fromto="0 -0.01 0  0.03 -0.015 0" size="0.006" material="ee_mat" mass="0.01"/>
+            <geom name="ee_tip2" type="capsule" fromto="0  0.01 0  0.03  0.015 0" size="0.006" material="ee_mat" mass="0.01"/>
+            <site name="end_effector" pos="0.015 0 0" size="0.005" rgba="1 0 0 0.5"/>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <!-- motor: ctrl = dogrudan torque (N.m). Fizik simule eder. -->
+    <motor name="torque1" joint="joint1" ctrlrange="-5 5"/>
+    <motor name="torque2" joint="joint2" ctrlrange="-5 5"/>
+  </actuator>
+
+  <sensor>
+    <jointpos name="pos_joint1" joint="joint1"/>
+    <jointpos name="pos_joint2" joint="joint2"/>
+    <jointvel name="vel_joint1" joint="joint1"/>
+    <jointvel name="vel_joint2" joint="joint2"/>
+    <actuatorfrc name="frc1" actuator="torque1"/>
+    <actuatorfrc name="frc2" actuator="torque2"/>
+  </sensor>
+</mujoco>
