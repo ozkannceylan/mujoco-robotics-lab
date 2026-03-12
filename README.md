@@ -113,7 +113,7 @@ media/    Recorded videos and visual outputs
 
 Detailed notes for each module are available in [`docs/`](docs/):
 
-* [MuJoCo Basics](docs/a1_mujoco_temelleri.md)
+* [MuJoCo Basics](docs/a1_mujoco_basics.md)
 * [Forward Kinematics](docs/a2_forward_kinematics.md)
 * [Jacobian](docs/a3_jacobian.md)
 * [Inverse Kinematics](docs/a4_inverse_kinematics.md)
