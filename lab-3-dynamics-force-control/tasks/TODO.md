@@ -8,10 +8,10 @@
 - [x] Step 1.5: Write Phase 1 tests — DONE (2026-03-15)
 
 ## Phase 2: Cartesian Impedance Controller
-- [ ] Step 2.1: Implement task-space impedance controller
-- [ ] Step 2.2: Add orientation impedance
-- [ ] Step 2.3: Tunable compliance demo
-- [ ] Step 2.4: Write Phase 2 tests
+- [x] Step 2.1: Implement task-space impedance controller — DONE (2026-03-15)
+- [x] Step 2.2: Add orientation impedance — DONE (2026-03-15)
+- [x] Step 2.3: Tunable compliance demo — DONE (2026-03-15)
+- [x] Step 2.4: Write Phase 2 tests — DONE (2026-03-15)
 
 ## Phase 3: Force Control & Contact
 - [ ] Step 3.1: Add contact surface to scene
@@ -27,7 +27,7 @@
 - [ ] Step 4.5: Write README.md
 
 ## Current Focus
-> Phase 1 complete. Ready for Phase 2.
+> Phase 2 complete. Ready for Phase 3.
 
 ## Blockers
 > None
