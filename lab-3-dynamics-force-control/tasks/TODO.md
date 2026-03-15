@@ -14,10 +14,10 @@
 - [x] Step 2.4: Write Phase 2 tests — DONE (2026-03-15)
 
 ## Phase 3: Force Control & Contact
-- [ ] Step 3.1: Add contact surface to scene
-- [ ] Step 3.2: Implement hybrid position-force controller
-- [ ] Step 3.3: Capstone — constant-force line tracing
-- [ ] Step 3.4: Write Phase 3 tests
+- [x] Step 3.1: Add contact surface to scene — DONE (2026-03-15)
+- [x] Step 3.2: Implement hybrid position-force controller — DONE (2026-03-15)
+- [x] Step 3.3: Capstone — constant-force line tracing — DONE (2026-03-15)
+- [x] Step 3.4: Write Phase 3 tests — DONE (2026-03-15)
 
 ## Phase 4: Documentation & Blog
 - [ ] Step 4.1: Write English documentation
@@ -27,7 +27,7 @@
 - [ ] Step 4.5: Write README.md
 
 ## Current Focus
-> Phase 2 complete. Ready for Phase 3.
+> Step 4.1: Write English documentation
 
 ## Blockers
 > None

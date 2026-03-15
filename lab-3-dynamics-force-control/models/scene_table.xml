@@ -32,7 +32,7 @@
     <!-- Table surface for force control experiments -->
     <body name="table" pos="0.4 0.0 0.15">
       <geom name="table_top" type="box" size="0.3 0.4 0.02"
-            material="table_wood"
+            material="table_wood" contype="2" conaffinity="2"
             solref="0.02 1.0" solimp="0.9 0.95 0.001 0.5 2"/>
       <!-- Table legs -->
       <geom type="cylinder" pos="-0.25 -0.35 -0.08" size="0.02 0.06" rgba="0.3 0.3 0.3 1" contype="0" conaffinity="0"/>
