@@ -1,11 +1,11 @@
 # Lab 4: TODO
 
 ## Phase 1: Collision Infrastructure
-- [ ] Step 1.1: Create cluttered MJCF scene
-- [ ] Step 1.2: Create common module (`lab4_common.py`)
-- [ ] Step 1.3: Set up Pinocchio collision model with obstacles
-- [ ] Step 1.4: Cross-validate collision between Pinocchio and MuJoCo
-- [ ] Step 1.5: Write Phase 1 tests
+- [x] Step 1.1: Create cluttered MJCF scene — DONE (2026-03-15)
+- [x] Step 1.2: Create common module (`lab4_common.py`) — DONE (2026-03-15)
+- [x] Step 1.3: Set up Pinocchio collision model with obstacles — DONE (2026-03-15)
+- [x] Step 1.4: Cross-validate collision between Pinocchio and MuJoCo — DONE (2026-03-15)
+- [x] Step 1.5: Write Phase 1 tests — DONE (2026-03-15)
 
 ## Phase 2: RRT / RRT* Implementation
 - [ ] Step 2.1: Implement basic RRT planner
@@ -29,7 +29,7 @@
 - [ ] Step 4.6: Write README.md
 
 ## Current Focus
-> Step 1.1: Create cluttered MJCF scene
+> Step 2.1: Implement basic RRT planner
 
 ## Blockers
 > None
