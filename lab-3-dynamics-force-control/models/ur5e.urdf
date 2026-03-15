@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  UR5e URDF for Lab 3 — built to exactly match lab-3 ur5e.xml (MuJoCo).
+  Kinematic chain, inertias, and masses extracted directly from the MJCF
+  using mj_model body properties. All joints rotate about local Z axis.
+
+  MJCF body hierarchy with local transforms:
+    world → base (pos=0,0,0)
+    base → shoulder (pos=0,0,0.1625)
+    shoulder → upper_arm (pos=0,0,0  euler_x=π/2)
+    upper_arm → forearm (pos=-0.425,0,0)
+    forearm → wrist_1 (pos=-0.3922,0,0.1333)
+    wrist_1 → wrist_2 (pos=0,0,0.0997  euler_x=π/2)
+    wrist_2 → wrist_3 (pos=0,0,0.0996  euler_x=-π/2)
+    wrist_3 → tool0 (pos=0,0,0.135)
+-->
+<robot name="ur5e">
+
+  <!-- ===== Links ===== -->
+  <link name="world"/>
+
+  <link name="base_link">
+    <inertial>
+      <mass value="2.4429"/>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <inertia ixx="0.00787836" ixy="0" ixz="0"
+               iyy="0.00787836" iyz="0" izz="0.00989375"/>
+    </inertial>
+  </link>
+
+  <link name="shoulder_link">
+    <inertial>
+      <mass value="2.0736"/>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <inertia ixx="0.00808704" ixy="0" ixz="0"
+               iyy="0.00808704" iyz="0" izz="0.00497664"/>
+    </inertial>
+  </link>
+
+  <link name="upper_arm_link">
+    <inertial>
+      <mass value="3.7887"/>
+      <origin rpy="0 0 0" xyz="-0.2125 0 0"/>
+      <!-- Rotated from principal frame by iquat=[0.707,0,0.707,0] (90° about Y) -->
+      <inertia ixx="0.00556169" ixy="0" ixz="0"
+               iyy="0.08181631" iyz="0" izz="0.08181631"/>
+    </inertial>
+  </link>
+
+  <link name="forearm_link">
+    <inertial>
+      <mass value="3.0216"/>
+      <origin rpy="0 0 0" xyz="-0.1961 0 0.06665"/>
+      <!-- Rotated from principal frame by iquat=[0.582,0,0.813,0] -->
+      <inertia ixx="0.00955541" ixy="0" ixz="0.01730959"
+               iyy="0.06048429" iyz="0" izz="0.05460115"/>
+    </inertial>
+  </link>
+
+  <link name="wrist_1_link">
+    <inertial>
+      <mass value="0.8128"/>
+      <origin rpy="0 0 0" xyz="0 0 0.04985"/>
+      <inertia ixx="0.00219712" ixy="0" ixz="0"
+               iyy="0.00219712" iyz="0" izz="0.0007611"/>
+    </inertial>
+  </link>
+
+  <link name="wrist_2_link">
+    <inertial>
+      <mass value="0.6150"/>
+      <origin rpy="0 0 0" xyz="0 0 0.0498"/>
+      <inertia ixx="0.00148086" ixy="0" ixz="0"
+               iyy="0.00148086" iyz="0" izz="0.00045767"/>
+    </inertial>
+  </link>
+
+  <link name="wrist_3_link">
+    <inertial>
+      <mass value="0.5593"/>
+      <origin rpy="0 0 0" xyz="0 0 0.0675"/>
+      <inertia ixx="0.00173813" ixy="0" ixz="0"
+               iyy="0.00173813" iyz="0" izz="0.00032498"/>
+    </inertial>
+  </link>
+
+  <link name="ee_link">
+    <inertial>
+      <mass value="0.0972"/>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <inertia ixx="0.0001549125" ixy="0" ixz="0"
+               iyy="0.0001549125" iyz="0" izz="0.00001458"/>
+    </inertial>
+  </link>
+
+  <!-- ===== Joints ===== -->
+
+  <joint name="world_joint" type="fixed">
+    <parent link="world"/>
+    <child link="base_link"/>
+    <origin rpy="0 0 0" xyz="0 0 0"/>
+  </joint>
+
+  <!-- base → shoulder: translate Z by 0.1625 -->
+  <joint name="shoulder_pan_joint" type="revolute">
+    <parent link="base_link"/>
+    <child link="shoulder_link"/>
+    <origin rpy="0 0 0" xyz="0 0 0.1625"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="150.0" lower="-6.28318530718" upper="6.28318530718" velocity="3.14"/>
+  </joint>
+
+  <!-- shoulder → upper_arm: no translation, rotate X by π/2 -->
+  <joint name="shoulder_lift_joint" type="revolute">
+    <parent link="shoulder_link"/>
+    <child link="upper_arm_link"/>
+    <origin rpy="1.5707963267948966 0 0" xyz="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="150.0" lower="-6.28318530718" upper="6.28318530718" velocity="3.14"/>
+  </joint>
+
+  <!-- upper_arm → forearm: translate X by -0.425 -->
+  <joint name="elbow_joint" type="revolute">
+    <parent link="upper_arm_link"/>
+    <child link="forearm_link"/>
+    <origin rpy="0 0 0" xyz="-0.425 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="150.0" lower="-6.28318530718" upper="6.28318530718" velocity="3.14"/>
+  </joint>
+
+  <!-- forearm → wrist_1: translate X by -0.3922, Z by 0.1333 -->
+  <joint name="wrist_1_joint" type="revolute">
+    <parent link="forearm_link"/>
+    <child link="wrist_1_link"/>
+    <origin rpy="0 0 0" xyz="-0.3922 0 0.1333"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="28.0" lower="-6.28318530718" upper="6.28318530718" velocity="6.28"/>
+  </joint>
+
+  <!-- wrist_1 → wrist_2: translate Z by 0.0997, rotate X by π/2 -->
+  <joint name="wrist_2_joint" type="revolute">
+    <parent link="wrist_1_link"/>
+    <child link="wrist_2_link"/>
+    <origin rpy="1.5707963267948966 0 0" xyz="0 0 0.0997"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="28.0" lower="-6.28318530718" upper="6.28318530718" velocity="6.28"/>
+  </joint>
+
+  <!-- wrist_2 → wrist_3: translate Z by 0.0996, rotate X by -π/2 -->
+  <joint name="wrist_3_joint" type="revolute">
+    <parent link="wrist_2_link"/>
+    <child link="wrist_3_link"/>
+    <origin rpy="-1.5707963267948966 0 0" xyz="0 0 0.0996"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="28.0" lower="-6.28318530718" upper="6.28318530718" velocity="6.28"/>
+  </joint>
+
+  <!-- wrist_3 → ee_link (tool0): translate Z by 0.135 -->
+  <joint name="ee_fixed_joint" type="fixed">
+    <parent link="wrist_3_link"/>
+    <child link="ee_link"/>
+    <origin rpy="0 0 0" xyz="0 0 0.135"/>
+  </joint>
+
+</robot>

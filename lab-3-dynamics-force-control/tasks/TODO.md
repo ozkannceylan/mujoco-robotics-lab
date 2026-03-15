@@ -1,11 +1,11 @@
 # Lab 3: TODO
 
 ## Phase 1: Dynamics Fundamentals
-- [ ] Step 1.1: Create torque-mode MJCF scene
-- [ ] Step 1.2: Create common module (`lab3_common.py`)
-- [ ] Step 1.3: Compute and visualize M(q), C(q,q̇), g(q)
-- [ ] Step 1.4: Implement gravity compensation controller
-- [ ] Step 1.5: Write Phase 1 tests
+- [x] Step 1.1: Create torque-mode MJCF scene — DONE (2026-03-15)
+- [x] Step 1.2: Create common module (`lab3_common.py`) — DONE (2026-03-15)
+- [x] Step 1.3: Compute and visualize M(q), C(q,q̇), g(q) — DONE (2026-03-15)
+- [x] Step 1.4: Implement gravity compensation controller — DONE (2026-03-15)
+- [x] Step 1.5: Write Phase 1 tests — DONE (2026-03-15)
 
 ## Phase 2: Cartesian Impedance Controller
 - [ ] Step 2.1: Implement task-space impedance controller
@@ -27,7 +27,7 @@
 - [ ] Step 4.5: Write README.md
 
 ## Current Focus
-> Step 1.1: Create torque-mode MJCF scene
+> Phase 1 complete. Ready for Phase 2.
 
 ## Blockers
 > None
