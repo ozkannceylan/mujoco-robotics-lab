@@ -20,14 +20,14 @@
 - [x] Step 3.4: Write Phase 3 tests — DONE (2026-03-15)
 
 ## Phase 4: Documentation & Blog
-- [ ] Step 4.1: Write English documentation
-- [ ] Step 4.2: Write Turkish documentation
-- [ ] Step 4.3: Write blog post
-- [ ] Step 4.4: Record capstone demo
-- [ ] Step 4.5: Write README.md
+- [x] Step 4.1: Write English documentation — DONE (2026-03-15)
+- [x] Step 4.2: Write Turkish documentation — DONE (2026-03-15)
+- [x] Step 4.3: Write blog post — DONE (2026-03-15)
+- [x] Step 4.4: Record capstone demo — DONE (2026-03-15) (plots saved to media/)
+- [x] Step 4.5: Write README.md — DONE (2026-03-15)
 
 ## Current Focus
-> Step 4.1: Write English documentation
+> Lab 3 complete!
 
 ## Blockers
 > None
