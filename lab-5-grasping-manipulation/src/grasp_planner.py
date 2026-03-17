@@ -78,10 +78,13 @@ def compute_ik(
         # Position error
         pos_err = x_target - oMf.translation
 
-        # Orientation error via skew-symmetric R error
+        # Orientation error using Lie algebra log3 (world frame, LOCAL_WORLD_ALIGNED Jacobian).
+        # The skew-symmetric formula  -0.5*(R_target.T@R_cur - R_cur.T@R_target)  has a
+        # 180° singularity: any symmetric 180°-rotation gives zero anti-symmetric part,
+        # so the IK silently converges to a completely wrong orientation.
+        # log3(R_target @ R_cur.T) correctly reports ~π·axis for 180° errors.
         R_cur = oMf.rotation
-        R_err = R_target.T @ R_cur - R_cur.T @ R_target
-        ori_err = -0.5 * np.array([R_err[2, 1], R_err[0, 2], R_err[1, 0]])
+        ori_err = pin.log3(R_target @ R_cur.T)
 
         err = np.concatenate([pos_err, ori_err])
         if np.linalg.norm(err) < tol:
@@ -177,22 +180,20 @@ def compute_grasp_configs(
         return _tool0_target(box_pos) + np.array([0.0, 0.0, PREGRASP_CLEARANCE])
 
     # --- Compute IK for each phase ---
-    targets = {
-        "pregrasp": (_pregrasp_target(box_a_pos), Q_HOME),
-        "grasp":    (_tool0_target(box_a_pos),    Q_HOME),
-        "preplace": (_pregrasp_target(box_b_pos), Q_HOME),
-        "place":    (_tool0_target(box_b_pos),    Q_HOME),
-    }
+    # Solve in order so we can use earlier solutions as seeds for later ones.
+    # For box_b (Y-mirrored side), seed from the box_a pregrasp solution with
+    # shoulder_pan negated — this keeps the IK in a continuous branch and avoids
+    # the solver getting stuck in a local minimum far from the target.
 
     configs: dict[str, np.ndarray] = {}
-    for name, (x_tgt, q_hint) in targets.items():
+
+    def _solve(name: str, x_tgt: np.ndarray, q_hint: np.ndarray) -> np.ndarray:
         q_sol = compute_ik(pin_model, pin_data, ee_fid, x_tgt, R_topdown, q_hint)
         if q_sol is None:
             raise RuntimeError(
                 f"IK failed for '{name}' target at {x_tgt}. "
                 "Check target reachability and joint limits."
             )
-        # Verify IK accuracy
         pin.forwardKinematics(pin_model, pin_data, q_sol)
         pin.updateFramePlacements(pin_model, pin_data)
         achieved = pin_data.oMf[ee_fid].translation
@@ -202,7 +203,16 @@ def compute_grasp_configs(
                 f"IK for '{name}' converged but position error {err_m*1000:.1f} mm "
                 f"exceeds 5 mm. Target: {x_tgt}, Achieved: {achieved}"
             )
-        configs[name] = q_sol
+        return q_sol
+
+    configs["pregrasp"] = _solve("pregrasp", _pregrasp_target(box_a_pos), Q_HOME)
+    configs["grasp"]    = _solve("grasp",    _tool0_target(box_a_pos),    Q_HOME)
+
+    # Seed preplace/place from pregrasp with shoulder_pan mirrored (joint 0)
+    q_hint_b = configs["pregrasp"].copy()
+    q_hint_b[0] = -q_hint_b[0]
+    configs["preplace"] = _solve("preplace", _pregrasp_target(box_b_pos), q_hint_b)
+    configs["place"]    = _solve("place",    _tool0_target(box_b_pos),    q_hint_b)
 
     return GraspConfigs(
         q_home=Q_HOME.copy(),

@@ -35,9 +35,11 @@ DT = 0.001              # simulation timestep (1 kHz)
 GRIPPER_OPEN = 0.030    # metres — fingers spread 60 mm gap
 GRIPPER_CLOSED = 0.0    # metres — fingers at minimum gap (squeeze object)
 
-# Offset from tool0 origin to fingertip centre (along tool0 local Z)
-# = gripper_base z (0.020) + finger_body z (0.060) + pad half-height (0.008) + some clearance
-GRIPPER_TIP_OFFSET = 0.090  # metres
+# Offset from tool0 origin to fingertip pad centre (along tool0 local Z, pointing down)
+# = gripper_base z (0.020) + finger_body z (0.060) + pad z in finger_body (0.025) = 0.105 m
+# NOTE: the pad z within finger_body is 0.025 m (pos="0 0.009 0.025" in ur5e_gripper.xml),
+#       NOT the pad half-height (0.008). Using 0.090 placed pads 15 mm too low, into table.
+GRIPPER_TIP_OFFSET = 0.105  # metres
 
 TORQUE_LIMITS = np.array([150.0, 150.0, 150.0, 28.0, 28.0, 28.0])
 VEL_LIMITS = np.array([3.14, 3.14, 3.14, 6.28, 6.28, 6.28])

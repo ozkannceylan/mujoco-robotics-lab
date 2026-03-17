@@ -19,6 +19,7 @@ from pathlib import Path
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import mujoco
 import numpy as np
 
 _SRC = Path(__file__).resolve().parent
@@ -54,18 +55,18 @@ def plot_results(log: dict, save_dir: Path) -> None:
     grip = log["gripper_pos"]
     states = log["state"]
 
-    # --- 1. EE trajectory 3D ---
-    fig = plt.figure(figsize=(10, 7))
-    ax = fig.add_subplot(111, projection="3d")
-    sc = ax.scatter(ee[:, 0], ee[:, 1], ee[:, 2],
-                    c=t, cmap="viridis", s=1, alpha=0.7)
-    ax.scatter(*BOX_A_POS, c="blue", s=150, marker="^", zorder=5, label="Box A (pick)")
-    ax.scatter(*BOX_B_POS, c="green", s=150, marker="*", zorder=5, label="Box B (place)")
-    plt.colorbar(sc, ax=ax, label="Time (s)", shrink=0.7)
+    # --- 1. EE trajectory (XY top-down view) ---
+    fig, ax = plt.subplots(figsize=(8, 7))
+    sc = ax.scatter(ee[:, 0], ee[:, 1], c=t, cmap="viridis", s=1, alpha=0.7)
+    ax.scatter(BOX_A_POS[0], BOX_A_POS[1], c="blue", s=150, marker="^",
+               zorder=5, label="Box A (pick)")
+    ax.scatter(BOX_B_POS[0], BOX_B_POS[1], c="green", s=150, marker="*",
+               zorder=5, label="Box B (place)")
+    plt.colorbar(sc, ax=ax, label="Time (s)")
     ax.set_xlabel("X (m)")
     ax.set_ylabel("Y (m)")
-    ax.set_zlabel("Z (m)")
-    ax.set_title("End-Effector Trajectory (gripper tip)")
+    ax.set_title("End-Effector Trajectory — Top View (X-Y)")
+    ax.set_aspect("equal")
     ax.legend()
     fig.tight_layout()
     fig.savefig(save_dir / "ee_trajectory_3d.png", dpi=150)
@@ -164,8 +165,7 @@ def main() -> None:
     # Results summary
     t_total = log["time"][-1]
     ee_final = log["ee_pos"][-1]
-    box_bid = mujoco.mj_name2id(mj_model, mujoco.mjtObj.mjOBJ_BODY, "grasp_box")  # noqa
-    import mujoco  # bring into scope after state machine completes
+    box_bid = mujoco.mj_name2id(mj_model, mujoco.mjtObj.mjOBJ_BODY, "grasp_box")
     box_final = mj_data.xpos[box_bid].copy()
 
     print(f"\n{'='*65}")

@@ -55,7 +55,7 @@
                             rgba="0.15 0.15 0.15 1" mass="0.08"/>
 
                       <!-- Left finger: slides in +Y direction -->
-                      <body name="left_finger" pos="0 0.020 0.060">
+                      <body name="left_finger" pos="0 0.015 0.060">
                         <joint name="left_finger_joint" type="slide"
                                axis="0 1 0" range="0 0.030"
                                damping="2.0" armature="0.0001"/>
@@ -75,7 +75,7 @@
                       </body>
 
                       <!-- Right finger: slides in -Y direction (mirror of left) -->
-                      <body name="right_finger" pos="0 -0.020 0.060">
+                      <body name="right_finger" pos="0 -0.015 0.060">
                         <joint name="right_finger_joint" type="slide"
                                axis="0 -1 0" range="0 0.030"
                                damping="2.0" armature="0.0001"/>
@@ -126,6 +126,6 @@
     <motor name="motor6" joint="wrist_3_joint"/>
     <!-- Gripper: position-controlled (index 6) -->
     <position name="gripper" joint="left_finger_joint"
-              kp="200" ctrllimited="true" ctrlrange="0 0.030"/>
+              kp="1000" ctrllimited="true" ctrlrange="0 0.030"/>
   </actuator>
 </mujoco>
