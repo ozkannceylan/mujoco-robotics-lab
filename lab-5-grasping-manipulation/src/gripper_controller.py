@@ -87,25 +87,30 @@ def is_gripper_settled(mj_model, mj_data, vel_thresh: float = 5e-4) -> bool:
 
 
 def is_gripper_in_contact(mj_model, mj_data) -> bool:
-    """Check if either finger pad is in contact with any object.
+    """Check if any finger geometry is in contact with any object.
 
-    Iterates over all active contacts and checks if either
-    'left_pad' or 'right_pad' appears in the contact pair.
+    Iterates over all active contacts and checks if any finger geom
+    ('left_pad', 'right_pad', 'left_finger_geom', 'right_finger_geom')
+    appears in the contact pair.
 
     Args:
         mj_model: MuJoCo model.
         mj_data: MuJoCo data.
 
     Returns:
-        True if at least one finger pad is in contact.
+        True if at least one finger geom is in contact.
     """
-    left_gid = mujoco.mj_name2id(mj_model, mujoco.mjtObj.mjOBJ_GEOM, "left_pad")
-    right_gid = mujoco.mj_name2id(mj_model, mujoco.mjtObj.mjOBJ_GEOM, "right_pad")
-    pad_ids = {left_gid, right_gid}
+    finger_geom_names = (
+        "left_pad", "right_pad", "left_finger_geom", "right_finger_geom"
+    )
+    finger_ids = {
+        mujoco.mj_name2id(mj_model, mujoco.mjtObj.mjOBJ_GEOM, n)
+        for n in finger_geom_names
+    }
 
     for i in range(mj_data.ncon):
         c = mj_data.contact[i]
-        if c.geom1 in pad_ids or c.geom2 in pad_ids:
+        if c.geom1 in finger_ids or c.geom2 in finger_ids:
             return True
     return False
 

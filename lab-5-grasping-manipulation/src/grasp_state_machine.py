@@ -317,7 +317,7 @@ class GraspStateMachine:
                 f"RRT* failed to find path from {q_start} to {q_goal}."
             )
         path = shortcut_path(path, self._cc, max_iter=200, seed=seed)
-        times, q_traj, qd_traj = parameterize_topp_ra(path, VEL_LIMITS, ACC_LIMITS)
+        times, q_traj, qd_traj, _ = parameterize_topp_ra(path, VEL_LIMITS, ACC_LIMITS)
         return times, q_traj, qd_traj
 
     def _run_joint_impedance(
@@ -417,27 +417,40 @@ class GraspStateMachine:
         self._hold_position(duration=0.5, q_hold=self.mj_data.qpos[:NUM_JOINTS].copy())
 
     def _run_close_gripper(self) -> None:
-        """Close gripper and wait for settlement, then hold."""
+        """Close gripper and wait for settlement, then hold.
+
+        The arm is held at its current joint configuration with joint impedance
+        while the gripper closes, preventing reaction forces from drifting the
+        arm away from the object before contact is confirmed.
+        """
         close_gripper(self.mj_data)
+        q_hold_close = self.mj_data.qpos[:NUM_JOINTS].copy()
         settle_steps = self.SETTLE_STEPS
+        contact_during_settle = False
         for _ in range(settle_steps):
             q = self.mj_data.qpos[:NUM_JOINTS].copy()
+            qd = self.mj_data.qvel[:NUM_JOINTS].copy()
             pin.computeGeneralizedGravity(self.pin_model, self.pin_data, q)
             g = self.pin_data.g.copy()
-            tau = clip_torques(g)
+            tau = clip_torques(
+                self.Kp_joint * (q_hold_close - q)
+                + self.Kd_joint * (0.0 - qd)
+                + g
+            )
             self.mj_data.ctrl[:NUM_JOINTS] = tau
             mujoco.mj_step(self.mj_model, self.mj_data)
             self._t += DT
             self._record()
+            if is_gripper_in_contact(self.mj_model, self.mj_data):
+                contact_during_settle = True
             if is_gripper_settled(self.mj_model, self.mj_data):
                 break
 
         # Extra hold to let contact forces stabilise
-        n_extra = int(self.GRIPPER_WAIT_DURATION / DT)
         q_hold = self.mj_data.qpos[:NUM_JOINTS].copy()
         self._hold_position(duration=self.GRIPPER_WAIT_DURATION, q_hold=q_hold)
 
-        in_contact = is_gripper_in_contact(self.mj_model, self.mj_data)
+        in_contact = is_gripper_in_contact(self.mj_model, self.mj_data) or contact_during_settle
         print(f"    Gripper closed — contact: {in_contact}")
 
     def _run_open_gripper(self) -> None:
