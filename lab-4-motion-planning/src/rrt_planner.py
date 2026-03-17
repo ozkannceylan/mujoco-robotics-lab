@@ -15,7 +15,10 @@ from pathlib import Path
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
-from mpl_toolkits.mplot3d import Axes3D
+try:
+    from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
+except ImportError:
+    Axes3D = None  # visualization only — safe to skip
 
 from collision_checker import CollisionChecker
 from lab4_common import JOINT_LOWER, JOINT_UPPER, MEDIA_DIR, ObstacleSpec
