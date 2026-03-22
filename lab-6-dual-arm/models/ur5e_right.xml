@@ -1,0 +1,48 @@
+<mujoco>
+  <worldbody>
+    <!-- Right arm base placed at x=1.0 and rotated 180° around Z so it faces the left arm -->
+    <body name="right_base" pos="1.0 0 0" euler="0 0 3.14159265359">
+      <geom name="right_base_geom" type="cylinder" size="0.09 0.06" rgba="0.20 0.20 0.20 1"/>
+      <body name="right_shoulder" pos="0 0 0.1625" euler="0 0 0">
+        <joint name="right_shoulder_pan_joint" axis="0 0 1" range="-6.28318530718 6.28318530718"/>
+        <geom name="right_shoulder_geom" type="box" size="0.06 0.06 0.09"/>
+        <body name="right_upper_arm" pos="0 0 0" euler="1.57079632679 0 0">
+          <joint name="right_shoulder_lift_joint" axis="0 0 1" range="-6.28318530718 6.28318530718"/>
+          <geom name="right_upper_arm_geom" type="capsule" fromto="0 0 0 -0.425 0 0" size="0.055"/>
+          <body name="right_forearm" pos="-0.425 0 0" euler="0 0 0">
+            <joint name="right_elbow_joint" axis="0 0 1" range="-6.28318530718 6.28318530718"/>
+            <geom name="right_forearm_geom" type="capsule" fromto="0 0 0 -0.3922 0 0.1333" size="0.05"/>
+            <body name="right_wrist_1" pos="-0.3922 0 0.1333" euler="0 0 0">
+              <joint name="right_wrist_1_joint" axis="0 0 1" range="-6.28318530718 6.28318530718"/>
+              <geom name="right_wrist_1_geom" type="capsule" fromto="0 0 0 0 0 0.0997" size="0.045"/>
+              <body name="right_wrist_2" pos="0 0 0.0997" euler="1.57079632679 0 0">
+                <joint name="right_wrist_2_joint" axis="0 0 1" range="-6.28318530718 6.28318530718"/>
+                <geom name="right_wrist_2_geom" type="capsule" fromto="0 0 0 0 0 0.0996" size="0.04"/>
+                <body name="right_wrist_3" pos="0 0 0.0996" euler="-1.57079632679 0 0">
+                  <joint name="right_wrist_3_joint" axis="0 0 1" range="-6.28318530718 6.28318530718"/>
+                  <geom name="right_wrist_3_geom" type="capsule" fromto="0 0 0 0 0 0.135" size="0.035"/>
+                  <body name="right_tool0" pos="0 0 0.135">
+                    <geom name="right_tool0_geom" type="box" size="0.015 0.015 0.0675" rgba="0.20 0.20 0.20 1"/>
+                    <geom name="right_probe_tip" type="sphere" size="0.01" pos="0 0 0"
+                          contype="2" conaffinity="2" rgba="0.2 0.2 1.0 0.8"
+                          density="0" mass="0"/>
+                    <site name="right_tool_site" pos="0 0 0" size="0.012" rgba="0.2 0.2 1.0 1"/>
+                  </body>
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <motor name="right_motor1" joint="right_shoulder_pan_joint"/>
+    <motor name="right_motor2" joint="right_shoulder_lift_joint"/>
+    <motor name="right_motor3" joint="right_elbow_joint"/>
+    <motor name="right_motor4" joint="right_wrist_1_joint"/>
+    <motor name="right_motor5" joint="right_wrist_2_joint"/>
+    <motor name="right_motor6" joint="right_wrist_3_joint"/>
+  </actuator>
+</mujoco>

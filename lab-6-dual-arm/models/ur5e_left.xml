@@ -1,0 +1,47 @@
+<mujoco>
+  <worldbody>
+    <body name="left_base" pos="0 0 0">
+      <geom name="left_base_geom" type="cylinder" size="0.09 0.06" rgba="0.20 0.20 0.20 1"/>
+      <body name="left_shoulder" pos="0 0 0.1625" euler="0 0 0">
+        <joint name="left_shoulder_pan_joint" axis="0 0 1" range="-6.28318530718 6.28318530718"/>
+        <geom name="left_shoulder_geom" type="box" size="0.06 0.06 0.09"/>
+        <body name="left_upper_arm" pos="0 0 0" euler="1.57079632679 0 0">
+          <joint name="left_shoulder_lift_joint" axis="0 0 1" range="-6.28318530718 6.28318530718"/>
+          <geom name="left_upper_arm_geom" type="capsule" fromto="0 0 0 -0.425 0 0" size="0.055"/>
+          <body name="left_forearm" pos="-0.425 0 0" euler="0 0 0">
+            <joint name="left_elbow_joint" axis="0 0 1" range="-6.28318530718 6.28318530718"/>
+            <geom name="left_forearm_geom" type="capsule" fromto="0 0 0 -0.3922 0 0.1333" size="0.05"/>
+            <body name="left_wrist_1" pos="-0.3922 0 0.1333" euler="0 0 0">
+              <joint name="left_wrist_1_joint" axis="0 0 1" range="-6.28318530718 6.28318530718"/>
+              <geom name="left_wrist_1_geom" type="capsule" fromto="0 0 0 0 0 0.0997" size="0.045"/>
+              <body name="left_wrist_2" pos="0 0 0.0997" euler="1.57079632679 0 0">
+                <joint name="left_wrist_2_joint" axis="0 0 1" range="-6.28318530718 6.28318530718"/>
+                <geom name="left_wrist_2_geom" type="capsule" fromto="0 0 0 0 0 0.0996" size="0.04"/>
+                <body name="left_wrist_3" pos="0 0 0.0996" euler="-1.57079632679 0 0">
+                  <joint name="left_wrist_3_joint" axis="0 0 1" range="-6.28318530718 6.28318530718"/>
+                  <geom name="left_wrist_3_geom" type="capsule" fromto="0 0 0 0 0 0.135" size="0.035"/>
+                  <body name="left_tool0" pos="0 0 0.135">
+                    <geom name="left_tool0_geom" type="box" size="0.015 0.015 0.0675" rgba="0.20 0.20 0.20 1"/>
+                    <geom name="left_probe_tip" type="sphere" size="0.01" pos="0 0 0"
+                          contype="2" conaffinity="2" rgba="1 0.2 0.2 0.8"
+                          density="0" mass="0"/>
+                    <site name="left_tool_site" pos="0 0 0" size="0.012" rgba="1 0.2 0.2 1"/>
+                  </body>
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <motor name="left_motor1" joint="left_shoulder_pan_joint"/>
+    <motor name="left_motor2" joint="left_shoulder_lift_joint"/>
+    <motor name="left_motor3" joint="left_elbow_joint"/>
+    <motor name="left_motor4" joint="left_wrist_1_joint"/>
+    <motor name="left_motor5" joint="left_wrist_2_joint"/>
+    <motor name="left_motor6" joint="left_wrist_3_joint"/>
+  </actuator>
+</mujoco>
