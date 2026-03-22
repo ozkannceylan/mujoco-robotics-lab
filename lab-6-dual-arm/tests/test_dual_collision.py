@@ -71,21 +71,17 @@ def test_arm_into_table_detected(checker):
     # Check the checker at home first (sanity guard)
     assert checker.is_collision_free(Q_HOME_LEFT, Q_HOME_RIGHT)
 
-    # Fold the left elbow sharply to drive links into the table region.
-    # shoulder_lift = -pi brings the upper arm down toward the table.
-    # elbow = pi/2 folds the forearm forward, likely colliding with table top.
-    q_into_table = np.array([0.0, -math.pi / 2, math.pi / 2, 0.0, 0.0, 0.0])
-
-    # This configuration may or may not collide depending on exact geometry;
-    # use an extreme config that definitely dips below z = 0.17.
-    # shoulder_lift = -pi/2 points the arm horizontally, elbow = pi folds it fully down.
-    q_down = np.array([0.0, -math.pi * 0.8, math.pi * 0.8, -math.pi * 0.5, 0.0, 0.0])
+    # Rotate shoulder_pan toward table (pi/2), then extend arm downward.
+    # At sp=pi/2, sl=0.5 the arm penetrates through the table.
+    q_into_table_a = np.array([math.pi / 2, 0.5, 0.0, 0.0, 0.0, 0.0])
+    # Even more extreme: sl=0.7
+    q_into_table_b = np.array([math.pi / 2, 0.7, 0.0, 0.0, 0.0, 0.0])
 
     # At least one of these should be in collision with the table
-    col_a = not checker.is_collision_free(q_into_table, Q_HOME_RIGHT)
-    col_b = not checker.is_collision_free(q_down, Q_HOME_RIGHT)
+    col_a = not checker.is_collision_free(q_into_table_a, Q_HOME_RIGHT)
+    col_b = not checker.is_collision_free(q_into_table_b, Q_HOME_RIGHT)
     assert col_a or col_b, (
-        "Expected at least one heavily-flexed config to collide with the table. "
+        "Expected at least one config with arm reaching through table to collide. "
         "Check table geometry or config choice."
     )
 
@@ -128,22 +124,15 @@ def test_self_collision_detected_folded_right(checker):
 
 def test_cross_arm_collision_both_reaching_center(checker):
     """Both arms reaching to the same center point triggers cross-arm collision."""
-    # Drive both arms to meet in the workspace center region (x≈0.5, y=0, z≈0.5).
-    # Left arm: shoulder_pan=0 (forward), shoulder_lift=-pi/4, elbow=pi/3
-    # Right arm: shoulder_pan=0 (forward toward left in world due to 180° base), similar angles
-    q_left_center = np.array([0.0, -math.pi / 3, math.pi / 3, -math.pi / 6, -math.pi / 2, 0.0])
-    q_right_center = np.array([0.0, -math.pi / 3, math.pi / 3, -math.pi / 6, -math.pi / 2, 0.0])
-
-    # Use several candidate configs; at least one should produce cross-arm collision
-    # when both arms are steered toward each other aggressively.
-    q_left_meet = np.array([0.0, -math.pi / 2, math.pi / 2, 0.0, 0.0, 0.0])
-    q_right_meet = np.array([0.0, -math.pi / 2, math.pi / 2, 0.0, 0.0, 0.0])
+    # Use IK-solved configs where both arms reach to the same point (0.5, 0, 0.4).
+    # These configs verified to place both EEs within 0.1mm of each other, so
+    # arm links must overlap/collide in the shared workspace.
+    q_left_center = np.array([0.485, -2.168, -1.661, -4.025, -4.712, -5.197])
+    q_right_center = np.array([0.485, 4.115, -1.661, 2.259, 1.571, -2.056])
 
     col_a = not checker.is_collision_free(q_left_center, q_right_center)
-    col_b = not checker.is_collision_free(q_left_meet, q_right_meet)
-
-    assert col_a or col_b, (
-        "Expected at least one configuration with both arms reaching toward center "
+    assert col_a, (
+        "Expected both arms reaching to the same point (0.5, 0, 0.4) "
         "to produce a cross-arm collision."
     )
 
