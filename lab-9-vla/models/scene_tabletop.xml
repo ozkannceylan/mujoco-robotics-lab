@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Tabletop Scene for VLA Lab 9
+     G1 robot standing in front of a table with manipulable objects.
+     Camera views: head (egocentric), wrist (close-up).
+     Objects: cup, box, bottle — with color/position randomization via code.
+-->
+<mujoco model="scene_tabletop">
+  <compiler angle="radian" autolimits="true"/>
+
+  <option gravity="0 0 -9.81" timestep="0.005"/>
+
+  <include file="g1_vla.xml"/>
+
+  <default>
+    <default class="object">
+      <geom contype="1" conaffinity="1" friction="0.8 0.02 0.001"/>
+      <joint damping="0.05" armature="0.001" frictionloss="0.01"/>
+    </default>
+  </default>
+
+  <asset>
+    <texture name="wood" type="2d" builtin="flat" rgb1="0.65 0.45 0.25" rgb2="0.55 0.38 0.2" width="256" height="256"/>
+    <material name="wood" texture="wood" reflectance="0.1"/>
+    <material name="cup_mat" rgba="0.9 0.2 0.2 1"/>
+    <material name="box_mat" rgba="0.2 0.5 0.9 1"/>
+    <material name="bottle_mat" rgba="0.2 0.8 0.3 1"/>
+    <material name="table_mat" rgba="0.75 0.55 0.35 1"/>
+  </asset>
+
+  <worldbody>
+    <!-- Table -->
+    <body name="table" pos="0.7 0.0 0.0">
+      <!-- Table top -->
+      <geom name="table_top" type="box" size="0.4 0.4 0.02" pos="0 0 0.74"
+            material="table_mat" contype="1" conaffinity="1"/>
+      <!-- Table legs -->
+      <geom name="table_leg_fl" type="cylinder" size="0.025 0.37" pos="0.35 0.35 0.37" rgba="0.6 0.4 0.2 1"/>
+      <geom name="table_leg_fr" type="cylinder" size="0.025 0.37" pos="0.35 -0.35 0.37" rgba="0.6 0.4 0.2 1"/>
+      <geom name="table_leg_bl" type="cylinder" size="0.025 0.37" pos="-0.35 0.35 0.37" rgba="0.6 0.4 0.2 1"/>
+      <geom name="table_leg_br" type="cylinder" size="0.025 0.37" pos="-0.35 -0.35 0.37" rgba="0.6 0.4 0.2 1"/>
+    </body>
+
+    <!-- Manipulable cup (cylindrical) -->
+    <body name="cup" pos="0.65 0.1 0.82">
+      <freejoint name="cup_joint"/>
+      <geom name="cup_body" type="cylinder" size="0.04 0.07" pos="0 0 0.07"
+            class="object" material="cup_mat" mass="0.2"/>
+      <geom name="cup_bottom" type="cylinder" size="0.04 0.005" pos="0 0 0.005"
+            class="object" material="cup_mat" mass="0.02"/>
+      <site name="cup_site" pos="0 0 0.14" size="0.01"/>
+    </body>
+
+    <!-- Manipulable box -->
+    <body name="box" pos="0.7 -0.1 0.82">
+      <freejoint name="box_joint"/>
+      <geom name="box_body" type="box" size="0.05 0.05 0.04" pos="0 0 0.04"
+            class="object" material="box_mat" mass="0.3"/>
+      <site name="box_site" pos="0 0 0.08" size="0.01"/>
+    </body>
+
+    <!-- Manipulable bottle -->
+    <body name="bottle" pos="0.75 0.0 0.82">
+      <freejoint name="bottle_joint"/>
+      <geom name="bottle_lower" type="cylinder" size="0.03 0.07" pos="0 0 0.07"
+            class="object" material="bottle_mat" mass="0.15"/>
+      <geom name="bottle_neck" type="cylinder" size="0.015 0.04" pos="0 0 0.18"
+            class="object" material="bottle_mat" mass="0.05"/>
+      <geom name="bottle_cap" type="cylinder" size="0.018 0.01" pos="0 0 0.23"
+            class="object" material="bottle_mat" mass="0.01"/>
+      <site name="bottle_site" pos="0 0 0.14" size="0.01"/>
+    </body>
+
+    <!-- Target zone markers (visual only) -->
+    <site name="target_left" pos="0.65 0.2 0.77" size="0.03" rgba="1 1 0 0.5"/>
+    <site name="target_center" pos="0.70 0.0 0.77" size="0.03" rgba="1 1 0 0.5"/>
+    <site name="target_right" pos="0.65 -0.2 0.77" size="0.03" rgba="1 1 0 0.5"/>
+
+  </worldbody>
+
+  <contact>
+    <!-- Ensure objects interact with table surface -->
+    <pair geom1="table_top" geom2="cup_body"/>
+    <pair geom1="table_top" geom2="cup_bottom"/>
+    <pair geom1="table_top" geom2="box_body"/>
+    <pair geom1="table_top" geom2="bottle_lower"/>
+  </contact>
+
+</mujoco>
