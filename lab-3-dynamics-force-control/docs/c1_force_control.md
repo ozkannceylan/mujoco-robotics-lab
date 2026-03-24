@@ -8,7 +8,7 @@ Implement hybrid control: position control in XY plane, PI force control in Z. M
 
 - Force controller: `src/c1_force_control.py`
 - Line trace capstone: `src/c2_line_trace.py`
-- Scene: `models/scene_table.xml`
+- Scene: Menagerie UR5e + mounted Robotiq table-contact scene loaded through `src/lab3_common.py`
 - Tests: `tests/test_force_control.py`
 
 ## Theory
@@ -44,17 +44,13 @@ The PI force controller ensures zero steady-state force error. Z-velocity dampin
 
 ### Contact Force Measurement
 
-Forces are read via `mj_contactForce()`, filtering for contacts between the probe_tip geom and table_top geom. Raw forces are smoothed with an EMA low-pass filter (α=0.2).
+Forces are read via `mj_contactForce()`, filtering for contacts between `table_top` and the real executed end-effector contact set: `wrist_3_link` plus the mounted Robotiq bodies. Raw forces are smoothed with an EMA low-pass filter (α=0.2).
 
 This is more reliable than MuJoCo's `<force>` sensor, which measures all constraint forces on the body (including articulation forces), not just contact.
 
-### Collision Filtering
+### Intentional contact
 
-MuJoCo's `contype`/`conaffinity` bitmasks control which geoms collide:
-- Arm geoms: contype=1, conaffinity=1
-- Table + probe: contype=2, conaffinity=2
-
-This ensures only the probe tip contacts the table, preventing wrist capsule collisions.
+In Lab 3, contacting the table is intentional. The goal is to establish gentle contact and then regulate approximately `5 N` normal force while holding or tracing in XY.
 
 ## Results
 
@@ -63,21 +59,17 @@ This ensures only the probe tip contacts the table, preventing wrist capsule col
 | Metric | Value |
 |--------|-------|
 | Target force | 5.0 N |
-| Mean force | 4.95 N |
-| Std force | 0.09 N |
-| Within ±1N | 100% |
-| XY error | 0.62 mm |
+| Mean force | 4.89 N |
+| Within ±1N | 99.96% |
+| Max XY error | 3.60 mm |
 
 ### Constant-Force Line Trace (50mm)
 
 | Metric | Value |
 |--------|-------|
 | Target force | 5.0 N |
-| Mean force | 4.99 N |
-| Std force | 0.33 N |
-| Within ±1N | 98.1% |
-| Mean XY error | 1.96 mm |
-| Max XY error | 3.19 mm |
+| Within ±1N | 94.07% |
+| Max XY error | 1.70 mm |
 
 ## Architecture
 
@@ -88,7 +80,7 @@ This ensures only the probe tip contacts the table, preventing wrist capsule col
               │  Position (XY)    │         ▲
               │  + Force (Z)      │         │
               │  + g(q)           │    mj_contactForce
-              └───────────────────┘    (probe_tip ↔ table)
+              └───────────────────┘    (real EE contact set ↔ table)
                      ▲
                      │ FK, J (Pinocchio)
                      └─────────────────

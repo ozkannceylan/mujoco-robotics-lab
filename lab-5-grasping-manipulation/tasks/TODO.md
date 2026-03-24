@@ -33,8 +33,14 @@
 - [x] Re-record `pick_place_demo.mp4` — contact: True ✓ — DONE (2026-03-17)
 - [x] Re-record `pick_place_pro.mp4` — full cycle complete ✓ — DONE (2026-03-17)
 
+## Phase 5: Pro Demo Hardening (2026-03-17)
+- [x] Step 5.3: Fix matplotlib env issue in Lab 4 (rrt_planner.py + test skip) — DONE (2026-03-17)
+- [ ] Step 5.1: Fix IK orientation formula in record_pro_demo.py (SO3 log)
+- [ ] Step 5.2: Integrate Lab 4 RRT* for collision-free planning in record_pro_demo.py
+- [ ] Step 5.4: Re-record pro demo video, verify no self-collision
+
 ## Current Focus
-> Lab 5 fully complete. All videos verified correct.
+> Step 5.1: Fix IK orientation error formula in record_pro_demo.py
 
 ## Blockers
 > None

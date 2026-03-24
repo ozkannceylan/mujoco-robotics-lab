@@ -2,69 +2,63 @@
 
 ## Bugs & Fixes
 
-### 2026-03-15 — URDF from Lab 2 does not match Lab 3 MJCF
-**Symptom:** FK cross-validation showed 105 mm error at Q_HOME between Pinocchio (Lab 2 URDF) and MuJoCo (Lab 3 MJCF).
-**Root cause:** Lab 2's URDF was built for the MuJoCo Menagerie UR5e model (different frame conventions: Y-axis rotations, 180° Z base rotation, different link offsets). Lab 3's simplified MJCF uses all-Z-axis joints with X-rotation euler frames — a completely different kinematic description.
-**Fix:** Rebuilt URDF from scratch by extracting body positions, quaternions, and inertias directly from the MJCF via `mj_model.body_pos`, `body_quat`, `body_mass`, `body_inertia`, `body_ipos`. Result: 0.000 mm FK error across all test configs.
-**Takeaway:** Never assume a URDF from one MJCF variant matches another. Always extract kinematics directly from the MJCF you are using and regenerate the URDF.
+### 2026-03-17 — Lab 3 had to be migrated back onto the canonical hardware baseline
+**Symptom:** Lab 3 was previously documented as complete on a simplified local UR5e path, which did not satisfy the project-wide requirement for Menagerie UR5e + Robotiq.
+**Root cause:** Lab-level implementation drifted away from the project hardware lock.
+**Fix:** Rebuilt the canonical path around Menagerie `universal_robots_ur5e` + mounted `robotiq_2f85`, updated the Pinocchio model path, reran validation, and updated the docs/media to match the final stack.
+**Takeaway:** A lab is not complete until the code, tests, docs, and media all refer to the same hardware baseline.
 
-### 2026-03-15 — Inertia tensors must account for body_iquat rotation
-**Symptom:** Mass matrix cross-validation showed ~0.137 max error even after URDF kinematic chain was correct.
-**Root cause:** MuJoCo's `body_inertia` stores diagonal values in the **principal axis frame** (rotated by `body_iquat`). Copying diagonals directly into URDF gives wrong results when `body_iquat` is non-identity. For upper_arm (90° Y rotation), ixx/izz were swapped. For forearm (108° Y rotation), a nonzero ixz cross-term was missing.
-**Fix:** Compute full inertia tensor in body frame: `I_full = R @ diag(I_principal) @ R^T` where R is from `body_iquat`.
-**Takeaway:** Always check `body_iquat` when extracting inertias from MuJoCo. Only use diagonal values directly if iquat is identity.
+### 2026-03-17 — Menagerie servo actuators required torque-to-control mapping
+**Symptom:** The canonical MuJoCo UR5e stack does not expose direct torque motors the way the earlier simplified Lab 3 path did.
+**Root cause:** Menagerie UR5e uses arm actuators with their own gain/bias model and control ranges.
+**Fix:** Added torque-to-control mapping in `lab3_common.py` so desired arm torques are converted into actuator controls before each MuJoCo step.
+**Takeaway:** Do not assume torque commands can be written directly when migrating to Menagerie assets. Check the actuator model first.
 
-### 2026-03-15 — Pinocchio armature vs rotorInertia for mass matrix matching
-**Symptom:** After fixing inertias, M(q) diagonal still had a constant 0.01 offset (matching MJCF armature=0.01).
-**Root cause:** Pinocchio's `model.rotorInertia` does NOT affect `crba()` output. The correct field is `model.armature`, which is added directly to the CRBA diagonal — matching MuJoCo's behavior.
-**Fix:** Set `model.armature[:] = 0.01` instead of `model.rotorInertia[i] = 0.01`.
-**Takeaway:** In Pinocchio, use `model.armature` (not `rotorInertia`) to match MuJoCo joint armature for mass matrix agreement.
+### 2026-03-17 — Pinocchio parity depended on the mounted Robotiq payload inertial being correct
+**Symptom:** Dynamics parity and gravity compensation failed until the mounted gripper payload seen by Pinocchio matched the executed MuJoCo stack closely enough.
+**Root cause:** The fixed end-effector payload in the URDF did not initially match the compiled MuJoCo scene inertial properties.
+**Fix:** Updated the `ee_link` inertial in `models/ur5e.urdf` to the compiled-scene mass, COM, and inertia.
+**Takeaway:** For cross-engine parity, the mounted payload is not optional bookkeeping. Its inertial parameters matter.
+
+### 2026-03-17 — Contact detection had to include the full real end-effector contact set
+**Symptom:** A narrow contact filter can miss the first real table contact on the canonical stack.
+**Root cause:** The first-contact link is not guaranteed to be only the terminal tool body.
+**Fix:** `get_ee_and_table_ids()` now includes `wrist_3_link` and the mounted Robotiq bodies, and the force-control validation was rerun on that basis.
+**Takeaway:** Contact logic should reflect the real executed geometry, not an idealized tip-only assumption.
+
+### 2026-03-17 — 6D impedance orientation error needed the large-angle-safe formulation
+**Symptom:** The earlier skew-symmetric orientation error is only reliable near small rotations.
+**Root cause:** That formulation is a local approximation and can misbehave near large-angle errors.
+**Fix:** Switched the canonical impedance orientation error to `pin.log3(R_des @ R_cur.T)`.
+**Takeaway:** Reuse the Lie-log orientation error in shared Cartesian controllers unless there is a strong reason not to.
+
+### 2026-03-17 — Native MuJoCo OpenGL rendering was unavailable in this environment
+**Symptom:** The standard MuJoCo renderer could not create an OpenGL context here.
+**Root cause:** The required GL shared libraries are not available to this runtime.
+**Fix:** The validation video still uses the real MuJoCo simulation state by projecting actual MuJoCo geom poses frame by frame and overlaying measured values.
+**Takeaway:** Environment-specific rendering failures should not block controller validation, but the limitation should be documented explicitly.
 
 ### 2026-03-15 — Force sensor reads articulation forces, not contact forces
-**Symptom:** `<force site="tool_site"/>` sensor reported large forces even when no contact existed.
-**Root cause:** MuJoCo's `<force>` sensor measures all constraint forces on the body, including articulation forces from joints — not just contact forces.
-**Fix:** Switched to `mj_contactForce()` per-contact API, filtering for contacts between tool0/wrist_3 geoms and table_top geom.
-**Takeaway:** Use `mj_contactForce()` for actual contact force measurement. The `<force>` sensor is body-level, not contact-level.
+**Symptom:** `<force site="tool_site"/>` style sensing reported force even without contact.
+**Root cause:** MuJoCo `<force>` sensors measure body-level constraint forces, not only contact forces.
+**Fix:** Switched to `mj_contactForce()` on the relevant contact pairs.
+**Takeaway:** Use `mj_contactForce()` for contact control logic.
 
-### 2026-03-15 — EE body ID too restrictive for contact detection
-**Symptom:** `read_contact_force_z()` returned 0 despite `ncon > 0` contacts existing.
-**Root cause:** Only tool0 body was in `ee_body_ids`, but the wrist_3 capsule geom extends further and hits the table first (wrist_3 capsule fromto="0 0 0 0 0 0.135" size="0.035").
-**Fix:** Include both tool0 (body 8) and wrist_3 (body 7) in `ee_body_ids`.
-**Takeaway:** When detecting EE contact, consider all link geometries near the EE, not just the final body.
+### 2026-03-15 — Force control needs filtering and damping at stiff contact
+**Symptom:** Raw PI contact control chatters at the table.
+**Root cause:** Stiff contact plus integral action creates oscillatory force behavior without additional damping.
+**Fix:** Retained EMA force filtering and Z-velocity damping in the canonical controller.
+**Takeaway:** Stable force control needs both measurement smoothing and contact-direction damping.
 
-### 2026-03-15 — Force oscillation in PI controller with stiff contact
-**Symptom:** Mean force 4.97N but std 11.07N, 0% within ±1N band.
-**Root cause:** PI force controller without damping or filtering causes chattering at stiff contact surface.
-**Fix:** Three-part fix: (1) EMA low-pass filter on force (alpha=0.2), (2) Z-velocity damping K_dz=30.0, (3) reduced anti-windup. Result: std 0.30N, 97% within ±1N.
-**Takeaway:** Contact force control needs velocity damping and force filtering to prevent chattering.
+## Final Validation Snapshot
 
-### 2026-03-15 — Starting config must be reachable from approach target
-**Symptom:** Approach phase never made contact — EE stayed at z≈0.45m.
-**Root cause:** Q_HOME places EE at (-0.233, 0.492, 0.453), far from table target (0.4, 0.0). Impedance controller couldn't traverse that distance.
-**Fix:** Computed Q_ABOVE_TABLE via IK to start with EE at (0.4, 0.0, 0.35), directly above the table.
-**Takeaway:** For force control demos, pre-compute a starting config near the contact surface.
-
-## Debug Strategies
-
-### Contact force debugging
-Print `mj_data.ncon`, iterate contacts, check `geom1`/`geom2` names and body IDs. Use `mj_contactForce()` to verify force magnitudes per contact pair.
-
-### Approach trajectory debugging
-Print EE position, z_target, and contact force at regular intervals during approach to verify descent is progressing.
-
-## Key Insights
-
-### EMA filter alpha tuning for force control
-Alpha=0.05 was too slow (took hundreds of timesteps to register contact). Alpha=0.2 gives good noise rejection while allowing fast enough response for the PI controller to track.
-
-### Z-velocity damping is critical for contact stability
-Without K_dz damping, the PI force controller and contact dynamics create an underdamped oscillation. K_dz=30 provides critical damping at the contact interface.
-
-### Jacobian X-row near-zero at vertical tool configuration
-When the EE points straight down at a low table (z=0.17), the Jacobian X-row has very small values (~0.01). A 100N Cartesian X-force produces only ~6Nm joint torque. XY motion during contact requires slow trajectories — 50mm over 6s works (3mm error), but 150mm over 4s fails (50mm error).
-
-### Collision filtering with contype/conaffinity
-Using contype=1/conaffinity=1 for arm geoms and contype=2/conaffinity=2 for the table+probe isolates EE-table contact from wrist-table collisions. This prevents false contacts and ensures clean force measurement. The probe geom must have density=0 mass=0 to avoid affecting dynamics cross-validation.
-
-### Probe mass affects cross-validation
-A probe geom with mass=0.01 kg at the EE tip causes 0.05 Nm gravity error between Pinocchio and MuJoCo (Pinocchio doesn't know about the probe). Always make contact-only geoms massless.
+- Full Lab 3 test suite: `34 passed`
+- Max gravity mismatch: `8.01e-06`
+- Max mass-matrix mismatch: `3.34e-05`
+- Gravity hold max error: `8.91e-06 rad`
+- Gravity perturbation final speed: `0.0134 rad/s`
+- Hybrid force mean: `4.89 N`
+- Hybrid force in-band rate: `99.96%`
+- Hybrid force max XY error: `3.60 mm`
+- Line trace in-band rate: `94.07%`
+- Line trace max XY error: `1.70 mm`

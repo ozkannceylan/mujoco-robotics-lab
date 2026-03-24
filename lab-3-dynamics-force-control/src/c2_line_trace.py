@@ -29,13 +29,17 @@ from lab3_common import (
     NUM_JOINTS,
     MEDIA_DIR,
     SCENE_TABLE_PATH,
+    apply_arm_torques,
     clip_torques,
+    get_mj_ee_site_id,
+    get_table_surface_z,
     load_mujoco_model,
     load_pinocchio_model,
 )
 from c1_force_control import (
+    DEFAULT_APPROACH_HEIGHT,
     HybridGains,
-    Q_ABOVE_TABLE,
+    compute_above_table_config,
     compute_hybrid_torque,
     get_ee_and_table_ids,
     read_contact_force_z,
@@ -78,7 +82,7 @@ def run_line_trace(
     xy_start: np.ndarray,
     xy_end: np.ndarray,
     gains: HybridGains | None = None,
-    approach_height: float = 0.30,
+    approach_height: float = DEFAULT_APPROACH_HEIGHT,
     settle_time: float = 1.0,
     trace_duration: float = 4.0,
     post_time: float = 1.0,
@@ -95,7 +99,7 @@ def run_line_trace(
         xy_start: Start XY on table (2,).
         xy_end: End XY on table (2,).
         gains: HybridGains.
-        approach_height: Initial Z height (m).
+        approach_height: Absolute pinch-site world Z used for the start pose.
         settle_time: Time to settle after contact (s).
         trace_duration: Time to trace the line (s).
         post_time: Time to hold at end (s).
@@ -108,18 +112,19 @@ def run_line_trace(
 
     pin_model, pin_data, ee_fid = load_pinocchio_model()
     mj_model, mj_data = load_mujoco_model(SCENE_TABLE_PATH)
-    site_id = mujoco.mj_name2id(mj_model, mujoco.mjtObj.mjOBJ_SITE, "tool_site")
+    site_id = get_mj_ee_site_id(mj_model)
     ee_body_ids, table_geom_id = get_ee_and_table_ids(mj_model)
-    table_body = mujoco.mj_name2id(mj_model, mujoco.mjtObj.mjOBJ_BODY, "table")
-    table_z = mj_model.body_pos[table_body][2] + 0.02
+    table_z = get_table_surface_z(mj_model)
 
     # Generate line trajectory
     xy_traj, xyd_traj = generate_line_trajectory(
         xy_start, xy_end, trace_duration, DT
     )
 
-    # Initialize at Q_ABOVE_TABLE (EE at ~(0.4, 0, 0.35))
-    mj_data.qpos[:NUM_JOINTS] = Q_ABOVE_TABLE.copy()
+    q_start = compute_above_table_config(
+        pin_model, pin_data, ee_fid, xy_start, z_height=approach_height
+    )
+    mj_data.qpos[:NUM_JOINTS] = q_start
     mj_data.qvel[:NUM_JOINTS] = 0.0
     mujoco.mj_forward(mj_model, mj_data)
 
@@ -168,7 +173,7 @@ def run_line_trace(
         if not contact_established:
             # PHASE 0: Approach — impedance descent toward table
             phase = 0
-            z_target = max(approach_height - descent_speed * t, table_z - 0.01)
+            z_target = max(approach_height - descent_speed * t, table_z - 0.002)
             x_target = np.array([xy_start[0], xy_start[1], z_target])
             xy_des_cur = xy_start.copy()
 
@@ -250,7 +255,7 @@ def run_line_trace(
         phase_list.append(phase)
         xy_des_list.append(xy_des_cur)
 
-        mj_data.ctrl[:NUM_JOINTS] = tau
+        apply_arm_torques(mj_model, mj_data, tau)
         mujoco.mj_step(mj_model, mj_data)
 
     if contact_time is not None:
@@ -375,7 +380,7 @@ def main() -> None:
         xy_start=xy_start,
         xy_end=xy_end,
         gains=gains,
-        approach_height=0.30,
+        approach_height=DEFAULT_APPROACH_HEIGHT,
         settle_time=1.5,
         trace_duration=6.0,
         post_time=1.0,

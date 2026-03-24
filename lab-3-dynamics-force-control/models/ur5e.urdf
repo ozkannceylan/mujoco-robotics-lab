@@ -1,165 +1,188 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  UR5e URDF for Lab 3 — built to exactly match lab-3 ur5e.xml (MuJoCo).
-  Kinematic chain, inertias, and masses extracted directly from the MJCF
-  using mj_model body properties. All joints rotate about local Z axis.
+  UR5e Pinocchio model for Lab 3.
 
-  MJCF body hierarchy with local transforms:
-    world → base (pos=0,0,0)
-    base → shoulder (pos=0,0,0.1625)
-    shoulder → upper_arm (pos=0,0,0  euler_x=π/2)
-    upper_arm → forearm (pos=-0.425,0,0)
-    forearm → wrist_1 (pos=-0.3922,0,0.1333)
-    wrist_1 → wrist_2 (pos=0,0,0.0997  euler_x=π/2)
-    wrist_2 → wrist_3 (pos=0,0,0.0996  euler_x=-π/2)
-    wrist_3 → tool0 (pos=0,0,0.135)
+  Kinematics match the MuJoCo Menagerie UR5e arm. The mounted Robotiq 2F-85 is
+  represented as a fixed payload on ee_link using the aggregate mass, COM, and
+  inertia of the open gripper assembly, plus a fixed pinch_link offset for the
+  contact/tool frame used by controllers.
 -->
-<robot name="ur5e">
+<robot name="ur5e_robotiq_lab3">
 
-  <!-- ===== Links ===== -->
   <link name="world"/>
 
   <link name="base_link">
     <inertial>
-      <mass value="2.4429"/>
+      <mass value="4.0"/>
       <origin rpy="0 0 0" xyz="0 0 0"/>
-      <inertia ixx="0.00787836" ixy="0" ixz="0"
-               iyy="0.00787836" iyz="0" izz="0.00989375"/>
+      <inertia ixx="0.00443333156" ixy="0.0" ixz="0.0"
+               iyy="0.00443333156" iyz="0.0" izz="0.0072"/>
     </inertial>
+    <collision>
+      <geometry><cylinder radius="0.06" length="0.12"/></geometry>
+      <origin rpy="0 0 0" xyz="0 0 0.06"/>
+    </collision>
   </link>
 
   <link name="shoulder_link">
     <inertial>
-      <mass value="2.0736"/>
+      <mass value="3.7"/>
       <origin rpy="0 0 0" xyz="0 0 0"/>
-      <inertia ixx="0.00808704" ixy="0" ixz="0"
-               iyy="0.00808704" iyz="0" izz="0.00497664"/>
+      <inertia ixx="0.0102675" ixy="0.0" ixz="0.0"
+               iyy="0.0102675" iyz="0.0" izz="0.00666"/>
     </inertial>
+    <collision>
+      <geometry><cylinder radius="0.06" length="0.12"/></geometry>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+    </collision>
   </link>
 
   <link name="upper_arm_link">
     <inertial>
-      <mass value="3.7887"/>
-      <origin rpy="0 0 0" xyz="-0.2125 0 0"/>
-      <!-- Rotated from principal frame by iquat=[0.707,0,0.707,0] (90° about Y) -->
-      <inertia ixx="0.00556169" ixy="0" ixz="0"
-               iyy="0.08181631" iyz="0" izz="0.08181631"/>
+      <mass value="8.393"/>
+      <origin rpy="0 0 0" xyz="0 0 0.2125"/>
+      <inertia ixx="0.133886" ixy="0.0" ixz="0.0"
+               iyy="0.133886" iyz="0.0" izz="0.0151074"/>
     </inertial>
+    <collision>
+      <geometry><cylinder radius="0.05" length="0.425"/></geometry>
+      <origin rpy="0 0 0" xyz="0 0 0.2125"/>
+    </collision>
   </link>
 
   <link name="forearm_link">
     <inertial>
-      <mass value="3.0216"/>
-      <origin rpy="0 0 0" xyz="-0.1961 0 0.06665"/>
-      <!-- Rotated from principal frame by iquat=[0.582,0,0.813,0] -->
-      <inertia ixx="0.00955541" ixy="0" ixz="0.01730959"
-               iyy="0.06048429" iyz="0" izz="0.05460115"/>
+      <mass value="2.275"/>
+      <origin rpy="0 0 0" xyz="0 0 0.196"/>
+      <inertia ixx="0.0311796" ixy="0.0" ixz="0.0"
+               iyy="0.0311796" iyz="0.0" izz="0.004095"/>
     </inertial>
+    <collision>
+      <geometry><cylinder radius="0.038" length="0.392"/></geometry>
+      <origin rpy="0 0 0" xyz="0 0 0.196"/>
+    </collision>
   </link>
 
   <link name="wrist_1_link">
     <inertial>
-      <mass value="0.8128"/>
-      <origin rpy="0 0 0" xyz="0 0 0.04985"/>
-      <inertia ixx="0.00219712" ixy="0" ixz="0"
-               iyy="0.00219712" iyz="0" izz="0.0007611"/>
+      <mass value="1.219"/>
+      <origin rpy="0 0 0" xyz="0 0.127 0"/>
+      <inertia ixx="0.0025599" ixy="0.0" ixz="0.0"
+               iyy="0.0025599" iyz="0.0" izz="0.0021942"/>
     </inertial>
+    <collision>
+      <geometry><cylinder radius="0.04" length="0.1"/></geometry>
+      <origin rpy="1.5708 0 0" xyz="0 0.05 0"/>
+    </collision>
   </link>
 
   <link name="wrist_2_link">
     <inertial>
-      <mass value="0.6150"/>
-      <origin rpy="0 0 0" xyz="0 0 0.0498"/>
-      <inertia ixx="0.00148086" ixy="0" ixz="0"
-               iyy="0.00148086" iyz="0" izz="0.00045767"/>
+      <mass value="1.219"/>
+      <origin rpy="0 0 0" xyz="0 0 0.1"/>
+      <inertia ixx="0.0025599" ixy="0.0" ixz="0.0"
+               iyy="0.0025599" iyz="0.0" izz="0.0021942"/>
     </inertial>
+    <collision>
+      <geometry><cylinder radius="0.04" length="0.1"/></geometry>
+      <origin rpy="0 0 0" xyz="0 0 0.05"/>
+    </collision>
   </link>
 
   <link name="wrist_3_link">
     <inertial>
-      <mass value="0.5593"/>
-      <origin rpy="0 0 0" xyz="0 0 0.0675"/>
-      <inertia ixx="0.00173813" ixy="0" ixz="0"
-               iyy="0.00173813" iyz="0" izz="0.00032498"/>
+      <mass value="0.1889"/>
+      <origin rpy="0 0 0" xyz="0 0.0771683 0"/>
+      <inertia ixx="0.000132134" ixy="0.0" ixz="0.0"
+               iyy="9.90863e-05" iyz="0.0" izz="9.90863e-05"/>
     </inertial>
+    <collision>
+      <geometry><cylinder radius="0.04" length="0.04"/></geometry>
+      <origin rpy="1.5708 0 0" xyz="0 0.04 0"/>
+    </collision>
   </link>
 
   <link name="ee_link">
     <inertial>
-      <mass value="0.0972"/>
-      <origin rpy="0 0 0" xyz="0 0 0"/>
-      <inertia ixx="0.0001549125" ixy="0" ixz="0"
-               iyy="0.0001549125" iyz="0" izz="0.00001458"/>
+      <mass value="1.0526083388"/>
+      <origin rpy="0 0 0" xyz="-0.0000713562 0.0000121647 0.0466738329"/>
+      <inertia ixx="0.000911897347" ixy="1.57929e-09" ixz="-2.52258e-06"
+               iyy="0.00125848237" iyz="5.08762e-07" izz="0.000580001061"/>
     </inertial>
   </link>
 
-  <!-- ===== Joints ===== -->
+  <link name="pinch_link">
+    <inertial>
+      <mass value="1e-6"/>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <inertia ixx="1e-9" ixy="0" ixz="0" iyy="1e-9" iyz="0" izz="1e-9"/>
+    </inertial>
+  </link>
 
   <joint name="world_joint" type="fixed">
     <parent link="world"/>
     <child link="base_link"/>
-    <origin rpy="0 0 0" xyz="0 0 0"/>
+    <origin rpy="0 0 3.14159265358979" xyz="0 0 0"/>
   </joint>
 
-  <!-- base → shoulder: translate Z by 0.1625 -->
   <joint name="shoulder_pan_joint" type="revolute">
     <parent link="base_link"/>
     <child link="shoulder_link"/>
-    <origin rpy="0 0 0" xyz="0 0 0.1625"/>
+    <origin rpy="0 0 0" xyz="0 0 0.163"/>
     <axis xyz="0 0 1"/>
     <limit effort="150.0" lower="-6.28318530718" upper="6.28318530718" velocity="3.14"/>
   </joint>
 
-  <!-- shoulder → upper_arm: no translation, rotate X by π/2 -->
   <joint name="shoulder_lift_joint" type="revolute">
     <parent link="shoulder_link"/>
     <child link="upper_arm_link"/>
-    <origin rpy="1.5707963267948966 0 0" xyz="0 0 0"/>
-    <axis xyz="0 0 1"/>
+    <origin rpy="0 1.5707963267948966 0" xyz="0 0.138 0"/>
+    <axis xyz="0 1 0"/>
     <limit effort="150.0" lower="-6.28318530718" upper="6.28318530718" velocity="3.14"/>
   </joint>
 
-  <!-- upper_arm → forearm: translate X by -0.425 -->
   <joint name="elbow_joint" type="revolute">
     <parent link="upper_arm_link"/>
     <child link="forearm_link"/>
-    <origin rpy="0 0 0" xyz="-0.425 0 0"/>
-    <axis xyz="0 0 1"/>
-    <limit effort="150.0" lower="-6.28318530718" upper="6.28318530718" velocity="3.14"/>
+    <origin rpy="0 0 0" xyz="0 -0.131 0.425"/>
+    <axis xyz="0 1 0"/>
+    <limit effort="150.0" lower="-3.14159265359" upper="3.14159265359" velocity="3.14"/>
   </joint>
 
-  <!-- forearm → wrist_1: translate X by -0.3922, Z by 0.1333 -->
   <joint name="wrist_1_joint" type="revolute">
     <parent link="forearm_link"/>
     <child link="wrist_1_link"/>
-    <origin rpy="0 0 0" xyz="-0.3922 0 0.1333"/>
-    <axis xyz="0 0 1"/>
+    <origin rpy="0 1.5707963267948966 0" xyz="0 0 0.392"/>
+    <axis xyz="0 1 0"/>
     <limit effort="28.0" lower="-6.28318530718" upper="6.28318530718" velocity="6.28"/>
   </joint>
 
-  <!-- wrist_1 → wrist_2: translate Z by 0.0997, rotate X by π/2 -->
   <joint name="wrist_2_joint" type="revolute">
     <parent link="wrist_1_link"/>
     <child link="wrist_2_link"/>
-    <origin rpy="1.5707963267948966 0 0" xyz="0 0 0.0997"/>
+    <origin rpy="0 0 0" xyz="0 0.127 0"/>
     <axis xyz="0 0 1"/>
     <limit effort="28.0" lower="-6.28318530718" upper="6.28318530718" velocity="6.28"/>
   </joint>
 
-  <!-- wrist_2 → wrist_3: translate Z by 0.0996, rotate X by -π/2 -->
   <joint name="wrist_3_joint" type="revolute">
     <parent link="wrist_2_link"/>
     <child link="wrist_3_link"/>
-    <origin rpy="-1.5707963267948966 0 0" xyz="0 0 0.0996"/>
-    <axis xyz="0 0 1"/>
+    <origin rpy="0 0 0" xyz="0 0 0.1"/>
+    <axis xyz="0 1 0"/>
     <limit effort="28.0" lower="-6.28318530718" upper="6.28318530718" velocity="6.28"/>
   </joint>
 
-  <!-- wrist_3 → ee_link (tool0): translate Z by 0.135 -->
   <joint name="ee_fixed_joint" type="fixed">
     <parent link="wrist_3_link"/>
     <child link="ee_link"/>
-    <origin rpy="0 0 0" xyz="0 0 0.135"/>
+    <origin rpy="-1.5707963267948966 0 0" xyz="0 0.1 0"/>
+  </joint>
+
+  <joint name="pinch_fixed_joint" type="fixed">
+    <parent link="ee_link"/>
+    <child link="pinch_link"/>
+    <origin rpy="0 0 0" xyz="0 0 0.1558"/>
   </joint>
 
 </robot>

@@ -1,0 +1,326 @@
+{
+  "lab_name": "Lab 4 - Motion Planning",
+  "scenario": "Slalom Through Obstacles (round trip)",
+  "forward_waypoint_count": 9,
+  "round_trip_waypoint_count": 17,
+  "waypoint_labels": [
+    "Start",
+    "Left of Box 1",
+    "Gap 1\u20132",
+    "Right of Box 2",
+    "Gap 2\u20133",
+    "Left of Box 3",
+    "Gap 3\u20134",
+    "Right of Box 4",
+    "Clear Exit",
+    "Return: Right of Box 4",
+    "Return: Gap 3\u20134",
+    "Return: Left of Box 3",
+    "Return: Gap 2\u20133",
+    "Return: Right of Box 2",
+    "Return: Gap 1\u20132",
+    "Return: Left of Box 1",
+    "Return: Start"
+  ],
+  "waypoint_positions_m": [
+    [
+      0.32,
+      -0.3,
+      0.56
+    ],
+    [
+      0.38,
+      -0.28,
+      0.56
+    ],
+    [
+      0.45,
+      0.0,
+      0.56
+    ],
+    [
+      0.5,
+      0.22,
+      0.56
+    ],
+    [
+      0.55,
+      0.0,
+      0.56
+    ],
+    [
+      0.6,
+      -0.22,
+      0.56
+    ],
+    [
+      0.65,
+      0.0,
+      0.56
+    ],
+    [
+      0.7,
+      0.22,
+      0.56
+    ],
+    [
+      0.76,
+      0.0,
+      0.56
+    ],
+    [
+      0.7,
+      0.22,
+      0.56
+    ],
+    [
+      0.65,
+      0.0,
+      0.56
+    ],
+    [
+      0.6,
+      -0.22,
+      0.56
+    ],
+    [
+      0.55,
+      0.0,
+      0.56
+    ],
+    [
+      0.5,
+      0.22,
+      0.56
+    ],
+    [
+      0.45,
+      0.0,
+      0.56
+    ],
+    [
+      0.38,
+      -0.28,
+      0.56
+    ],
+    [
+      0.32,
+      -0.3,
+      0.56
+    ]
+  ],
+  "waypoint_clearance_m": [
+    0.06792132908243677,
+    0.04866596783961403,
+    0.06257386346888832,
+    0.05472503517022953,
+    0.06233988820020204,
+    0.033600663131427295,
+    0.06251692747923511,
+    0.048780520010146655,
+    0.0690799977729382,
+    0.048780520010146655,
+    0.06251692747923511,
+    0.033600663131427295,
+    0.06233988820020204,
+    0.05472503517022953,
+    0.06257386346888832,
+    0.04866596783961403,
+    0.06792132908243677
+  ],
+  "minimum_obstacle_clearance_m": 0.0,
+  "trajectory_duration_sec": 29.73,
+  "analysis_duration_sec": 29.73,
+  "total_path_length_m": 4.425599676946339,
+  "planning_time_sec": 155.98439417999907,
+  "rrt_tree_nodes_total": 10833,
+  "playback_speed": 0.5,
+  "success": true,
+  "clearance_threshold_m": 0.03,
+  "segment_metrics": [
+    {
+      "segment_index": 1,
+      "start_label": "Start",
+      "goal_label": "Left of Box 1",
+      "start_xyz_m": [
+        0.32,
+        -0.3,
+        0.56
+      ],
+      "goal_xyz_m": [
+        0.38,
+        -0.28,
+        0.56
+      ],
+      "direct_path_free": true,
+      "planning_time_sec": 7.432833744001982,
+      "tree_node_count": 1246,
+      "raw_waypoint_count": 3,
+      "shortcut_waypoint_count": 2,
+      "raw_path_cost": 0.13823827608188952,
+      "shortcut_path_cost": 0.13823827608188952,
+      "min_obstacle_clearance_m": 0.04866596783961403
+    },
+    {
+      "segment_index": 2,
+      "start_label": "Left of Box 1",
+      "goal_label": "Gap 1\u20132",
+      "start_xyz_m": [
+        0.38,
+        -0.28,
+        0.56
+      ],
+      "goal_xyz_m": [
+        0.45,
+        0.0,
+        0.56
+      ],
+      "direct_path_free": false,
+      "planning_time_sec": 16.970101068996883,
+      "tree_node_count": 1237,
+      "raw_waypoint_count": 5,
+      "shortcut_waypoint_count": 5,
+      "raw_path_cost": 0.6545955185485374,
+      "shortcut_path_cost": 0.6545955185485374,
+      "min_obstacle_clearance_m": 0.04542082043990203
+    },
+    {
+      "segment_index": 3,
+      "start_label": "Gap 1\u20132",
+      "goal_label": "Right of Box 2",
+      "start_xyz_m": [
+        0.45,
+        0.0,
+        0.56
+      ],
+      "goal_xyz_m": [
+        0.5,
+        0.22,
+        0.56
+      ],
+      "direct_path_free": false,
+      "planning_time_sec": 15.950759792001918,
+      "tree_node_count": 1467,
+      "raw_waypoint_count": 4,
+      "shortcut_waypoint_count": 4,
+      "raw_path_cost": 0.9322363720253466,
+      "shortcut_path_cost": 0.9322363720253466,
+      "min_obstacle_clearance_m": 0.03730232710828351
+    },
+    {
+      "segment_index": 4,
+      "start_label": "Right of Box 2",
+      "goal_label": "Gap 2\u20133",
+      "start_xyz_m": [
+        0.5,
+        0.22,
+        0.56
+      ],
+      "goal_xyz_m": [
+        0.55,
+        0.0,
+        0.56
+      ],
+      "direct_path_free": false,
+      "planning_time_sec": 9.182005611000932,
+      "tree_node_count": 1496,
+      "raw_waypoint_count": 4,
+      "shortcut_waypoint_count": 4,
+      "raw_path_cost": 1.0343628568294512,
+      "shortcut_path_cost": 1.0343628568294512,
+      "min_obstacle_clearance_m": 0.05472503517022953
+    },
+    {
+      "segment_index": 5,
+      "start_label": "Gap 2\u20133",
+      "goal_label": "Left of Box 3",
+      "start_xyz_m": [
+        0.55,
+        0.0,
+        0.56
+      ],
+      "goal_xyz_m": [
+        0.6,
+        -0.22,
+        0.56
+      ],
+      "direct_path_free": false,
+      "planning_time_sec": 41.95151500400243,
+      "tree_node_count": 1287,
+      "raw_waypoint_count": 5,
+      "shortcut_waypoint_count": 5,
+      "raw_path_cost": 0.5261356713956538,
+      "shortcut_path_cost": 0.5261356713956538,
+      "min_obstacle_clearance_m": 0.033600663131427295
+    },
+    {
+      "segment_index": 6,
+      "start_label": "Left of Box 3",
+      "goal_label": "Gap 3\u20134",
+      "start_xyz_m": [
+        0.6,
+        -0.22,
+        0.56
+      ],
+      "goal_xyz_m": [
+        0.65,
+        0.0,
+        0.56
+      ],
+      "direct_path_free": false,
+      "planning_time_sec": 9.658100227999967,
+      "tree_node_count": 1331,
+      "raw_waypoint_count": 4,
+      "shortcut_waypoint_count": 4,
+      "raw_path_cost": 0.3494490143404662,
+      "shortcut_path_cost": 0.3494490143404662,
+      "min_obstacle_clearance_m": 0.033600663131427295
+    },
+    {
+      "segment_index": 7,
+      "start_label": "Gap 3\u20134",
+      "goal_label": "Right of Box 4",
+      "start_xyz_m": [
+        0.65,
+        0.0,
+        0.56
+      ],
+      "goal_xyz_m": [
+        0.7,
+        0.22,
+        0.56
+      ],
+      "direct_path_free": false,
+      "planning_time_sec": 33.95612440699915,
+      "tree_node_count": 1378,
+      "raw_waypoint_count": 6,
+      "shortcut_waypoint_count": 3,
+      "raw_path_cost": 0.8535871492221401,
+      "shortcut_path_cost": 0.8535871492221403,
+      "min_obstacle_clearance_m": 0.048780520010146655
+    },
+    {
+      "segment_index": 8,
+      "start_label": "Right of Box 4",
+      "goal_label": "Clear Exit",
+      "start_xyz_m": [
+        0.7,
+        0.22,
+        0.56
+      ],
+      "goal_xyz_m": [
+        0.76,
+        0.0,
+        0.56
+      ],
+      "direct_path_free": false,
+      "planning_time_sec": 20.882954324995808,
+      "tree_node_count": 1391,
+      "raw_waypoint_count": 4,
+      "shortcut_waypoint_count": 4,
+      "raw_path_cost": 1.293166399550635,
+      "shortcut_path_cost": 1.293166399550635,
+      "min_obstacle_clearance_m": 0.048780520010146655
+    }
+  ]
+}

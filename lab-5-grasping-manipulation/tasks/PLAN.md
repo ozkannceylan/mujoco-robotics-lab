@@ -137,6 +137,41 @@
 
 ---
 
+## Phase 5: Pro Demo Hardening (2026-03-17)
+
+The `record_pro_demo.py` script (Menagerie UR5e + Robotiq 2F-85) was found to produce
+severe self-collisions during execution. Root cause audit confirmed Labs 3 and 4 are
+correct (34/34 and 44/45 tests pass). The bugs are inside the pro demo itself.
+
+### Step 5.1: Fix IK orientation error formula (`record_pro_demo.py`)
+- The DLS IK uses the anti-symmetric skew-symmetric formula for orientation error,
+  which returns zero at any 180° rotation misalignment (same bug fixed in grasp_planner.py)
+- **Fix:** Replace with `_so3_log(R_target @ R_cur.T)` — numpy implementation of SO(3) log
+- **Verify:** IK achieves correct orientation at q_grasp, q_preplace (print R col2 = [0,0,-1])
+
+### Step 5.2: Integrate Lab 4 RRT* for collision-free trajectory planning (`record_pro_demo.py`)
+- `run_phase()` does raw linear joint interpolation with zero collision checking
+- A straight joint-space line from Q_HOME to q_preplace (shoulder_pan sweeps π rad)
+  passes through severe self-colliding configurations — confirmed by screenshots
+- **Fix:** Add `plan_collision_free(q_start, q_end)` that uses Lab 4 `CollisionChecker` +
+  `RRTStarPlanner` + `shortcut_path`; replace all long-distance `run_phase()` calls with
+  a new `run_phase_planned()` that executes through RRT* waypoints
+- Collision model: `ur5e_collision.urdf` from Lab 4 (arm-only; sufficient for arm self-collision)
+- Table obstacle: `ObstacleSpec("table", TABLE_POS, TABLE_SIZE)` matching pro demo scene
+- **Verify:** No self-collision in any frame of the recorded video
+
+### Step 5.3: Fix matplotlib env issue in Lab 4 (`rrt_planner.py`, `test_planner.py`)
+- `matplotlib.use("Agg")` was called inside `visualize_plan()` after pyplot was imported —
+  no-op at that point; 3D projection not registered
+- System `mpl_toolkits` conflicts with pip matplotlib (`matplotlib.tri.triangulation` removed)
+- **Fix:** Move backend setting before pyplot import; guard 3D import with `_3D_AVAILABLE`
+  flag; decorate test with `@requires_3d` skip marker
+- **Verify:** `pytest tests/ -v` → 44 passed, 1 skipped
+
+### Step 5.4: Re-record pro demo video with all fixes
+- Run `record_pro_demo.py` and confirm no self-collision in output video
+- Verify pick-and-place cycle completes correctly (box moves from A to B)
+
 ## Post-Completion Bug Fixes (2026-03-17)
 
 After the lab was declared complete, video review revealed three classes of bugs that were

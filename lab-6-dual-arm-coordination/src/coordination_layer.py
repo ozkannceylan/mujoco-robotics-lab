@@ -15,7 +15,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from lab6_common import LEFT_GRIP_X_OFFSET, NUM_JOINTS, RIGHT_GRIP_X_OFFSET
+from lab6_common import LEFT_GRIP_Y_OFFSET, NUM_JOINTS, RIGHT_GRIP_Y_OFFSET
 
 
 # ---------------------------------------------------------------------------
@@ -98,12 +98,12 @@ class ObjectFrame:
             # tool0 hovers GRIPPER_TIP_OFFSET above the bar surface
             from lab6_common import GRIPPER_TIP_OFFSET
             self.grip_offset_L = np.array([
-                LEFT_GRIP_X_OFFSET, 0.0, GRIPPER_TIP_OFFSET
+                0.0, LEFT_GRIP_Y_OFFSET, GRIPPER_TIP_OFFSET
             ])
         if self.grip_offset_R is None:
             from lab6_common import GRIPPER_TIP_OFFSET
             self.grip_offset_R = np.array([
-                RIGHT_GRIP_X_OFFSET, 0.0, GRIPPER_TIP_OFFSET
+                0.0, RIGHT_GRIP_Y_OFFSET, GRIPPER_TIP_OFFSET
             ])
 
     def ee_target_left(self) -> np.ndarray:

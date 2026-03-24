@@ -8,7 +8,8 @@ Compute the rigid-body dynamics quantities M(q), C(q,q̇), g(q) using Pinocchio'
 
 - Script: `src/a1_dynamics_fundamentals.py`
 - Common: `src/lab3_common.py`
-- Model: `models/ur5e.xml` (torque-mode), `models/ur5e.urdf`
+- Analytical model: `models/ur5e.urdf`
+- Executed MuJoCo stack: Menagerie UR5e + mounted Robotiq loaded through `src/lab3_common.py`
 
 ## Theory
 
@@ -43,25 +44,25 @@ Key property: Ṁ - 2C is skew-symmetric (passivity property), verified numerica
 
 Computed via `pin.computeGeneralizedGravity(model, data, q)`.
 
-Cross-validated against MuJoCo's `qfrc_bias` (at zero velocity): max error < 0.0005 Nm.
+Cross-validated against MuJoCo's `qfrc_bias` (at zero velocity): max error `8.01e-06`.
 
 ## Cross-Validation Results
 
 | Quantity | Method | Max Error |
 |----------|--------|-----------|
-| g(q) | pin vs mj qfrc_bias | < 0.0005 Nm |
-| M(q) | pin CRBA vs mj fullM | < 0.00004 |
+| g(q) | Pinocchio vs MuJoCo `qfrc_bias` | `8.01e-06` |
+| M(q) | Pinocchio CRBA vs MuJoCo `mj_fullM()` | `3.34e-05` |
 
 ## Key Design Decisions
 
-### Torque-mode actuators
-Lab 3 uses `<motor>` actuators (gain=1, bias=0) for direct torque control, unlike Lab 2's position servos. This enables computed-torque and impedance control.
+### Menagerie actuator mapping
+The canonical UR5e stack keeps the Menagerie arm actuators. Lab 3 maps desired joint torques into actuator controls in `lab3_common.py` instead of replacing the Menagerie actuators.
 
 ### Armature matching
-MuJoCo's `armature=0.01` adds to the mass matrix diagonal. In Pinocchio, `model.armature[:] = 0.01` (not `rotorInertia`) achieves the same effect.
+MuJoCo armature must be reflected in Pinocchio through `model.armature[:]`, not `rotorInertia`.
 
-### URDF-MJCF alignment
-The URDF was rebuilt from scratch by extracting body positions, quaternions, and inertias from the MJCF. Key corrections: `body_iquat` rotation for inertia tensors (upper_arm, forearm), which created cross-terms.
+### URDF-MuJoCo alignment
+The Pinocchio URDF includes the mounted Robotiq payload as a fixed inertial load so MuJoCo and Pinocchio stay aligned closely enough for dynamics parity on the canonical stack.
 
 ## How to Run
 

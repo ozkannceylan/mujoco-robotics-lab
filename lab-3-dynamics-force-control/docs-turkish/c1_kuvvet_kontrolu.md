@@ -8,7 +8,7 @@ Hibrit kontrol uygulamak: XY düzleminde konum kontrolü, Z'de PI kuvvet kontrol
 
 - Kuvvet denetleyicisi: `src/c1_force_control.py`
 - Çizgi izleme: `src/c2_line_trace.py`
-- Sahne: `models/scene_table.xml`
+- Sahne: `src/lab3_common.py` uzerinden yuklenen Menagerie UR5e + Robotiq masa-temas sahnesi
 - Testler: `tests/test_force_control.py`
 
 ## Teori
@@ -42,13 +42,11 @@ F_f = -(K_fp · e_f + K_fi · ∫e_f dt) - K_dz · ẋ_z
 
 ### Temas Kuvveti Ölçümü
 
-Kuvvetler `mj_contactForce()` ile okunur, yalnızca probe_tip ve table_top geometrileri arasındaki temaslar filtrelenir. Ham kuvvetler EMA alçak geçiren filtre (α=0.2) ile yumuşatılır.
+Kuvvetler `mj_contactForce()` ile okunur. `table_top` ile `wrist_3_link` ve monte Robotiq govdeleri arasindaki temaslar filtrelenir. Ham kuvvetler EMA alcak geciren filtre (alpha=0.2) ile yumusatilir.
 
-### Çarpışma Filtreleme
+### Amacli temas
 
-MuJoCo'nun `contype`/`conaffinity` bit maskeleri hangi geometrilerin çarpışacağını kontrol eder:
-- Kol geometrileri: contype=1, conaffinity=1
-- Masa + prob: contype=2, conaffinity=2
+Lab 3'te masaya temas etmek bilerek yapilir. Amac masadan kacmak degil, nazik temas kurup yaklasik `5 N` normal kuvveti XY takibiyle birlikte regule etmektir.
 
 ## Sonuçlar
 
@@ -57,21 +55,17 @@ MuJoCo'nun `contype`/`conaffinity` bit maskeleri hangi geometrilerin çarpışac
 | Metrik | Değer |
 |--------|-------|
 | Hedef kuvvet | 5.0 N |
-| Ortalama kuvvet | 4.95 N |
-| Std kuvvet | 0.09 N |
-| ±1N içinde | %100 |
-| XY hatası | 0.62 mm |
+| Ortalama kuvvet | 4.89 N |
+| ±1N icinde | %99.96 |
+| Maks XY hatasi | 3.60 mm |
 
 ### Sabit Kuvvetli Çizgi İzleme (50mm)
 
 | Metrik | Değer |
 |--------|-------|
 | Hedef kuvvet | 5.0 N |
-| Ortalama kuvvet | 4.99 N |
-| Std kuvvet | 0.33 N |
-| ±1N içinde | %98.1 |
-| Ort. XY hatası | 1.96 mm |
-| Maks XY hatası | 3.19 mm |
+| ±1N icinde | %94.07 |
+| Maks XY hatasi | 1.70 mm |
 
 ## Faz Durum Makinesi
 

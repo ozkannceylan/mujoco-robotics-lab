@@ -12,7 +12,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from collision_checker import CollisionChecker
 from lab4_common import JOINT_LOWER, JOINT_UPPER, MEDIA_DIR, Q_HOME
-from rrt_planner import RRTNode, RRTStarPlanner, visualize_plan
+from rrt_planner import RRTNode, RRTStarPlanner, _3D_AVAILABLE, visualize_plan
+
+requires_3d = pytest.mark.skipif(
+    not _3D_AVAILABLE,
+    reason="mpl_toolkits.mplot3d unavailable (system/pip matplotlib version conflict)",
+)
 
 
 @pytest.fixture(scope="module")
@@ -163,6 +168,7 @@ class TestRRTStar:
 class TestVisualization:
     """Test visualization runs without error."""
 
+    @requires_3d
     def test_visualize_saves_file(
         self, cc: CollisionChecker, goals: tuple[np.ndarray, np.ndarray]
     ) -> None:

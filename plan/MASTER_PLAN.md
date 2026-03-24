@@ -76,9 +76,18 @@ INTEGRATION (Labs 8-9)
 | Labs | Robot | Rationale |
 |------|-------|-----------|
 | 1 | Custom 2-link planar | Minimal complexity, focus on math |
-| 2–5 | UR5e (MuJoCo Menagerie) | Industry-standard 6-DOF, fixed base |
+| 2–5 | UR5e + Robotiq 2F-85 (MuJoCo Menagerie) | Industry-standard fixed-base manipulation stack |
 | 6 | Dual UR5e or G1 upper body | Transition point |
 | 7–9 | Unitree G1 | Full humanoid with Dex3 hands |
+
+### Platform Lock
+
+For Labs 2–5, the robot baseline is fixed:
+
+- Use the MuJoCo Menagerie `universal_robots_ur5e` model.
+- Use the MuJoCo Menagerie `robotiq_2f85` gripper for manipulation labs.
+- Do not replace Labs 3–5 with simplified/custom UR5e kinematics or a custom gripper as the primary implementation path.
+- If a temporary simplified model is ever used for debugging, it must be clearly labeled as a temporary prototype and not counted as lab completion.
 
 ---
 

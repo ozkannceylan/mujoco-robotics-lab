@@ -21,6 +21,7 @@ from lab3_common import (
     NUM_JOINTS,
     Q_HOME,
     MEDIA_DIR,
+    apply_arm_torques,
     clip_torques,
     load_mujoco_model,
     load_pinocchio_model,
@@ -112,7 +113,7 @@ def run_gravity_comp_sim(
         tau_arr[i] = tau
 
         # Apply and step
-        mj_data.ctrl[:NUM_JOINTS] = tau
+        apply_arm_torques(mj_model, mj_data, tau)
         mujoco.mj_step(mj_model, mj_data)
 
     q_error = q_arr - q_init[np.newaxis, :]

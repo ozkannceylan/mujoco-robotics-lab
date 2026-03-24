@@ -2,7 +2,7 @@
 
 > **Status:** Not Started  
 > **Prerequisites:** Lab 2 (6-DOF IK), Lab 3 (torque-level control)  
-> **Platform:** UR5e on MuJoCo + Pinocchio  
+> **Platform:** MuJoCo Menagerie UR5e + mounted Robotiq 2F-85, planned with Pinocchio/HPP-FCL  
 > **Capstone Demo:** Plan and execute collision-free trajectory through a cluttered tabletop
 
 ---
@@ -72,7 +72,7 @@ Goal (start config → target config)
 ## Implementation Phases
 
 ### Phase 1 — Collision Infrastructure
-- Set up Pinocchio collision model with UR5e collision geometries
+- Set up Pinocchio collision model from the same Menagerie UR5e + Robotiq geometry used in simulation
 - Add environment obstacles (boxes on table, shelves) to both MuJoCo scene and Pinocchio
 - Implement `is_collision_free(q)` function
 - Visualize: show collision vs. free configurations
@@ -100,6 +100,7 @@ Goal (start config → target config)
 ## Key Design Decisions for Claude Code
 
 - **Implement RRT from scratch** — don't use MoveIt2 or OMPL. This lab is about understanding the algorithm, not using a library. Keep it pure Python + Pinocchio.
+- **Plan on the real executed geometry.** Lab 4 must not use a simplified/custom UR5e collision surrogate as the primary planner model. The collision model must represent the Menagerie UR5e and mounted Robotiq gripper used in MuJoCo.
 - **Collision checking is the bottleneck.** Cache where possible. Pinocchio's `computeCollisions` is fast but called thousands of times during planning.
 - **TOPP-RA can be a library.** Unlike RRT, TOPP-RA implementation is not the learning goal. Use `toppra` Python package.
 - **Reuse Lab 3's controller.** The trajectory executor should feed waypoints into the impedance controller. No new low-level control code.

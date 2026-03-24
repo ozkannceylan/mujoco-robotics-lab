@@ -21,11 +21,12 @@ import numpy as np
 # ---------------------------------------------------------------------------
 LAB_NAME = "lab-2-Ur5e-robotics-lab"
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+_LAB_DIR = Path(__file__).resolve().parents[1]
 SOURCE_DIR = Path(__file__).resolve().parent
-MODELS_DIR = PROJECT_ROOT / "models" / LAB_NAME
-DOCS_DIR = PROJECT_ROOT / "docs" / LAB_NAME
-DOCS_TURKISH_DIR = PROJECT_ROOT / "docs-turkish" / LAB_NAME
-MEDIA_DIR = PROJECT_ROOT / "media" / LAB_NAME
+MODELS_DIR = _LAB_DIR / "models"
+DOCS_DIR = _LAB_DIR / "docs"
+DOCS_TURKISH_DIR = _LAB_DIR / "docs-turkish"
+MEDIA_DIR = _LAB_DIR / "media"
 
 # ---------------------------------------------------------------------------
 # Model file paths

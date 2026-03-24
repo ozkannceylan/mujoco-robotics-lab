@@ -1,9 +1,9 @@
 """Lab 6 — Common constants, paths, and model loading utilities.
 
 Dual-arm scene layout:
-  Left arm base:  (0, -0.35, 0)  — grips bar -X end at ~(0.35, 0, bar_z)
-  Right arm base: (0, +0.35, 0)  — grips bar +X end at ~(0.55, 0, bar_z)
-  Carry bar centre: (0.45, 0, 0.335), half_extents (0.12, 0.025, 0.020)
+  Left arm base:  (0, -0.35, 0)  — grips bar -Y end at ~(0.45, -0.10, bar_z)
+  Right arm base: (0, +0.35, 0)  — grips bar +Y end at ~(0.45, +0.10, bar_z)
+  Carry bar centre: (0.45, 0, 0.335), half_extents (0.025, 0.12, 0.020)
 
 MuJoCo model indices (verified against dual_arm_scene.xml):
   qpos[0:6]   — left arm joints
@@ -116,17 +116,17 @@ RIGHT_ARM_BASE_POS = np.array([0.0,  0.35, 0.0])
 TABLE_TOP_Z = 0.315          # world Z of table surface (centre 0.300, half 0.015)
 
 # Carry bar — pick position
-BAR_HALF_X = 0.12            # bar half-length in X (240 mm)
-BAR_HALF_Y = 0.025           # bar half-width in Y (50 mm)
+BAR_HALF_X = 0.025           # bar half-width in X (50 mm)  — bar is Y-oriented
+BAR_HALF_Y = 0.12            # bar half-length in Y (240 mm)
 BAR_HALF_Z = 0.020           # bar half-height in Z (40 mm)
 BAR_PICK_POS = np.array([0.45, 0.0, TABLE_TOP_Z + BAR_HALF_Z])   # (0.45, 0, 0.335)
 
 # Carry bar — place position (moved +0.20 m in Y)
 BAR_PLACE_POS = np.array([0.45, 0.20, TABLE_TOP_Z + BAR_HALF_Z])  # (0.45, 0.20, 0.335)
 
-# Grip X-offsets from bar centre (each arm grabs one X-end)
-LEFT_GRIP_X_OFFSET  = -0.10   # left arm grips at bar_x - 0.10 (bar -X end)
-RIGHT_GRIP_X_OFFSET =  0.10   # right arm grips at bar_x + 0.10 (bar +X end)
+# Grip Y-offsets from bar centre (each arm grabs one Y-end from its own side)
+LEFT_GRIP_Y_OFFSET  = -0.10   # left arm grips at bar_y - 0.10 (bar -Y end)
+RIGHT_GRIP_Y_OFFSET =  0.10   # right arm grips at bar_y + 0.10 (bar +Y end)
 
 # Pre-grasp clearance (metres above grasp height)
 PREGRASP_CLEARANCE = 0.15

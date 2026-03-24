@@ -275,7 +275,7 @@ class BimanualStateMachine:
 
             elif self.state == State.DESCEND_PLACE:
                 self._log_transition()
-                self._run_joint_descent(mode="descend")
+                self._run_joint_descent(mode="descend_place")
                 self.state = State.RELEASE
 
             elif self.state == State.RELEASE:
@@ -398,15 +398,18 @@ class BimanualStateMachine:
             self._record()
 
     def _run_joint_descent(self, mode: str) -> None:
-        """Move both arms from pregrasp→grasp (descend) or grasp→pregrasp (lift).
+        """Move both arms through a descent or lift in joint space.
 
-        Uses joint-space impedance to track a smooth linear interpolation in
-        joint space between the two IK configurations.  This is more reliable
-        than Cartesian impedance for a long descent (avoids Jacobian
-        singularity issues and guarantees reaching the exact target config).
+        Uses joint-space impedance to track a smooth linear interpolation
+        between two IK configurations.  This is more reliable than Cartesian
+        impedance (avoids Jacobian singularity issues and guarantees reaching
+        the exact target config).
 
         Args:
-            mode: 'descend' (pregrasp → grasp) or 'lift' (grasp → pregrasp).
+            mode: One of:
+                'descend'       — pregrasp → grasp (pick approach)
+                'lift'          — grasp → pregrasp (after picking)
+                'descend_place' — preplace → place (place approach)
         """
         if mode == "descend":
             q_start_L = self.cfgs.left.q_pregrasp
@@ -414,12 +417,18 @@ class BimanualStateMachine:
             q_start_R = self.cfgs.right.q_pregrasp
             q_end_R   = self.cfgs.right.q_grasp
             duration  = PREGRASP_CLEARANCE / self.DESCEND_SPEED
-        else:  # lift
+        elif mode == "lift":
             q_start_L = self.cfgs.left.q_grasp
             q_end_L   = self.cfgs.left.q_pregrasp
             q_start_R = self.cfgs.right.q_grasp
             q_end_R   = self.cfgs.right.q_pregrasp
             duration  = PREGRASP_CLEARANCE / self.LIFT_SPEED
+        else:  # descend_place
+            q_start_L = self.cfgs.left.q_preplace
+            q_end_L   = self.cfgs.left.q_place
+            q_start_R = self.cfgs.right.q_preplace
+            q_end_R   = self.cfgs.right.q_place
+            duration  = PREGRASP_CLEARANCE / self.DESCEND_SPEED
 
         n_steps = int(duration / DT) + 1
 

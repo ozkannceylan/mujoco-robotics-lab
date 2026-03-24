@@ -36,12 +36,12 @@ F_6d = [K_p_lin · e_pos; K_p_rot · e_rot] + [K_d_lin · ė_pos; K_d_rot · ė_
 τ = J_6d^T · F_6d + g(q)
 ```
 
-Orientation error uses skew-symmetric extraction:
+Orientation error in the canonical implementation uses the Lie-log map:
 ```
-e_R = 0.5 · vee(R_d^T · R - R^T · R_d)
+e_R = log3(R_d · R^T)
 ```
 
-This gives a 3-vector proportional to the angle-axis rotation error, valid for small angles.
+This is the large-angle-safe formulation used by the current Lab 3 controller.
 
 ### Compliance Tuning
 
@@ -55,10 +55,9 @@ The stiffness K_p determines how "stiff" or "compliant" the EE feels:
 
 ## Results
 
-- **Position tracking**: < 1mm error to Cartesian targets
-- **Orientation tracking**: < 1° error
-- **Perturbation recovery**: returns to target after external force removed
-- **Stiffness scaling**: deflection inversely proportional to K_p (verified monotonic)
+- Validated on the canonical UR5e + Robotiq stack
+- Covered by `tests/test_impedance.py` in the final `34 passed` Lab 3 suite
+- 6D orientation handling now matches the canonical large-angle-safe formulation
 
 ## Architecture
 

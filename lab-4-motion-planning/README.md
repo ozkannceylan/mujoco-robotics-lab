@@ -1,139 +1,74 @@
 # Lab 4: Motion Planning & Collision Avoidance
 
-Sampling-based motion planning for the UR5e 6-DOF arm with collision avoidance, trajectory optimization, and torque-controlled execution.
+Status: complete and signed off on 2026-03-17.
 
-## Overview
+Lab 4 now runs on the canonical project stack:
 
-This lab implements a complete motion planning pipeline:
+- MuJoCo Menagerie `universal_robots_ur5e`
+- mounted MuJoCo Menagerie `robotiq_2f85`
+- exact executed MuJoCo collision geometry for planning-time collision truth
+- Pinocchio retained for FK, visualization support, and gravity compensation during execution
 
-1. **Collision Infrastructure** — Pinocchio + HPP-FCL for self-collision and environment obstacle checking
-2. **RRT / RRT\*** — Sampling-based planners in configuration space with goal bias and rewiring
-3. **Trajectory Post-Processing** — Path shortcutting + TOPP-RA time-optimal parameterization
-4. **Trajectory Execution** — Joint-space impedance control on torque-controlled UR5e in MuJoCo
+## What Was Validated
 
-## Key Results
+- Collision checking on the real executed UR5e + Robotiq geometry
+- RRT and RRT* planning on the canonical stack
+- Path shortcutting and time parameterization
+- Joint-space execution with gravity compensation through the Menagerie actuator model
+- A blocked-path tabletop validation scene recorded to video
 
-| Metric | Value |
-|---|---|
-| Pinocchio/MuJoCo collision agreement | 92.8% |
-| RRT planning time | 0.02s |
-| RRT* planning time | 29.4s (5000 iterations) |
-| Shortcutting reduction | 12 to 2 waypoints |
-| TOPP-RA trajectory duration | 0.87-0.99s |
-| Tracking RMS error | < 0.01 rad |
-| Final position error | < 0.02 rad |
-| Total tests | 45 passing |
+## Final Validation Summary
+
+- Full Lab 4 test suite: `44 passed, 1 skipped`
+- Standard capstone execution RMS tracking error: `0.0125 rad`
+- Standard capstone final position error: `0.0016 rad`
+- Blocked-path validation scene: start free `True`, goal free `True`, direct path free `False`
+- Blocked-path validation scene raw path: `35` waypoints
+- Blocked-path validation scene shortcut path: `3` waypoints
+- Blocked-path validation scene raw cost: `9.895`
+- Blocked-path validation scene shortcut cost: `7.873`
+- Blocked-path validation scene trajectory duration: `2.659 s`
+- Blocked-path validation scene RMS tracking error: `0.0037 rad`
+- Blocked-path validation scene final position error: `0.0004 rad`
+
+## Canonical Artifacts
+
+- Validation video: `media/lab4_validation_real_stack.mp4`
+- Capstone plots: `media/capstone_rrt_tree.png`, `media/capstone_rrt_star_tree.png`, `media/capstone_execution_comparison.png`, `media/capstone_ee_trajectory.png`
+- Planning plots: `media/rrt_plan.png`, `media/rrt_star_plan.png`
+- Path-processing plots: `media/raw_vs_smooth_comparison.png`
 
 ## Architecture
 
-```
-collision_checker.py    Pinocchio + HPP-FCL collision queries
-        |
-rrt_planner.py          RRT/RRT* sampling-based planning
-        |
-trajectory_smoother.py  Shortcutting + TOPP-RA timing
-        |
-trajectory_executor.py  Joint-space impedance on MuJoCo
-        |
-capstone_demo.py        Full pipeline: plan -> smooth -> execute
-```
+| Module | Role |
+|------|------|
+| `src/lab4_common.py` | Canonical scene/model loading, obstacle specs, actuator helpers |
+| `src/collision_checker.py` | Collision queries on the executed MuJoCo geometry |
+| `src/rrt_planner.py` | RRT / RRT* in joint space |
+| `src/trajectory_smoother.py` | Shortcutting + time parameterization |
+| `src/trajectory_executor.py` | Joint-space PD + gravity compensation execution |
+| `src/capstone_demo.py` | Standard full-pipeline demo |
+| `src/record_lab4_validation.py` | Blocked-path validation video recorder |
 
-## Quick Start
+## Important Implementation Notes
+
+- The planner no longer reasons over a separate custom collision URDF as the source of truth. Collision truth comes from the same MuJoCo robot and obstacle geometry that execution uses.
+- Pinocchio is still used where it adds value: FK utilities and gravity compensation in the execution controller.
+- `parameterize_topp_ra(...)` keeps the same public API. It uses TOPP-RA when available and falls back to a conservative quintic time-parameterization when TOPP-RA is not installable in the current Python environment.
+- Trajectory execution no longer writes torques directly into `mj_data.ctrl[:6]`. Desired arm torques are mapped through the Menagerie actuator model first, matching the real stack used in Lab 3.
+- The recorded validation artifact now uses a tabletop-only obstacle layout and a slower, smoother timing profile.
+- Validation video is recorded using native `mujoco.Renderer` exclusively, matching the Lab 1 and Lab 2 recording pipelines exactly. No matplotlib 2D projection or 3D replay fallbacks are used.
+
+## How To Run
 
 ```bash
-cd lab-4-motion-planning/src
-
-# Run the capstone demo
-python capstone_demo.py
-
-# Run all tests
-cd .. && python -m pytest tests/ -v
+python3 -m pytest lab-4-motion-planning/tests -q
+python3 lab-4-motion-planning/src/capstone_demo.py
+python3 lab-4-motion-planning/src/record_lab4_validation.py
 ```
 
-## Scene Setup
+## Notes
 
-The scene contains a UR5e arm with 4 box obstacles on a table, creating narrow passages:
-
-- **Table**: 0.60m x 0.90m at height 0.30m
-- **Obstacles**: 4 red boxes at various heights creating planning challenges
-- **Robot**: UR5e with torque-mode actuators (6 DOF)
-
-## Collision Checking
-
-The `CollisionChecker` class wraps Pinocchio's GeometryModel with HPP-FCL:
-
-- Self-collision pairs with adjacent-link filtering (adjacency gap = 1)
-- Environment obstacles added as fixed boxes in the world frame
-- Cross-validated against MuJoCo contacts (92.8% agreement)
-
-```python
-from collision_checker import CollisionChecker
-
-cc = CollisionChecker()
-free = cc.is_collision_free(q)           # single config
-path_ok = cc.is_path_free(q1, q2)       # edge check
-dist = cc.compute_min_distance(q)        # penetration depth
-```
-
-## Planning
-
-RRT and RRT* with configurable parameters:
-
-```python
-from rrt_planner import RRTStarPlanner
-
-planner = RRTStarPlanner(cc, step_size=0.3, goal_bias=0.1, rewire_radius=1.0)
-path = planner.plan(q_start, q_goal, max_iter=5000, rrt_star=True, seed=42)
-```
-
-## Trajectory Processing
-
-```python
-from trajectory_smoother import shortcut_path, parameterize_topp_ra
-
-short = shortcut_path(path, cc, max_iter=200)
-times, pos, vel, acc = parameterize_topp_ra(short, VEL_LIMITS, ACC_LIMITS)
-```
-
-## Execution
-
-```python
-from trajectory_executor import execute_trajectory
-
-result = execute_trajectory(times, pos, vel, Kp=400.0, Kd=40.0)
-# result: {time, q_actual, q_desired, tau, ee_pos}
-```
-
-## Dependencies
-
-- Python 3.10+
-- MuJoCo
-- Pinocchio (with HPP-FCL)
-- NumPy
-- Matplotlib
-- toppra
-
-## File Structure
-
-```
-lab-4-motion-planning/
-├── src/
-│   ├── lab4_common.py           # Constants, paths, model loading
-│   ├── collision_checker.py     # Pinocchio collision infrastructure
-│   ├── rrt_planner.py           # RRT/RRT* planner + visualization
-│   ├── trajectory_smoother.py   # Shortcutting + TOPP-RA
-│   ├── trajectory_executor.py   # Impedance control execution
-│   └── capstone_demo.py         # Full pipeline demo
-├── models/
-│   ├── ur5e.xml                 # Torque-mode UR5e (MJCF)
-│   ├── ur5e_collision.urdf      # UR5e with collision geometries
-│   └── scene_obstacles.xml      # Cluttered scene with obstacles
-├── tests/
-│   ├── test_collision.py        # 21 tests
-│   ├── test_planner.py          # 11 tests
-│   └── test_trajectory.py       # 13 tests
-├── docs/                        # English documentation
-├── docs-turkish/                # Turkish documentation
-├── media/                       # Plots and visualizations
-└── tasks/                       # PLAN, ARCHITECTURE, TODO, LESSONS
-```
+- The standard capstone demo keeps the original comparison scenario for stable RRT vs RRT* reporting.
+- The recorded validation video uses a stricter blocked-path scene (`CAPSTONE_OBSTACLES`) with every obstacle on the table, so the saved artifact proves tabletop obstacle avoidance instead of a trivial straight-line path.
+- Lab 4 is complete on the canonical real stack. Lab 5 is the next remaining end-to-end target.

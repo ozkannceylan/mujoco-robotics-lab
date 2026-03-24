@@ -27,8 +27,10 @@ from lab3_common import (
     NUM_JOINTS,
     Q_HOME,
     MEDIA_DIR,
+    apply_arm_torques,
     clip_torques,
     get_ee_pose,
+    get_mj_ee_site_id,
     load_mujoco_model,
     load_pinocchio_model,
 )
@@ -79,12 +81,7 @@ class ImpedanceGains:
 def orientation_error(R_des: np.ndarray, R_cur: np.ndarray) -> np.ndarray:
     """Compute orientation error between desired and current rotation matrices.
 
-    Uses the skew-symmetric extraction method:
-      e_R = 0.5 * vee(R_d^T R - R^T R_d)
-
-    This gives a 3D vector whose magnitude is the angle error and direction
-    is the rotation axis, valid for small errors. For large errors it provides
-    a smooth gradient toward the target.
+    Uses the Lie algebra log-map, which remains valid near 180 degree errors.
 
     Args:
         R_des: Desired rotation matrix [3x3].
@@ -93,10 +90,7 @@ def orientation_error(R_des: np.ndarray, R_cur: np.ndarray) -> np.ndarray:
     Returns:
         Orientation error vector in world frame (3,).
     """
-    R_err = R_des.T @ R_cur - R_cur.T @ R_des
-    # Extract vector from skew-symmetric matrix (vee map)
-    e = 0.5 * np.array([R_err[2, 1], R_err[0, 2], R_err[1, 0]])
-    return e
+    return pin.log3(R_des @ R_cur.T)
 
 
 # ---------------------------------------------------------------------------
@@ -244,7 +238,7 @@ def run_impedance_sim(
 
     pin_model, pin_data, ee_fid = load_pinocchio_model()
     mj_model, mj_data = load_mujoco_model()
-    site_id = mujoco.mj_name2id(mj_model, mujoco.mjtObj.mjOBJ_SITE, "tool_site")
+    site_id = get_mj_ee_site_id(mj_model)
 
     # Set initial config
     mj_data.qpos[:NUM_JOINTS] = q_init
@@ -291,7 +285,7 @@ def run_impedance_sim(
         tau = clip_torques(tau)
         tau_arr[i] = tau
 
-        mj_data.ctrl[:NUM_JOINTS] = tau
+        apply_arm_torques(mj_model, mj_data, tau)
         mujoco.mj_step(mj_model, mj_data)
 
         # Record EE position
