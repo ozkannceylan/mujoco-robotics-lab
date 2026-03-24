@@ -13,12 +13,17 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import matplotlib
+matplotlib.use("Agg")           # must be set before pyplot is imported
 import matplotlib.pyplot as plt
 import numpy as np
+
+# 3-D projection — optional; broken when system mpl_toolkits conflicts with pip matplotlib
+_3D_AVAILABLE = False
 try:
-    from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
-except ImportError:
-    Axes3D = None  # visualization only — safe to skip
+    import mpl_toolkits.mplot3d  # noqa: F401 — registers '3d' projection
+    _3D_AVAILABLE = True
+except Exception:
+    pass
 
 from collision_checker import CollisionChecker
 from lab4_common import JOINT_LOWER, JOINT_UPPER, MEDIA_DIR, ObstacleSpec
@@ -101,6 +106,8 @@ class RRTStarPlanner:
         if seed is not None:
             self._rng = np.random.default_rng(seed)
 
+        self.cost_history = []
+
         # Validate start and goal
         if not self.cc.is_collision_free(q_start):
             return None
@@ -124,6 +131,8 @@ class RRTStarPlanner:
 
             # Check edge collision
             if not self.cc.is_path_free(q_nearest, q_new):
+                if goal_node_idx is not None:
+                    self.cost_history.append(self._tree[goal_node_idx].cost)
                 continue
 
             if rrt_star:
@@ -158,7 +167,11 @@ class RRTStarPlanner:
 
                     # For basic RRT, return immediately
                     if not rrt_star:
+                        self.cost_history.append(self._tree[goal_node_idx].cost)
                         return self._extract_path(goal_node_idx)
+
+            if goal_node_idx is not None:
+                self.cost_history.append(self._tree[goal_node_idx].cost)
 
         if goal_node_idx is not None:
             return self._extract_path(goal_node_idx)
@@ -280,14 +293,23 @@ def visualize_plan(
         ee_fid: Pinocchio EE frame ID.
         title: Plot title.
         save_path: If provided, save figure to this path.
+
+    Raises:
+        RuntimeError: If 3D visualization is unavailable (broken system mpl_toolkits).
     """
+    if not _3D_AVAILABLE:
+        raise RuntimeError(
+            "3D visualization unavailable: mpl_toolkits.mplot3d could not be imported "
+            "(likely a conflict between the system and pip matplotlib versions). "
+            "Skipping visualization."
+        )
+
     import pinocchio as pin
-    from lab4_common import OBSTACLES, TABLE_SPEC, get_ee_pos
+    from lab4_common import TABLE_SPEC, get_ee_pos
 
     model = planner.cc.model
     data = planner.cc.data
 
-    matplotlib.use("Agg")
     fig = plt.figure(figsize=(12, 8))
     ax = fig.add_subplot(111, projection="3d")
 
@@ -316,7 +338,7 @@ def visualize_plan(
         ax.scatter(*path_pos[-1], c="red", s=100, marker="*", label="Goal")
 
     # Plot obstacle boxes
-    for obs in OBSTACLES + [TABLE_SPEC]:
+    for obs in tuple(planner.cc.obstacle_specs) + (TABLE_SPEC,):
         _draw_box(ax, obs.position, obs.half_extents, color="red" if obs.name != "table" else "brown")
 
     ax.set_xlabel("X (m)")

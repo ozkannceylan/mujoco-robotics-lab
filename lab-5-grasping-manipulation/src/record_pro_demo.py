@@ -31,6 +31,12 @@ MEDIA_DIR = Path(__file__).resolve().parents[1] / "media"
 MEDIA_DIR.mkdir(parents=True, exist_ok=True)
 OUTPUT_VIDEO = MEDIA_DIR / "pick_place_pro.mp4"
 
+# Lab 4 collision-free planning
+_LAB4_SRC = REPO_ROOT / "lab-4-motion-planning" / "src"
+_LAB4_URDF = REPO_ROOT / "lab-4-motion-planning" / "models" / "ur5e_collision.urdf"
+if str(_LAB4_SRC) not in sys.path:
+    sys.path.insert(0, str(_LAB4_SRC))
+
 # ---------------------------------------------------------------------------
 # Scene constants
 # ---------------------------------------------------------------------------
@@ -52,6 +58,61 @@ Q_HOME = np.array([-np.pi / 2, -np.pi / 2, np.pi / 2, -np.pi / 2, -np.pi / 2, 0.
 
 # Position servo gains (from Menagerie gainprm)
 KP_VEC = np.array([2000.0, 2000.0, 2000.0, 500.0, 500.0, 500.0])
+
+
+# ---------------------------------------------------------------------------
+# Collision-free planning (Lab 4 RRT*)
+# ---------------------------------------------------------------------------
+
+from collision_checker import CollisionChecker  # noqa: E402 (after sys.path insert)
+from rrt_planner import RRTStarPlanner          # noqa: E402
+from trajectory_smoother import shortcut_path   # noqa: E402
+
+# Collision checker: arm self-collision + table only.
+# obstacle_specs=() disables the Lab 4 scene obstacles (obs1-obs4) which do not
+# exist in the pro-demo scene; include_table=True adds the table separately.
+_cc = CollisionChecker(obstacle_specs=(), self_collision=True, include_table=True)
+_planner = RRTStarPlanner(
+    _cc,
+    step_size=0.3,
+    goal_bias=0.15,
+    rewire_radius=1.0,
+    goal_tolerance=0.15,
+)
+
+
+def plan_collision_free(
+    q_start: np.ndarray,
+    q_end: np.ndarray,
+    label: str = "",
+    max_iter: int = 6000,
+    seed: int = 42,
+) -> list[np.ndarray]:
+    """Plan a collision-free joint-space path via RRT* + shortcutting.
+
+    Args:
+        q_start: Start configuration (6,).
+        q_end: Goal configuration (6,).
+        label: Human-readable label for error messages.
+        max_iter: RRT* iteration budget.
+        seed: Random seed for reproducibility.
+
+    Returns:
+        List of collision-free waypoints from q_start to q_end.
+
+    Raises:
+        RuntimeError: If RRT* fails to find a path.
+    """
+    path = _planner.plan(q_start, q_end, max_iter=max_iter, rrt_star=True, seed=seed)
+    if path is None:
+        raise RuntimeError(
+            f"RRT* failed to find a collision-free path "
+            f"{'for ' + label + ' ' if label else ''}(q_start={np.round(q_start, 2)}, "
+            f"q_end={np.round(q_end, 2)}). "
+            "Check joint limits and obstacle placement."
+        )
+    path = shortcut_path(path, _cc, max_iter=200, seed=seed)
+    return path
 
 
 # ---------------------------------------------------------------------------
@@ -227,6 +288,33 @@ def build_scene() -> mujoco.MjSpec:
 
 
 # ---------------------------------------------------------------------------
+# SO(3) utilities
+# ---------------------------------------------------------------------------
+
+def _so3_log(R: np.ndarray) -> np.ndarray:
+    """SO(3) logarithm map: rotation matrix → rotation vector.
+
+    Returns the axis-angle vector v such that exp([v]×) = R.
+    Handles the 180° case correctly (no singularity at θ = π).
+
+    Args:
+        R: 3×3 rotation matrix.
+
+    Returns:
+        Rotation vector (3,) in radians.
+    """
+    tr = np.clip((np.trace(R) - 1.0) / 2.0, -1.0, 1.0)
+    theta = np.arccos(tr)
+    if abs(theta) < 1e-8:
+        return np.zeros(3)
+    return (theta / (2.0 * np.sin(theta))) * np.array([
+        R[2, 1] - R[1, 2],
+        R[0, 2] - R[2, 0],
+        R[1, 0] - R[0, 1],
+    ])
+
+
+# ---------------------------------------------------------------------------
 # DLS Jacobian IK
 # ---------------------------------------------------------------------------
 
@@ -256,8 +344,9 @@ def compute_ik(
 
         pos_err = target_pos - d.site_xpos[site_id]
         R_cur = d.site_xmat[site_id].reshape(3, 3)
-        R_err = target_rot.T @ R_cur - R_cur.T @ target_rot
-        ori_err = -0.5 * np.array([R_err[2, 1], R_err[0, 2], R_err[1, 0]])
+        # SO(3) log: singularity-free at all rotation magnitudes including 180°.
+        # target_rot @ R_cur.T = relative rotation from current to target.
+        ori_err = _so3_log(target_rot @ R_cur.T)
         err = np.concatenate([pos_err, ori_err])
         err_norm = np.linalg.norm(err)
 
@@ -376,6 +465,59 @@ def hold_phase(
 
 
 # ---------------------------------------------------------------------------
+# Collision-free trajectory execution
+# ---------------------------------------------------------------------------
+
+def run_phase_planned(
+    m: mujoco.MjModel,
+    d: mujoco.MjData,
+    q_end: np.ndarray,
+    gripper_val: float,
+    steps_per_segment: int,
+    renderer: mujoco.Renderer,
+    cam: mujoco.MjvCamera,
+    opt: mujoco.MjvOption,
+    writer,
+    frames_per_step: int,
+    label: str = "",
+) -> None:
+    """Plan a collision-free path to q_end then execute it segment by segment.
+
+    Uses Lab 4 RRT* + shortcutting to compute a sequence of collision-free
+    waypoints, then runs `run_phase()` over each consecutive pair.  Each
+    segment is guaranteed collision-free by the RRT* edge-check resolution
+    (0.05 rad), so linear interpolation within a segment is safe.
+
+    Args:
+        m: MuJoCo model.
+        d: MuJoCo data (current qpos[:6] used as start).
+        q_end: Goal configuration (6,).
+        gripper_val: Gripper control value (held constant).
+        steps_per_segment: Sim steps allocated per waypoint segment.
+            Automatically scaled by segment length.
+        renderer, cam, opt, writer, frames_per_step: Rendering pipeline.
+        label: Human-readable phase label for error messages.
+    """
+    q_start = d.qpos[:6].copy()
+    waypoints = plan_collision_free(q_start, q_end, label=label)
+
+    if len(waypoints) < 2:
+        # Already at goal — nothing to do
+        return
+
+    # Distribute steps proportionally to joint-space distance per segment
+    dists = [np.linalg.norm(waypoints[i + 1] - waypoints[i])
+             for i in range(len(waypoints) - 1)]
+    total_dist = sum(dists) or 1.0
+    total_steps = steps_per_segment * len(dists)
+
+    for i, (wp_start, wp_end) in enumerate(zip(waypoints[:-1], waypoints[1:])):
+        seg_steps = max(50, int(total_steps * dists[i] / total_dist))
+        run_phase(m, d, wp_start, wp_end, gripper_val, seg_steps,
+                  renderer, cam, opt, writer, None, None, frames_per_step)
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -433,15 +575,19 @@ def main() -> None:
     preplace_pos = BOX_B_POS + np.array([0, 0, GRIPPER_TIP_OFFSET + HOVER_HEIGHT])
     place_pos    = BOX_B_POS + np.array([0, 0, GRIPPER_TIP_OFFSET])
 
-    q_pregrasp = ik_at(pregrasp_pos, Q_HOME,       "q_pregrasp")
-    q_grasp    = ik_at(grasp_pos,    q_pregrasp,    "q_grasp   ")
-    # Seed preplace from a mirrored version of q_pregrasp: negate shoulder_pan to
-    # hint the IK toward the Y=-0.20 symmetric configuration instead of Q_HOME,
-    # reducing the risk of a large joint-space jump during the transport trajectory.
-    q_hint_preplace = q_pregrasp.copy()
-    q_hint_preplace[0] = -q_pregrasp[0]  # mirror shoulder_pan for Y symmetry
-    q_preplace = ik_at(preplace_pos, q_hint_preplace, "q_preplace")
-    q_place    = ik_at(place_pos,    q_preplace,    "q_place   ")
+    q_pregrasp = ik_at(pregrasp_pos, Q_HOME,    "q_pregrasp")
+    q_grasp    = ik_at(grasp_pos,    q_pregrasp, "q_grasp   ")
+    # Seed preplace from Q_HOME: the Menagerie UR5e reaches Y=-0.20 via a small
+    # shoulder_pan rotation from Q_HOME (-π/2 → less negative), not a mirrored
+    # version of pregrasp (which produces a behind-the-arm config at +130° that
+    # the collision checker rejects).
+    q_preplace = ik_at(preplace_pos, Q_HOME,     "q_preplace")
+    q_place    = ik_at(place_pos,    q_preplace,  "q_place   ")
+
+    print(f"      q_pregrasp joints: {np.round(q_pregrasp, 3)}")
+    print(f"      q_preplace joints: {np.round(q_preplace, 3)}")
+    print(f"      CC q_preplace collision-free: {_cc.is_collision_free(q_preplace)}")
+    print(f"      CC Q_HOME collision-free: {_cc.is_collision_free(Q_HOME)}")
 
     # ------------------------------------------------------------------
     # 3. Setup renderer + camera
@@ -508,14 +654,13 @@ def main() -> None:
     hold_phase(m, d, Q_HOME, GRIPPER_OPEN, STEPS_HOLD, renderer, cam, opt, writer, SIM_STEPS_PER_FRAME)
     log("HOME settled")
 
-    # --- HOME → PREGRASP ---
+    # --- HOME → PREGRASP (collision-free long move) ---
     print("      → HOME → PREGRASP ...")
-    run_phase(m, d, Q_HOME, q_pregrasp, GRIPPER_OPEN, STEPS_MOVE, renderer, cam, opt, writer, DT_SIM, FPS, SIM_STEPS_PER_FRAME)
-    # Hold to settle at pregrasp
+    run_phase_planned(m, d, q_pregrasp, GRIPPER_OPEN, STEPS_MOVE, renderer, cam, opt, writer, SIM_STEPS_PER_FRAME, "HOME→PREGRASP")
     hold_phase(m, d, q_pregrasp, GRIPPER_OPEN, STEPS_HOLD, renderer, cam, opt, writer, SIM_STEPS_PER_FRAME)
     log("PREGRASP settled")
 
-    # --- PREGRASP → GRASP (descend) ---
+    # --- PREGRASP → GRASP (short vertical descent — direct interp is safe) ---
     print("      → PREGRASP → GRASP ...")
     run_phase(m, d, q_pregrasp, q_grasp, GRIPPER_OPEN, STEPS_FAST, renderer, cam, opt, writer, DT_SIM, FPS, SIM_STEPS_PER_FRAME)
     hold_phase(m, d, q_grasp, GRIPPER_OPEN, STEPS_HOLD, renderer, cam, opt, writer, SIM_STEPS_PER_FRAME)
@@ -526,25 +671,25 @@ def main() -> None:
     hold_phase(m, d, q_grasp, GRIPPER_CLOSED, STEPS_SETTLE, renderer, cam, opt, writer, SIM_STEPS_PER_FRAME)
     log("GRIPPER CLOSED")
 
-    # --- LIFT: GRASP → PREGRASP ---
+    # --- LIFT: GRASP → PREGRASP (short vertical lift — direct interp is safe) ---
     print("      → LIFT (GRASP → PREGRASP) ...")
     run_phase(m, d, q_grasp, q_pregrasp, GRIPPER_CLOSED, STEPS_FAST, renderer, cam, opt, writer, DT_SIM, FPS, SIM_STEPS_PER_FRAME)
     hold_phase(m, d, q_pregrasp, GRIPPER_CLOSED, STEPS_HOLD, renderer, cam, opt, writer, SIM_STEPS_PER_FRAME)
     log("LIFTED to PREGRASP")
 
-    # --- PREGRASP → HOME ---
+    # --- PREGRASP → HOME (collision-free long move) ---
     print("      → PREGRASP → HOME ...")
-    run_phase(m, d, q_pregrasp, Q_HOME, GRIPPER_CLOSED, STEPS_MOVE, renderer, cam, opt, writer, DT_SIM, FPS, SIM_STEPS_PER_FRAME)
+    run_phase_planned(m, d, Q_HOME, GRIPPER_CLOSED, STEPS_MOVE, renderer, cam, opt, writer, SIM_STEPS_PER_FRAME, "PREGRASP→HOME")
     hold_phase(m, d, Q_HOME, GRIPPER_CLOSED, STEPS_HOLD // 2, renderer, cam, opt, writer, SIM_STEPS_PER_FRAME)
     log("HOME (carrying box)")
 
-    # --- HOME → PREPLACE ---
+    # --- HOME → PREPLACE (collision-free long move — shoulder sweeps ~π) ---
     print("      → HOME → PREPLACE ...")
-    run_phase(m, d, Q_HOME, q_preplace, GRIPPER_CLOSED, STEPS_MOVE, renderer, cam, opt, writer, DT_SIM, FPS, SIM_STEPS_PER_FRAME)
+    run_phase_planned(m, d, q_preplace, GRIPPER_CLOSED, STEPS_MOVE, renderer, cam, opt, writer, SIM_STEPS_PER_FRAME, "HOME→PREPLACE")
     hold_phase(m, d, q_preplace, GRIPPER_CLOSED, STEPS_HOLD, renderer, cam, opt, writer, SIM_STEPS_PER_FRAME)
     log("PREPLACE settled")
 
-    # --- PREPLACE → PLACE (descend) ---
+    # --- PREPLACE → PLACE (short vertical descent — direct interp is safe) ---
     print("      → PREPLACE → PLACE ...")
     run_phase(m, d, q_preplace, q_place, GRIPPER_CLOSED, STEPS_FAST, renderer, cam, opt, writer, DT_SIM, FPS, SIM_STEPS_PER_FRAME)
     hold_phase(m, d, q_place, GRIPPER_CLOSED, STEPS_HOLD, renderer, cam, opt, writer, SIM_STEPS_PER_FRAME)
@@ -555,16 +700,15 @@ def main() -> None:
     hold_phase(m, d, q_place, GRIPPER_OPEN, STEPS_SETTLE, renderer, cam, opt, writer, SIM_STEPS_PER_FRAME)
     log("GRIPPER OPENED")
 
-    # --- PLACE → PREPLACE (retract) ---
+    # --- PLACE → PREPLACE (short vertical retract — direct interp is safe) ---
     print("      → PLACE → PREPLACE (retract) ...")
     run_phase(m, d, q_place, q_preplace, GRIPPER_OPEN, STEPS_FAST, renderer, cam, opt, writer, DT_SIM, FPS, SIM_STEPS_PER_FRAME)
     hold_phase(m, d, q_preplace, GRIPPER_OPEN, STEPS_HOLD, renderer, cam, opt, writer, SIM_STEPS_PER_FRAME)
     log("PREPLACE settled (retracted)")
 
-    # --- PREPLACE → HOME ---
+    # --- PREPLACE → HOME (collision-free long move) ---
     print("      → PREPLACE → HOME ...")
-    run_phase(m, d, q_preplace, Q_HOME, GRIPPER_OPEN, STEPS_MOVE, renderer, cam, opt, writer, DT_SIM, FPS, SIM_STEPS_PER_FRAME)
-    # --- Final HOME hold ---
+    run_phase_planned(m, d, Q_HOME, GRIPPER_OPEN, STEPS_MOVE, renderer, cam, opt, writer, SIM_STEPS_PER_FRAME, "PREPLACE→HOME")
     hold_phase(m, d, Q_HOME, GRIPPER_OPEN, STEPS_HOLD, renderer, cam, opt, writer, SIM_STEPS_PER_FRAME)
     log("HOME (final)")
 

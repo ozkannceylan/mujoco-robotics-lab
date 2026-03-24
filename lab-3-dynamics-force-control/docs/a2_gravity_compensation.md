@@ -8,6 +8,7 @@ Implement the simplest dynamics-based controller: τ = g(q). The robot should ho
 
 - Script: `src/a2_gravity_compensation.py`
 - Tests: `tests/test_gravity_comp.py`
+- Platform: Menagerie UR5e + mounted Robotiq
 
 ## Theory
 
@@ -31,13 +32,14 @@ With joint damping (1.0 Nm·s/rad in our model), any velocity decays exponential
 
 ## Results
 
-| Configuration | Max drift (3s) |
-|--------------|----------------|
-| Q_HOME | 0.0006 rad |
-| Q_ZEROS | 0.002 rad |
-| Arbitrary | < 0.01 rad |
+Canonical validation on the real UR5e + Robotiq stack:
 
-After a 20 Nm impulse perturbation on the shoulder joint, the arm settles back to its original position within ~2 seconds.
+| Check | Result |
+|-------|--------|
+| Hold max error | `8.91e-06 rad` |
+| Hold criterion | pass (`< 0.01 rad`) |
+| Perturbation final speed | `0.0134 rad/s` |
+| Perturbation criterion | pass (`< 0.1 rad/s`) |
 
 ## How to Run
 

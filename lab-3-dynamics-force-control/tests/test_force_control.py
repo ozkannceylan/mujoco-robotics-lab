@@ -13,15 +13,20 @@ _SRC = Path(__file__).resolve().parent.parent / "src"
 sys.path.insert(0, str(_SRC))
 
 from c1_force_control import (
+    DEFAULT_APPROACH_HEIGHT,
     HybridGains,
-    Q_ABOVE_TABLE,
-    compute_hybrid_torque,
+    compute_above_table_config,
     get_ee_and_table_ids,
     read_contact_force_z,
     run_hybrid_force_sim,
 )
 from c2_line_trace import generate_line_trajectory, run_line_trace
-from lab3_common import NUM_JOINTS, SCENE_TABLE_PATH, load_mujoco_model
+from lab3_common import (
+    NUM_JOINTS,
+    SCENE_TABLE_PATH,
+    load_mujoco_model,
+    load_pinocchio_model,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -43,10 +48,14 @@ class TestContactDetection:
         """No contact force when arm is above table."""
         import mujoco
 
+        pin_model, pin_data, ee_fid = load_pinocchio_model()
         mj_model, mj_data = load_mujoco_model(SCENE_TABLE_PATH)
         ee_ids, table_gid = get_ee_and_table_ids(mj_model)
+        q_above = compute_above_table_config(
+            pin_model, pin_data, ee_fid, np.array([0.4, 0.0])
+        )
 
-        mj_data.qpos[:NUM_JOINTS] = Q_ABOVE_TABLE
+        mj_data.qpos[:NUM_JOINTS] = q_above
         mj_data.qvel[:NUM_JOINTS] = 0.0
         mujoco.mj_forward(mj_model, mj_data)
 
@@ -99,7 +108,7 @@ class TestHybridForceControl:
         results = run_hybrid_force_sim(
             xy_des=np.array([0.4, 0.0]),
             gains=HybridGains(F_desired=5.0),
-            approach_height=0.30,
+            approach_height=DEFAULT_APPROACH_HEIGHT,
             duration=8.0,
         )
 
@@ -124,7 +133,7 @@ class TestHybridForceControl:
         results = run_hybrid_force_sim(
             xy_des=xy_des,
             gains=HybridGains(F_desired=5.0),
-            approach_height=0.30,
+            approach_height=DEFAULT_APPROACH_HEIGHT,
             duration=8.0,
         )
 
@@ -145,7 +154,7 @@ class TestHybridForceControl:
         """Contact is established during approach phase."""
         results = run_hybrid_force_sim(
             xy_des=np.array([0.4, 0.0]),
-            approach_height=0.30,
+            approach_height=DEFAULT_APPROACH_HEIGHT,
             duration=6.0,
         )
         assert np.any(results["phase"] == 1), "Contact never established"
@@ -164,7 +173,7 @@ class TestLineTrace:
             xy_start=np.array([0.40, 0.0]),
             xy_end=np.array([0.45, 0.0]),
             gains=HybridGains(K_p=2000.0, K_d=100.0, F_desired=5.0),
-            approach_height=0.30,
+            approach_height=DEFAULT_APPROACH_HEIGHT,
             settle_time=1.5,
             trace_duration=6.0,
             post_time=0.5,
@@ -183,7 +192,7 @@ class TestLineTrace:
             xy_start=np.array([0.40, 0.0]),
             xy_end=np.array([0.45, 0.0]),
             gains=HybridGains(K_p=2000.0, K_d=100.0, F_desired=5.0),
-            approach_height=0.30,
+            approach_height=DEFAULT_APPROACH_HEIGHT,
             settle_time=1.5,
             trace_duration=6.0,
             post_time=0.5,

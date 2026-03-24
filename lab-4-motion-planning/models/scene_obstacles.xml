@@ -21,7 +21,8 @@
       width="300" height="300"/>
     <material name="groundplane" texture="groundplane" texuniform="true"
       texrepeat="5 5" reflectance="0.2"/>
-    <material name="obstacle" rgba="0.85 0.25 0.20 0.9"/>
+    <material name="obstacle_red" rgba="0.85 0.22 0.22 0.95"/>
+    <material name="obstacle_orange" rgba="0.90 0.48 0.10 0.95"/>
     <material name="table_wood" rgba="0.55 0.35 0.20 1"/>
   </asset>
 
@@ -29,6 +30,8 @@
     <light pos="0 0 2.5" dir="0 0 -1" directional="true"/>
     <light pos="1.5 -1.5 2.0" dir="-0.5 0.5 -1" directional="false"/>
     <geom name="floor" size="0 0 0.05" type="plane" material="groundplane"/>
+    <camera name="fixed_top" pos="0.55 0.0 1.65" xyaxes="1 0 0 0 1 0"/>
+    <camera name="orbit_45" pos="1.20 -1.10 1.05" xyaxes="0.707 0.707 0 -0.409 0.409 0.816"/>
 
     <!-- Table surface (near edge at x=0.15, far enough from robot base) -->
     <body name="table" pos="0.45 0.0 0.3">
@@ -40,24 +43,24 @@
       <geom type="cylinder" pos="0.30 0.40 -0.15" size="0.02 0.135" rgba="0.3 0.3 0.3 1" contype="0" conaffinity="0"/>
     </body>
 
-    <!-- Obstacle 1: tall box on left side of table -->
-    <body name="obstacle_1" pos="0.30 0.15 0.415">
-      <geom name="obs1" type="box" size="0.06 0.06 0.10" material="obstacle"/>
+    <!-- Obstacle 1: left side -->
+    <body name="obstacle_1" pos="0.4 -0.15 0.415">
+      <geom name="obs1" type="box" size="0.05 0.05 0.10" material="obstacle_red"/>
     </body>
 
-    <!-- Obstacle 2: tall box on right side -->
-    <body name="obstacle_2" pos="0.30 -0.15 0.415">
-      <geom name="obs2" type="box" size="0.06 0.06 0.10" material="obstacle"/>
+    <!-- Obstacle 2: right side -->
+    <body name="obstacle_2" pos="0.5 0.15 0.415">
+      <geom name="obs2" type="box" size="0.05 0.05 0.10" material="obstacle_orange"/>
     </body>
 
-    <!-- Obstacle 3: wide wall in center, creating a narrow passage -->
-    <body name="obstacle_3" pos="0.45 0.0 0.375">
-      <geom name="obs3" type="box" size="0.04 0.12 0.06" material="obstacle"/>
+    <!-- Obstacle 3: left side -->
+    <body name="obstacle_3" pos="0.6 -0.15 0.415">
+      <geom name="obs3" type="box" size="0.05 0.05 0.10" material="obstacle_red"/>
     </body>
 
-    <!-- Obstacle 4: box near goal side -->
-    <body name="obstacle_4" pos="0.55 0.12 0.395">
-      <geom name="obs4" type="box" size="0.05 0.05 0.08" material="obstacle"/>
+    <!-- Obstacle 4: right side -->
+    <body name="obstacle_4" pos="0.7 0.15 0.415">
+      <geom name="obs4" type="box" size="0.05 0.05 0.10" material="obstacle_orange"/>
     </body>
   </worldbody>
 </mujoco>

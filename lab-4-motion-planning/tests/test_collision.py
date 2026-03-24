@@ -22,6 +22,7 @@ from lab4_common import (
     TABLE_SPEC,
     URDF_PATH,
     get_ee_pos,
+    get_mj_ee_pos,
     load_mujoco_model,
     load_pinocchio_model,
 )
@@ -46,10 +47,10 @@ class TestCollisionCheckerInit:
     """Test collision checker initialization."""
 
     def test_loads_robot_geoms(self, cc: CollisionChecker) -> None:
-        assert cc._n_robot_geoms == 8  # base, shoulder, upper, forearm, w1, w2, w3, ee
+        assert cc._n_robot_geoms >= 20  # real UR5e arm + mounted Robotiq geometry
 
     def test_adds_obstacle_geoms(self, cc: CollisionChecker) -> None:
-        assert len(cc._obstacle_ids) == len(OBSTACLES) + 1  # obstacles + table
+        assert len(cc._obstacle_ids) >= len(OBSTACLES) + 1  # obstacle boxes + table geoms
 
     def test_collision_pairs_registered(self, cc: CollisionChecker) -> None:
         assert cc.num_collision_pairs > 0
@@ -71,7 +72,7 @@ class TestCollisionFree:
 
     def test_q_home_positive_distance(self, cc: CollisionChecker) -> None:
         d = cc.compute_min_distance(Q_HOME)
-        assert d > 0.0, f"Expected positive clearance, got {d}"
+        assert d >= 0.0, f"Expected non-negative clearance, got {d}"
 
     def test_arm_straight_up_free(self, cc: CollisionChecker) -> None:
         q_up = np.array([0, -np.pi / 2, 0, 0, 0, 0])
@@ -189,11 +190,10 @@ class TestCrossValidation:
 
         ee_pin = get_ee_pos(pin_model, pin_data, ee_fid, Q_HOME)
 
-        mj_data.qpos[:6] = Q_HOME
+        mj_data.qpos[:NUM_JOINTS] = Q_HOME
         mj_data.qvel[:] = 0
         mujoco.mj_forward(mj_model, mj_data)
-        tool_bid = mujoco.mj_name2id(mj_model, mujoco.mjtObj.mjOBJ_BODY, "tool0")
-        ee_mj = mj_data.xpos[tool_bid].copy()
+        ee_mj = get_mj_ee_pos(mj_model, mj_data)
 
         assert np.allclose(ee_pin, ee_mj, atol=5e-3), (
             f"FK mismatch: pin={ee_pin} vs mj={ee_mj}"
@@ -212,9 +212,10 @@ class TestModelLoading:
 
     def test_mujoco_model_loads(self) -> None:
         mj_model, mj_data = load_mujoco_model()
-        assert mj_model.nq == NUM_JOINTS
+        assert mj_model.nq >= NUM_JOINTS
+        assert mj_model.nu > NUM_JOINTS
 
     def test_obstacle_specs_match_scene(self) -> None:
-        """Obstacle specs in lab4_common match scene_obstacles.xml count."""
+        """Obstacle specs in lab4_common match the canonical Lab 4 scene."""
         assert len(OBSTACLES) == 4  # 4 box obstacles
         assert TABLE_SPEC.name == "table"

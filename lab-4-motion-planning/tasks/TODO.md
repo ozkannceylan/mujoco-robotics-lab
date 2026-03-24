@@ -1,35 +1,21 @@
 # Lab 4: TODO
 
-## Phase 1: Collision Infrastructure
-- [x] Step 1.1: Create cluttered MJCF scene — DONE (2026-03-15)
-- [x] Step 1.2: Create common module (`lab4_common.py`) — DONE (2026-03-15)
-- [x] Step 1.3: Set up Pinocchio collision model with obstacles — DONE (2026-03-15)
-- [x] Step 1.4: Cross-validate collision between Pinocchio and MuJoCo — DONE (2026-03-15)
-- [x] Step 1.5: Write Phase 1 tests — DONE (2026-03-15)
+## Canonical UR5e + Robotiq Path
+- [x] Step R1: Replace the old Lab 4 robot/collision baseline with Menagerie UR5e + mounted Robotiq 2F-85
+- [x] Step R2: Align planning-time collision truth with the executed MuJoCo geometry
+- [x] Step R3: Re-validate RRT / RRT* on the canonical stack
+- [x] Step R4: Re-validate path shortcutting and time parameterization
+- [x] Step R5: Re-validate executed tracking on the canonical stack
+- [x] Step R6: Record a Lab 4 validation video on the canonical stack
+- [x] Step R7: Update README and task docs to the signed-off final state
 
-## Phase 2: RRT / RRT* Implementation
-- [x] Step 2.1: Implement basic RRT planner — DONE (2026-03-15)
-- [x] Step 2.2: Extend to RRT* with rewiring — DONE (2026-03-15)
-- [x] Step 2.3: Visualize planned paths — DONE (2026-03-15)
-- [x] Step 2.4: Write Phase 2 tests — DONE (2026-03-15)
-
-## Phase 3: Trajectory Post-Processing & Execution
-- [x] Step 3.1: Implement path shortcutting — DONE (2026-03-15)
-- [x] Step 3.2: Integrate TOPP-RA for time-optimal parameterization — DONE (2026-03-15)
-- [x] Step 3.3: Execute trajectory on torque-controlled UR5e — DONE (2026-03-15)
-- [x] Step 3.4: Compare raw vs smoothed execution — DONE (2026-03-15)
-- [x] Step 3.5: Write Phase 3 tests — DONE (2026-03-15)
-
-## Phase 4: Capstone & Documentation
-- [x] Step 4.1: Design capstone cluttered scene — DONE (2026-03-15)
-- [x] Step 4.2: Run capstone demo — DONE (2026-03-15)
-- [x] Step 4.3: Write English documentation — DONE (2026-03-15)
-- [x] Step 4.4: Write Turkish documentation — DONE (2026-03-15)
-- [x] Step 4.5: Write blog post — DONE (2026-03-15)
-- [x] Step 4.6: Write README.md — DONE (2026-03-15)
+## Video Production
+- [x] Step V1: Shared `tools/video_producer.py` three-phase pipeline (title card → metrics → simulation → end card)
+- [x] Step V2: Slalom demo with 8-waypoint RRT* planner, metrics, and video
+- [x] Step V3: Consolidated all output into `media/` (removed `results/` and `scripts/`)
 
 ## Current Focus
-> Lab 4 complete!
+> Lab 4 complete. All phases done. Motion planning validated and ready for downstream labs.
 
 ## Blockers
-> None
+> None.

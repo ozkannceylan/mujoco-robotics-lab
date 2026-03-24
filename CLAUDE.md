@@ -1,10 +1,12 @@
-# CLAUDE.md — Robotics Lab Series
+# CLAUDE.md
 
-You are working inside the `mujoco-robotics-lab` repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+Read and follow: /home/ozkan/Documents/MyProjects/_meta/workflow-rules.md
 
 ## Goal
 
-Build a portfolio-ready robotics lab series using MuJoCo, progressing from simple planar arms to VLA-controlled humanoid manipulation. See `MASTER_PLAN.md` for the full roadmap.
+Build a portfolio-ready robotics lab series using MuJoCo, progressing from simple planar arms to VLA-controlled humanoid manipulation. See `plan/MASTER_PLAN.md` for the full roadmap.
 
 ## Context
 
@@ -13,18 +15,51 @@ Build a portfolio-ready robotics lab series using MuJoCo, progressing from simpl
 - Lab 2 (UR5e 6-DOF) is complete — scales Lab 1 foundations to an industrial arm with Pinocchio
 - Lab 3 (Dynamics & Force Control) is complete — RNEA/CRBA, gravity compensation, Cartesian impedance, hybrid force control
 - Lab 4 (Motion Planning) is complete — Pinocchio+HPP-FCL collision checking, RRT*, TOPP-RA trajectory parameterization
-- Labs 5–9 are planned — manipulation, dual-arm, locomotion, VLA
+- Lab 5 (Grasping & Manipulation) is complete — custom parallel-jaw gripper, DLS IK, pick-and-place state machine, Lab 3+4 integration
+- Labs 6–9 are planned — dual-arm, locomotion, whole-body, VLA
 - End goals: strengthen fundamentals for humanoid VLA work, prepare for robotics interviews, build a portfolio demo
 
-## Tech Stack
+---
 
-- **Python 3.10+**
-- **MuJoCo** — physics simulation, rendering, contact dynamics
-- **Pinocchio (pin)** — analytical FK, Jacobian, dynamics (RNEA, ABA, CRBA), collision checking (HPP-FCL)
-- **NumPy** — all numerical computation
-- **Matplotlib** — plotting, 3D visualization
-- **meshcat-python** — optional interactive 3D viewer
-- **ROS2 Humble** — bridge node integration (later labs)
+## Common Commands
+
+### Install dependencies
+
+```bash
+pip install mujoco numpy pinocchio scipy imageio[ffmpeg] matplotlib meshcat
+```
+
+### Run tests
+
+```bash
+# All tests for a specific lab
+pytest lab-3-dynamics-force-control/tests/
+
+# Single test file
+pytest lab-4-motion-planning/tests/test_collision.py
+
+# Single test method
+pytest lab-5-grasping-manipulation/tests/test_gripper.py::TestGripperContact::test_contact_detection -v
+
+# All tests across the project
+pytest lab-*/tests/
+```
+
+No pytest config files — uses defaults. Tests use both `unittest.TestCase` and pure pytest fixtures.
+
+### Run demos
+
+Each lab has numbered scripts (a1, a2, b1, c1, etc.) that run in order:
+
+```bash
+python3 lab-1-2link-arm/src/c1_draw_square.py        # Lab 1 capstone
+python3 lab-2-Ur5e-robotics-lab/src/c3_draw_cube.py   # Lab 2 capstone
+python3 lab-3-dynamics-force-control/src/c1_force_control.py
+python3 lab-4-motion-planning/src/capstone_demo.py
+python3 lab-5-grasping-manipulation/src/record_pro_demo.py
+```
+
+---
 
 ## Architecture Principle
 
@@ -38,122 +73,60 @@ MuJoCo   = physics simulator (step, render, contact, sensor)
 - Never duplicate computation — if Pinocchio computes it, don't recompute in MuJoCo
 - Cross-validate between the two as a correctness check
 
+## Lab Common Module Pattern
+
+Every lab has a `src/lab<N>_common.py` that is the central configuration hub:
+
+- **Directory constants**: `LAB_DIR`, `PROJECT_ROOT`, `MODELS_DIR`, `MEDIA_DIR`
+- **Physical constants**: `NUM_JOINTS`, `DT`, `GRAVITY`, joint/torque limits
+- **Default configs**: `Q_HOME`, `Q_ZEROS`
+- **Model paths**: URDF and MJCF file locations
+- **Quaternion utilities**: `mj_quat_to_pin()`, `pin_quat_to_mj()`
+- **Model loaders**: `load_mujoco_model()`, `load_pinocchio_model()`
+- **Control helpers**: `apply_arm_torques()`, `get_mj_ee_site_id()`, etc.
+
+## Cross-Lab Import Pattern
+
+Later labs import from earlier labs via `sys.path` manipulation. The UR5e URDF from Lab 3 is reused by all subsequent labs.
+
+```python
+# In lab4_common.py — importing from Lab 3
+_LAB3_SRC_DIR = PROJECT_ROOT / "lab-3-dynamics-force-control" / "src"
+if str(_LAB3_SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(_LAB3_SRC_DIR))
+
+from lab3_common import (
+    DT, NUM_JOINTS, Q_HOME,
+    load_pinocchio_model as load_lab3_pinocchio_model,
+)
+```
+
+Tests do the same to reach their lab's `src/`:
+```python
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+```
+
+## Video Production Pipeline
+
+`tools/video_producer.py` provides a reusable 3-phase demo workflow:
+1. Animated metrics presentation (Matplotlib)
+2. Native MuJoCo simulation recording with overlays
+3. ffmpeg composition into final H.264 artifact
+
+Constants: 1920x1080, 30 FPS, dark theme (`#08111f` background).
+
 ---
 
 ## Per-Lab Workflow
 
-**This is the mandatory workflow for every lab. Follow it in order.**
+**Mandatory for every new lab. Follow in order.**
 
-### Step 1 — Read the lab brief
-
-Each lab has a detailed plan file in the `plan/` directory: `plan/LAB_XX.md`. Read it fully before doing anything else. It contains objectives, theory scope, architecture, implementation phases, key design decisions, and success criteria.
-
-### Step 2 — Create the lab folder and `tasks/` subfolder
-
-```
-lab-N-<name>/
-├── tasks/
-│   ├── PLAN.md           ← Step 3: write this first
-│   ├── ARCHITECTURE.md   ← Step 4: write this before any code
-│   ├── TODO.md           ← Step 5: create from PLAN, update after every step
-│   └── LESSONS.md        ← Step 6: log bugs, debug strategies, insights
-├── src/
-├── models/
-├── docs/
-├── docs-turkish/
-├── media/
-├── tests/
-├── ros2_bridge/
-└── README.md
-```
-
-### Step 3 — Write `tasks/PLAN.md`
-
-Break the lab brief into concrete implementation steps. This is your contract — you execute this plan, nothing more, nothing less.
-
-Format:
-```markdown
-# Lab N: [Title] — Implementation Plan
-
-## Phase 1: [Name]
-### Step 1.1: [Specific task]
-- What to build
-- Expected output / how to verify
-### Step 1.2: ...
-
-## Phase 2: [Name]
-### Step 2.1: ...
-...
-```
-
-### Step 4 — Write `tasks/ARCHITECTURE.md`
-
-Document the full technical architecture BEFORE writing any code. This file is the source of truth for how modules connect.
-
-Must include:
-- **Module map:** which Python files exist and what each one does
-- **Data flow:** what data flows between modules (diagram or description)
-- **Key interfaces:** function signatures for the main APIs
-- **Model files:** which MJCF/URDF files are needed and where they come from
-- **Dependencies on previous labs:** what is imported from `shared/` or earlier labs
-
-### Step 5 — Create and maintain `tasks/TODO.md`
-
-Generate from PLAN.md. Update after every completed step.
-
-Format:
-```markdown
-# Lab N: TODO
-
-## Phase 1: [Name]
-- [x] Step 1.1: [description] — DONE (2026-03-16)
-- [ ] Step 1.2: [description]
-- [ ] Step 1.3: [description]
-
-## Phase 2: [Name]
-- [ ] Step 2.1: ...
-
-## Current Focus
-> Step 1.2: [what you're working on right now]
-
-## Blockers
-> None / [describe any blockers]
-```
-
-Rules:
-- Check off items immediately after completion
-- Update "Current Focus" before starting each step
-- Log blockers as they appear
-- Never skip ahead without updating TODO
-
-### Step 6 — Maintain `tasks/LESSONS.md`
-
-Log every bug, failed approach, and debug insight AS IT HAPPENS. This is not written after the fact — it's a live journal.
-
-Format:
-```markdown
-# Lab N: Lessons Learned
-
-## Bugs & Fixes
-
-### [Date] — [Short description]
-**Symptom:** What went wrong
-**Root cause:** Why it happened
-**Fix:** What resolved it
-**Takeaway:** What to remember for future labs
-
-## Debug Strategies
-
-### [Technique name]
-When to use it, how it helped
-
-## Key Insights
-
-### [Insight]
-Brief explanation of something non-obvious learned during implementation
-```
-
----
+1. **Read the lab brief**: `plan/LAB_XX.md` — read fully before anything else
+2. **Create lab folder** with `tasks/`, `src/`, `models/`, `docs/`, `docs-turkish/`, `media/`, `tests/`
+3. **Write `tasks/PLAN.md`**: Break lab brief into phased implementation steps
+4. **Write `tasks/ARCHITECTURE.md`**: Module map, data flow, key interfaces, model files, cross-lab deps — before any code
+5. **Create `tasks/TODO.md`**: Generated from PLAN.md, updated after every step. Must have "Current Focus" and "Blockers" sections
+6. **Maintain `tasks/LESSONS.md`**: Live journal — log bugs/fixes/insights AS THEY HAPPEN with Symptom/Root cause/Fix/Takeaway format
 
 ## Execution Rules
 
@@ -167,43 +140,22 @@ Brief explanation of something non-obvious learned during implementation
 
 ---
 
-## Project Structure
+## Tech Stack
 
-```
-mujoco-robotics-lab/
-├── CLAUDE.md                         # This file
-├── plan/                             # Lab briefs (MASTER_PLAN.md, LAB_03.md … LAB_09.md)
-├── README.md                         # Main project README
-│
-├── lab-1-2link-arm/                  # ✅ Complete
-├── lab-2-Ur5e-robotics-lab/          # ✅ Complete
-├── lab-3-dynamics-force-control/     # ✅ Complete
-├── lab-4-motion-planning/            # ✅ Complete
-│
-│   # Each lab follows this layout:
-│   ├── tasks/    # PLAN.md, ARCHITECTURE.md, TODO.md, LESSONS.md
-│   ├── src/      # Python source (lab_N_common.py + modules)
-│   ├── models/   # MJCF / URDF files
-│   ├── docs/     # English documentation
-│   ├── docs-turkish/
-│   ├── media/    # Plots, GIFs, videos
-│   ├── tests/    # test_*.py files
-│   └── README.md
-│
-├── lab-5-grasping-manipulation/      # 🔲 In progress
-├── ... (labs 6–9 follow same structure)
-│
-└── blog/                             # Blog posts per lab
-```
-
----
+- **Python 3.10+**
+- **MuJoCo** — physics simulation, rendering, contact dynamics
+- **Pinocchio (pin)** — analytical FK, Jacobian, dynamics (RNEA, ABA, CRBA), collision checking (HPP-FCL)
+- **NumPy** — all numerical computation
+- **SciPy** — optimization (IK solvers, TOPP-RA splines)
+- **Matplotlib** — plotting, 3D visualization
+- **meshcat-python** — optional interactive 3D viewer
+- **ROS2 Humble** — bridge node integration (later labs)
 
 ## Code Standards
 
 - Every function: docstring + type hints
 - Comments in English
 - Test files in `<lab>/tests/` — naming: `test_{module}.py`
-- Model files in `<lab>/models/`
 - Use `pathlib.Path` for all file paths
 - No hardcoded absolute paths — use relative paths from project root
 - Numerical comparisons: use `np.allclose()` with explicit tolerances
@@ -228,7 +180,6 @@ mj_data = mujoco.MjData(mj_model)
 ### Cross-validation pattern
 
 ```python
-# Always compare Pinocchio vs MuJoCo when both compute the same quantity
 pin.forwardKinematics(model, data, q)
 ee_pin = data.oMf[frame_id].translation
 
@@ -242,35 +193,47 @@ assert np.allclose(ee_pin, ee_mj, atol=1e-3), f"FK mismatch: {ee_pin} vs {ee_mj}
 
 ## Known Issues + Solutions
 
-### Issue: Pinocchio and MuJoCo frame conventions may differ
-Solution: Check the frame ordering. MuJoCo uses body indices, Pinocchio uses frame IDs. Map them explicitly once and store the mapping.
+### Pinocchio vs MuJoCo frame conventions
+MuJoCo uses body indices, Pinocchio uses frame IDs. Map them explicitly once and store the mapping.
 
-### Issue: UR5e URDF from different sources may have different joint naming
-Solution: Standardize on the mujoco_menagerie naming convention. Print `model.names` on first load and verify.
+### Pinocchio quaternion (x,y,z,w) vs MuJoCo (w,x,y,z)
+Always convert explicitly. Use `pin_quat_to_mj()` and `mj_quat_to_pin()` from the lab common module.
 
-### Issue: Pinocchio quaternion convention is (x, y, z, w), MuJoCo uses (w, x, y, z)
-Solution: Always convert explicitly when passing quaternions between the two. Write a utility function `pin_quat_to_mj()` and `mj_quat_to_pin()`.
+### MuJoCo Menagerie position servos — gravity droop and tracking lag
+Menagerie `general` actuators: `tau = Kp*(ctrl-qpos) - Kd*qvel`. Fix with feedforward: `ctrl = q_des + qfrc_bias/Kp + Kd*qd_des/Kp`. Achieved 0.088 mm RMS (vs 133 mm without).
 
-### Issue: MuJoCo Menagerie position servos have gravity droop and tracking lag
-Solution: Menagerie models use `general` actuators with `tau = Kp*(ctrl-qpos) - Kd*qvel`. Naive `ctrl = q_des` causes steady-state offset from gravity and velocity lag. Fix with feedforward: `ctrl = q_des + qfrc_bias/Kp + Kd*qd_des/Kp`. This achieved 0.088 mm RMS (vs 133 mm without).
+### IK solutions may collide with scene objects
+IK solvers don't know about obstacles. Check `data.ncon` after setting `data.qpos` to each IK solution.
 
-### Issue: IK solutions may collide with scene objects (table, etc.)
-Solution: IK solvers don't know about obstacles. Always check `data.ncon` after setting `data.qpos` to each IK solution. If contacts exist, reposition the target or add a Y-offset to keep the arm clear.
+### Pinocchio GeometryObject constructor order
+Use `GeometryObject(name, parent_joint, parent_frame, placement, shape)`. The older order with shape before placement is deprecated and silently wrong.
 
-### Issue: Pinocchio GeometryObject constructor order
-Solution: Use `GeometryObject(name, parent_joint, parent_frame, placement, shape)`. The older order `(name, parent_joint, parent_frame, shape, placement)` is deprecated and silently wrong.
+### Adjacent-link self-collision false positives
+Skip collision pairs where parent joint indices differ by ≤1 (`adjacency_gap=1`).
 
-### Issue: Adjacent-link self-collision produces false positives
-Solution: Skip collision pairs where parent joint indices differ by ≤1 (`adjacency_gap=1`). Adjacent links physically can't collide, and overlapping collision geometries at joints cause spurious collisions.
+### TOPP-RA crashes on near-duplicate waypoints
+Filter consecutive waypoints within `1e-8` before constructing arc-length spline. `scipy.interpolate.CubicSpline` requires strictly increasing values.
 
-### Issue: TOPP-RA crashes on near-duplicate waypoints
-Solution: Filter consecutive waypoints within `1e-8` of each other before constructing the arc-length spline. `scipy.interpolate.CubicSpline` requires strictly increasing arc-length values.
+### Cross-lab imports need sys.path
+Each lab module importing from another lab must add the foreign `src/` to `sys.path` using `Path(__file__).resolve()` and conditional `sys.path.insert(0, ...)`.
 
-### Issue: Lab src/ files need sys.path when imported cross-lab
-Solution: Each lab module that imports from another lab must add the foreign `src/` to `sys.path` at the top of the file using `Path(__file__).resolve()` and conditional `sys.path.insert(0, ...)`.
+### MuJoCo freejoint body qpos layout
+After arm joints (6) and gripper joints (2 with equality → 2 in qpos), freejoint occupies qpos[8:15] (3 pos + 4 quat). Equality constraint does NOT reduce qpos size. Verify with `mj_model.nq`.
 
-### Issue: MuJoCo freejoint body qpos layout
-Solution: After arm joints (6) and gripper joints (2 with equality → 2 positions in qpos), the freejoint occupies qpos[8:15] (3 pos + 4 quat). Equality constraint does NOT reduce qpos size — both joint positions appear. Always verify with `mj_model.nq`.
+### Gripper minimum gap must be less than object half-width
+Compute `pad_inner_face = finger_body_y + pad_y_offset - pad_half_size` and verify < `object_half_width`. Test by checking `data.ncon` in a static scene.
+
+### `is_gripper_in_contact` must check all finger geoms
+The structural finger body geom contacts the object before the smaller pad geom. Check both in the contact loop.
+
+### Contact tests must check during closing, not after settling
+A free-flying box falls to floor in ~1s without gravity comp. Break-and-check inside the step loop.
+
+### `parameterize_topp_ra` returns 4-tuple
+Unpack as `times, q_traj, qd_traj, _ = parameterize_topp_ra(...)`. Fourth element (accelerations) is often unused.
+
+### UR5e URDF joint naming
+Standardize on mujoco_menagerie naming convention. Print `model.names` on first load to verify.
 
 ---
 
@@ -280,28 +243,29 @@ Solution: After arm joints (6) and gripper joints (2 with equality → 2 positio
 - [x] Lab 2: UR5e 6-DOF Arm (cube drawing demo)
 - [x] Lab 3: Dynamics & Force Control (gravity comp, Cartesian impedance, force control)
 - [x] Lab 4: Motion Planning & Collision Avoidance (RRT*, TOPP-RA, capstone demo)
-- [ ] Lab 5: Grasping & Manipulation
+- [x] Lab 5: Grasping & Manipulation (custom gripper, DLS IK, pick-and-place state machine)
 - [ ] Lab 6: Dual-Arm Coordination
 - [ ] Lab 7: Locomotion Fundamentals
 - [ ] Lab 8: Whole-Body Loco-Manipulation
 - [ ] Lab 9: VLA Integration
 
+Platform transitions: Labs 1 uses custom 2-link. Labs 2–6 use UR5e + Robotiq 2F-85. Labs 7+ use Unitree G1 humanoid.
+
 ---
 
 ## Debugging Checklist
 
-When something doesn't match between Pinocchio and MuJoCo:
-1. Check joint angle ordering — are both using the same convention?
-2. Check frame/body ID mapping — print names from both
-3. Check quaternion convention — (w,x,y,z) vs (x,y,z,w)
-4. Check if gravity direction matches in both models
-5. Check units — Pinocchio uses SI (meters, radians, kg), verify MuJoCo model does too
+When Pinocchio and MuJoCo disagree:
+1. Joint angle ordering — same convention?
+2. Frame/body ID mapping — print names from both
+3. Quaternion convention — (w,x,y,z) vs (x,y,z,w)
+4. Gravity direction — matches in both models?
+5. Units — Pinocchio uses SI, verify MuJoCo model does too
 
 ---
 
 ## Session Start Protocol
 
-When starting work on any lab:
 1. Read this CLAUDE.md
 2. Read the lab brief: `plan/LAB_XX.md`
 3. Check `lab-N-<name>/tasks/TODO.md` for current state

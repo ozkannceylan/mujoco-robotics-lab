@@ -2,7 +2,7 @@
 
 > **Status:** Not Started  
 > **Prerequisites:** Lab 3 (force control), Lab 4 (motion planning)  
-> **Platform:** UR5e + parallel gripper on MuJoCo  
+> **Platform:** MuJoCo Menagerie UR5e + Robotiq 2F-85 on MuJoCo  
 > **Capstone Demo:** Pick up a box from the table, place it at a target location
 
 ---
@@ -70,7 +70,8 @@ Task: "Pick object at A, place at B"
 ## Implementation Phases
 
 ### Phase 1 — Gripper Integration
-- Add parallel-jaw gripper to UR5e MJCF (Robotiq 2F-85 or simple custom)
+- Use the MuJoCo Menagerie Robotiq 2F-85 as the gripper baseline
+- Keep the same UR5e + Robotiq hardware stack as Labs 3 and 4
 - Implement gripper open/close control
 - Test: open and close gripper at various arm configurations
 - Tune contact parameters so objects don't slip or fly away
@@ -97,6 +98,7 @@ Task: "Pick object at A, place at B"
 ## Key Design Decisions for Claude Code
 
 - **State machine, not end-to-end.** This lab uses explicit states, not learned policies. Lab 9 replaces this with VLA. Understanding the manual pipeline makes you appreciate what the VLA learns.
+- **No custom hardware path.** Lab 5 should not continue with a custom gripper or simplified arm as the primary implementation. The canonical stack is Menagerie UR5e + Robotiq 2F-85, shared with Labs 3 and 4.
 - **Top-down grasps only.** Don't implement full 6-DOF grasp synthesis — it's a rabbit hole. Approach from above, close gripper. Simple and effective for tabletop tasks.
 - **Contact tuning is the hard part.** Expect to spend significant time on MuJoCo's solref/solimp. Document every tuning decision — this knowledge transfers directly to Labs 6–9.
 - **Reuse Labs 3 + 4.** The impedance controller and RRT* planner should be imported, not reimplemented.

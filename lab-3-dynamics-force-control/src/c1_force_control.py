@@ -27,18 +27,23 @@ import pinocchio as pin
 
 from lab3_common import (
     DT,
+    GRIPPER_TIP_OFFSET,
     NUM_JOINTS,
     Q_HOME,
     MEDIA_DIR,
     SCENE_TABLE_PATH,
+    TABLE_SURFACE_Z,
+    apply_arm_torques,
     clip_torques,
-    get_ee_pose,
+    get_mj_ee_site_id,
+    get_table_surface_z,
+    get_topdown_rotation,
     load_mujoco_model,
     load_pinocchio_model,
+    solve_dls_ik,
 )
 
-# Starting config with EE at (0.4, 0.0, 0.35) — above table center
-Q_ABOVE_TABLE = np.array([1.991929, -2.39295, 2.502256, -0.798855, -6.07376, 0.0])
+DEFAULT_APPROACH_HEIGHT = TABLE_SURFACE_Z + GRIPPER_TIP_OFFSET + 0.12
 
 
 # ---------------------------------------------------------------------------
@@ -120,17 +125,37 @@ def read_contact_force_z(
 
 
 def get_ee_and_table_ids(mj_model):
-    """Get body/geom IDs for EE body and table geom.
-
-    Only counts tool0 body contacts (the EE tip), not wrist or forearm links
-    that may also contact the table.
-
-    Returns:
-        Tuple of (ee_body_ids, table_geom_id).
-    """
-    tool0_bid = mujoco.mj_name2id(mj_model, mujoco.mjtObj.mjOBJ_BODY, "tool0")
+    """Get body/geom IDs for the real gripper contact set and table geom."""
+    ee_body_ids = []
+    for body_id in range(mj_model.nbody):
+        name = mujoco.mj_id2name(mj_model, mujoco.mjtObj.mjOBJ_BODY, body_id)
+        if name == "wrist_3_link" or (name is not None and name.startswith("2f85_")):
+            ee_body_ids.append(body_id)
     table_gid = mujoco.mj_name2id(mj_model, mujoco.mjtObj.mjOBJ_GEOM, "table_top")
-    return [tool0_bid], table_gid
+    return ee_body_ids, table_gid
+
+
+def compute_above_table_config(
+    pin_model,
+    pin_data,
+    ee_fid: int,
+    xy_des: np.ndarray,
+    z_height: float = DEFAULT_APPROACH_HEIGHT,
+    q_seed: np.ndarray | None = None,
+) -> np.ndarray:
+    """Solve a top-down IK configuration above the table target."""
+    if q_seed is None:
+        q_seed = Q_HOME.copy()
+
+    R_down = get_topdown_rotation(pin_model, pin_data, ee_fid)
+    x_target = np.array([xy_des[0], xy_des[1], z_height], dtype=float)
+    q_sol = solve_dls_ik(pin_model, pin_data, ee_fid, x_target, R_down, q_seed)
+    if q_sol is None:
+        raise RuntimeError(
+            f"Failed to solve above-table IK for target {x_target}. "
+            "Check the UR5e + Robotiq model alignment and target reachability."
+        )
+    return q_sol
 
 
 # ---------------------------------------------------------------------------
@@ -341,20 +366,20 @@ def run_hybrid_force_sim(
     xy_des: np.ndarray,
     q_start: np.ndarray | None = None,
     gains: HybridGains | None = None,
-    approach_height: float = 0.25,
+    approach_height: float = DEFAULT_APPROACH_HEIGHT,
     duration: float = 5.0,
 ) -> Dict[str, np.ndarray]:
     """Run hybrid position-force control simulation.
 
-    Phase 1 (approach): impedance control descends EE to approach_height,
-    then slowly lowers toward table surface.
+    Phase 1 (approach): start above the table with top-down orientation, then
+    descend slowly toward the contact surface.
     Phase 2 (contact): once contact detected, switches to hybrid mode.
 
     Args:
         xy_des: Desired XY position on table (2,).
-        q_start: Starting joint config. If None, uses Q_HOME.
+        q_start: Starting joint config. If None, solved via IK above xy_des.
         gains: HybridGains. Defaults to standard gains.
-        approach_height: Z height to start approach from (m).
+        approach_height: Absolute pinch-site world Z used for the start pose.
         duration: Total sim duration (s).
 
     Returns:
@@ -363,17 +388,17 @@ def run_hybrid_force_sim(
     """
     if gains is None:
         gains = HybridGains()
-    if q_start is None:
-        q_start = Q_ABOVE_TABLE.copy()
 
     pin_model, pin_data, ee_fid = load_pinocchio_model()
     mj_model, mj_data = load_mujoco_model(SCENE_TABLE_PATH)
-    site_id = mujoco.mj_name2id(mj_model, mujoco.mjtObj.mjOBJ_SITE, "tool_site")
-    ee_body_ids, table_geom_id = get_ee_and_table_ids(mj_model)
+    if q_start is None:
+        q_start = compute_above_table_config(
+            pin_model, pin_data, ee_fid, xy_des, z_height=approach_height
+        )
 
-    # Table surface Z
-    table_body = mujoco.mj_name2id(mj_model, mujoco.mjtObj.mjOBJ_BODY, "table")
-    table_z = mj_model.body_pos[table_body][2] + 0.02  # box half-height
+    site_id = get_mj_ee_site_id(mj_model)
+    ee_body_ids, table_geom_id = get_ee_and_table_ids(mj_model)
+    table_z = get_table_surface_z(mj_model)
 
     # Initialize
     mj_data.qpos[:NUM_JOINTS] = q_start
@@ -431,7 +456,7 @@ def run_hybrid_force_sim(
             phase_arr[i] = 0
 
             # Target: XY desired, Z descending slowly
-            z_target = max(approach_height - descent_speed * t, table_z - 0.01)
+            z_target = max(approach_height - descent_speed * t, table_z - 0.002)
             x_target = np.array([xy_des[0], xy_des[1], z_target])
 
             # Impedance control
@@ -465,7 +490,7 @@ def run_hybrid_force_sim(
 
         tau = clip_torques(tau)
         tau_arr[i] = tau
-        mj_data.ctrl[:NUM_JOINTS] = tau
+        apply_arm_torques(mj_model, mj_data, tau)
         mujoco.mj_step(mj_model, mj_data)
 
     if contact_time is not None:
@@ -539,7 +564,8 @@ def plot_hybrid_results(
     # EE Z position
     ax = axes[2]
     ax.plot(t, results["ee_pos"][:, 2] * 1000, "g-", linewidth=1.5)
-    ax.axhline(170, color="brown", linestyle="--", alpha=0.5, label="Table surface")
+    ax.axhline(TABLE_SURFACE_Z * 1000, color="brown", linestyle="--",
+               alpha=0.5, label="Table surface")
     if contact_start:
         ax.axvline(contact_start, color="gray", linestyle=":", alpha=0.5)
     ax.set_ylabel("Z Position (mm)")
@@ -584,7 +610,7 @@ def main() -> None:
     results = run_hybrid_force_sim(
         xy_des=xy_des,
         gains=gains,
-        approach_height=0.30,
+        approach_height=DEFAULT_APPROACH_HEIGHT,
         duration=8.0,
     )
 

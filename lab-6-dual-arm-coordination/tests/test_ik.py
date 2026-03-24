@@ -15,12 +15,12 @@ from lab6_common import (
     BAR_PLACE_POS,
     GRIPPER_TIP_OFFSET,
     LEFT_ARM_BASE_POS,
-    LEFT_GRIP_X_OFFSET,
+    LEFT_GRIP_Y_OFFSET,
     PREGRASP_CLEARANCE,
     Q_HOME_LEFT,
     Q_HOME_RIGHT,
     RIGHT_ARM_BASE_POS,
-    RIGHT_GRIP_X_OFFSET,
+    RIGHT_GRIP_Y_OFFSET,
     load_both_pinocchio_models,
 )
 from dual_arm_ik import (
@@ -51,16 +51,17 @@ class TestIKConvergence:
     """
 
     @pytest.mark.parametrize("arm,phase,world_x,world_y,world_z", [
-        # Left arm: world = arm-local + (0, -0.35, 0)
-        ("left",  "pregrasp", 0.350, 0.000, 0.590),
-        ("left",  "grasp",    0.350, 0.000, 0.440),
-        ("left",  "preplace", 0.350, 0.200, 0.590),
-        ("left",  "place",    0.350, 0.200, 0.440),
-        # Right arm: world = arm-local + (0, 0.35, 0)
-        ("right", "pregrasp", 0.550, 0.000, 0.590),
-        ("right", "grasp",    0.550, 0.000, 0.440),
-        ("right", "preplace", 0.550, 0.200, 0.590),
-        ("right", "place",    0.550, 0.200, 0.440),
+        # Bar is Y-oriented; each arm grips its own Y-end (no arm crossing)
+        # LEFT_GRIP_Y_OFFSET=-0.10: pick grip y=-0.10, place grip y=0.10
+        ("left",  "pregrasp", 0.450, -0.100, 0.590),
+        ("left",  "grasp",    0.450, -0.100, 0.440),
+        ("left",  "preplace", 0.450,  0.100, 0.590),
+        ("left",  "place",    0.450,  0.100, 0.440),
+        # RIGHT_GRIP_Y_OFFSET=+0.10: pick grip y=+0.10, place grip y=0.30
+        ("right", "pregrasp", 0.450,  0.100, 0.590),
+        ("right", "grasp",    0.450,  0.100, 0.440),
+        ("right", "preplace", 0.450,  0.300, 0.590),
+        ("right", "place",    0.450,  0.300, 0.440),
     ])
     def test_ee_world_position(
         self, bimanual_cfgs, pin_models,

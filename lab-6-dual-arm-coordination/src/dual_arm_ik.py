@@ -20,13 +20,13 @@ from lab6_common import (
     JOINT_LOWER,
     JOINT_UPPER,
     LEFT_ARM_BASE_POS,
-    LEFT_GRIP_X_OFFSET,
+    LEFT_GRIP_Y_OFFSET,
     NUM_JOINTS,
     PREGRASP_CLEARANCE,
     Q_HOME_LEFT,
     Q_HOME_RIGHT,
     RIGHT_ARM_BASE_POS,
-    RIGHT_GRIP_X_OFFSET,
+    RIGHT_GRIP_Y_OFFSET,
     get_topdown_rotation,
     load_both_pinocchio_models,
 )
@@ -139,15 +139,16 @@ def _compute_arm_configs(
     pin_data,
     ee_fid: int,
     q_home: np.ndarray,
-    grip_x_offset: float,
+    grip_y_offset: float,
     arm_base_pos: np.ndarray,
     bar_pick_pos: np.ndarray,
     bar_place_pos: np.ndarray,
 ) -> GraspConfigs:
-    """Compute IK joint configs for one arm given its grip offset from bar centre.
+    """Compute IK joint configs for one arm given its grip Y-offset from bar centre.
 
-    The arm grips the bar at world (bar_x + grip_x_offset, bar_y, bar_z).
-    tool0 world target = grip_point + [0, 0, GRIPPER_TIP_OFFSET].
+    The bar is Y-oriented (long axis = Y).  Each arm grips one Y-end:
+      grip_world = bar_pos + [0, grip_y_offset, 0]
+      tool0_world = grip_world + [0, 0, GRIPPER_TIP_OFFSET]
 
     Pinocchio computes FK with the arm base at its local origin.  All world
     targets are converted to arm-local frame before passing to IK:
@@ -158,7 +159,7 @@ def _compute_arm_configs(
         pin_data: Pinocchio data.
         ee_fid: EE frame ID.
         q_home: Home configuration (6,).
-        grip_x_offset: X offset from bar centre to grip point in world frame (m).
+        grip_y_offset: Y offset from bar centre to grip point in world frame (m).
         arm_base_pos: World position of this arm's base (3,).
         bar_pick_pos: Bar centre world position at pick (3,).
         bar_place_pos: Bar centre world position at place (3,).
@@ -173,7 +174,7 @@ def _compute_arm_configs(
 
     def _tool0_tgt(bar_pos: np.ndarray) -> np.ndarray:
         """World-frame tool0 target, then converted to arm-local frame."""
-        grip_world = bar_pos + np.array([grip_x_offset, 0.0, 0.0])
+        grip_world = bar_pos + np.array([0.0, grip_y_offset, 0.0])
         tool0_world = grip_world + np.array([0.0, 0.0, GRIPPER_TIP_OFFSET])
         return tool0_world - arm_base_pos  # arm-local frame for Pinocchio
 
@@ -251,14 +252,14 @@ def compute_bimanual_configs(
     print("  Computing IK for left arm...")
     left_cfgs = _compute_arm_configs(
         pin_L, data_L, ee_fid_L,
-        Q_HOME_LEFT, LEFT_GRIP_X_OFFSET,
+        Q_HOME_LEFT, LEFT_GRIP_Y_OFFSET,
         LEFT_ARM_BASE_POS,
         bar_pick_pos, bar_place_pos,
     )
     print("  Computing IK for right arm...")
     right_cfgs = _compute_arm_configs(
         pin_R, data_R, ee_fid_R,
-        Q_HOME_RIGHT, RIGHT_GRIP_X_OFFSET,
+        Q_HOME_RIGHT, RIGHT_GRIP_Y_OFFSET,
         RIGHT_ARM_BASE_POS,
         bar_pick_pos, bar_place_pos,
     )

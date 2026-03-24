@@ -1,125 +1,93 @@
-# Lab 4: Motion Planning & Collision Avoidance — Implementation Plan
+# Lab 4: Motion Planning & Collision Avoidance — Completion Report
 
-## Phase 1: Collision Infrastructure
+Completion date: 2026-03-17
 
-### Step 1.1: Create cluttered MJCF scene
-- Create `models/scene_obstacles.xml` extending Lab 3's UR5e torque model
-- Add 3–5 box obstacles on/around the table at known positions
-- Obstacles: different sizes and positions to create narrow passages
-- Verify scene loads and renders in MuJoCo
-- **Output:** Scene file with obstacles visible in simulation
+## Platform Lock
 
-### Step 1.2: Create common module (`lab4_common.py`)
-- Define paths (SCENE_PATH, URDF_PATH, MEDIA_DIR, etc.)
-- Import/reuse Lab 3 constants (NUM_JOINTS, DT, Q_HOME, TORQUE_LIMITS)
-- Define key configurations: Q_START, Q_GOAL for the capstone demo
-- Load functions for Pinocchio and MuJoCo models
-- **Output:** Common module importable by all Phase 1–4 scripts
+Lab 4 is completed on:
 
-### Step 1.3: Set up Pinocchio collision model with obstacles
-- Load UR5e URDF into Pinocchio with collision geometries (capsules/boxes matching MJCF)
-- Add environment obstacles (boxes) as collision objects in Pinocchio's GeometryModel
-- Register collision pairs: robot links vs environment, robot links vs robot links (self-collision)
-- Implement `is_collision_free(q)` → bool
-- Implement `is_path_segment_free(q1, q2, resolution)` → bool (interpolation check)
-- **Output:** Collision checker with tests
+- MuJoCo Menagerie `universal_robots_ur5e`
+- mounted MuJoCo Menagerie `robotiq_2f85`
+- MuJoCo-exact executed geometry for collision truth
+- Pinocchio matched to the executed stack for FK and gravity terms
 
-### Step 1.4: Cross-validate collision between Pinocchio and MuJoCo
-- For several test configs (known collision, known free), check both engines agree
-- MuJoCo: set qpos, mj_forward, check data.ncon
-- Pinocchio: computeCollisions, check result
-- **Output:** Cross-validation passing, any discrepancies documented
+## Completed Work
 
-### Step 1.5: Write Phase 1 tests
-- `test_collision.py`: collision at known configs, free at known configs, path segment checks
-- **Verify:** All tests pass
+### Phase 0: Platform alignment
+- Rebased Lab 4 on the same canonical UR5e + Robotiq stack used by Lab 3
+- Reused the canonical Menagerie actuator mapping for executed torque commands
 
-## Phase 2: RRT / RRT* Implementation
+### Phase 1: Collision infrastructure
+- Replaced the old separate collision-model truth path with a collision checker built on the executed MuJoCo geometry
+- Preserved the Lab 4 collision-checking API (`is_collision_free`, `is_path_free`, `compute_min_distance`)
+- Revalidated free/colliding configurations, self-collision, and FK agreement
 
-### Step 2.1: Implement basic RRT planner
-- `rrt_planner.py` with class `RRTPlanner`
-- C-space: 6D joint space with joint limits as bounds
-- `sample_random()`: uniform random in joint limits (with goal bias)
-- `nearest(tree, q)`: find nearest node by L2 distance
-- `steer(q_near, q_rand, step_size)`: extend toward sample with max step
-- `plan(q_start, q_goal, max_iter)` → list of configs or None
-- Tune: step_size=0.3 rad, goal_bias=0.1, max_iter=5000
-- **Output:** RRT finds paths in obstacle-free and simple-obstacle scenes
+### Phase 2: RRT / RRT*
+- Kept the planner interface and behavior intact on the canonical stack
+- Revalidated planning success, collision-free waypoints, edge validity, and deterministic seeded behavior
 
-### Step 2.2: Extend to RRT* with rewiring
-- Add cost tracking (path length from start)
-- `near_neighbors(tree, q, radius)`: find all nodes within rewiring radius
-- Rewire: if new node provides shorter path to neighbors, update parent
-- Choose parent: pick lowest-cost neighbor as parent
-- **Output:** RRT* produces shorter paths than RRT
+### Phase 3: Path processing and execution
+- Preserved shortcutting
+- Preserved `parameterize_topp_ra(...)` and added a conservative quintic fallback for environments where TOPP-RA cannot be built
+- Revalidated timed execution with Menagerie actuator mapping and gravity compensation
 
-### Step 2.3: Visualize planned paths
-- Plot RRT tree growth in 2D projection (joint 1 vs joint 2)
-- Plot planned path in MuJoCo: render arm at waypoints
-- Compare RRT vs RRT* path lengths
-- **Output:** Visualization plots saved to media/
+### Phase 4: Validation media
+- Recorded a blocked-path validation video showing the actual MuJoCo scene during execution
+- Used a stricter blocked-path capstone obstacle layout for the recorded artifact
 
-### Step 2.4: Write Phase 2 tests
-- `test_planner.py`: path validity, collision-free, start/goal match
-- Test on easy (no obstacles) and medium (few obstacles) scenes
-- **Verify:** All tests pass
+## Final Validation
 
-## Phase 3: Trajectory Post-Processing & Execution
+- Full test suite: `45 passed`
+- Standard capstone RMS tracking error: `0.0125 rad`
+- Standard capstone final position error: `0.0016 rad`
+- Blocked-path validation scene direct path free: `False`
+- Blocked-path validation scene raw path: `13` waypoints
+- Blocked-path validation scene shortcut path: `3` waypoints
+- Blocked-path validation scene duration: `1.498 s`
+- Blocked-path validation scene RMS tracking error: `0.0124 rad`
+- Blocked-path validation scene final error: `0.0041 rad`
 
-### Step 3.1: Implement path shortcutting
-- Iterative shortcutting: pick two random waypoints, if collision-free straight line between them, replace intermediate waypoints
-- Configurable: max_iterations, min_segment_length
-- **Output:** Shorter, smoother paths from shortcutting
+## Sign-Off Artifacts
 
-### Step 3.2: Integrate TOPP-RA for time-optimal parameterization
-- Install `toppra` package
-- Given waypoints in C-space, compute time-optimal velocity profile
-- Respect joint velocity and acceleration limits
-- Output: time-stamped trajectory (t, q(t), qd(t), qdd(t))
-- **Output:** Smooth, time-parameterized trajectories
+- README: `lab-4-motion-planning/README.md`
+- Validation video: `lab-4-motion-planning/media/lab4_validation_real_stack.mp4`
+- Validation recorder: `lab-4-motion-planning/src/record_lab4_validation.py`
 
-### Step 3.3: Execute trajectory on torque-controlled UR5e
-- Reuse Lab 3's impedance controller for joint-space trajectory tracking
-- Feed q_des(t), qd_des(t) from TOPP-RA to impedance controller
-- Joint-space impedance: τ = K_p·(q_des - q) + K_d·(qd_des - qd) + g(q)
-- Record actual vs desired joint positions
-- **Output:** Executed trajectory with tracking error analysis
+## Residual Note
 
-### Step 3.4: Compare raw vs smoothed execution
-- Execute raw RRT* path (linear interpolation between waypoints)
-- Execute shortcut + TOPP-RA smoothed path
-- Compare: execution time, max jerk, tracking error
-- **Output:** Comparison plots in media/
+The current Python environment cannot build TOPP-RA from source because a system compiler is unavailable. Lab 4 remains validated because the public timing API is preserved and the fallback time-parameterization respects the configured velocity and acceleration limits under the tested scenarios.
 
-### Step 3.5: Write Phase 3 tests
-- `test_trajectory.py`: shortcutting reduces length, TOPP-RA respects limits
-- **Verify:** All tests pass
+## Video Production Overhaul Addendum
 
-## Phase 4: Capstone & Documentation
+### Phase V1: Shared Video Standard
+#### Step V1.1: Define the reusable three-phase video API
+- Replace the draft shared video helper with a stable `LabVideoProducer` API in `tools/video_producer.py`
+- Implement animated metrics generation, MuJoCo simulation capture, and ffmpeg-based composition
+- Verify the module stays lab-agnostic and writes H.264 `1920x1080 @ 30 fps` outputs
 
-### Step 4.1: Design capstone cluttered scene
-- Table with 3–5 box obstacles creating narrow passages
-- Define start config (arm to one side) and goal config (arm on other side, reaching between obstacles)
-- Verify RRT* can solve the scene
+#### Step V1.2: Add reusable overlay and composition primitives
+- Support title/end cards, KPI overlays, animated plot easing, trajectory traces, and configurable cameras
+- Keep Lab 4 specifics out of the shared tool
+- Verify future labs can call the same API without changing the module internals
 
-### Step 4.2: Run capstone demo
-- Plan collision-free path with RRT*
-- Smooth with shortcutting + TOPP-RA
-- Execute on torque-controlled UR5e
-- Record trajectory: joint positions, EE path, obstacle clearance
-- Save plots to media/
+### Phase V2: Lab 4 Slalom Demo Refresh
+#### Step V2.1: Update the canonical Lab 4 obstacle scene for the slalom layout
+- Keep the four staggered tabletop boxes as the default Lab 4 obstacle set
+- Ensure collision checking, execution, and rendered scene all use the same obstacle truth
+- Verify the direct slalom corridor requires visible weaving with positive clearance
 
-### Step 4.3: Write English documentation (`docs/`)
-- Theory: C-space, RRT*, collision checking, TOPP-RA
-- Architecture and results
-- Include algorithm visualizations
+#### Step V2.2: Implement the 8-waypoint slalom planning pipeline
+- Build Cartesian slalom waypoints, solve collision-free IK, plan each segment with RRT*, and smooth the full route
+- Log tree expansion, path-cost convergence, obstacle clearance, and end-effector velocity metrics
+- Verify the final executed trajectory remains collision-free with minimum clearance above `0.03 m`
 
-### Step 4.4: Write Turkish documentation (`docs-turkish/`)
-- Translate docs/ to Turkish
+#### Step V2.3: Build the Lab 4 demo generator
+- Demo generator at `src/generate_lab4_demo.py` uses the shared video producer
+- All output saved to `media/` (metrics JSON, plot PNGs, video MP4s)
+- Verify the final video has title card → animated metrics → slowed simulation → end card
 
-### Step 4.5: Write blog post
-- "From Free Space to Cluttered Environments"
-- Cover: why planning matters, RRT* intuition, smoothing, demo results
-
-### Step 4.6: Write README.md
-- Lab overview, module map, how to run, key results
+### Phase V3: Validation
+#### Step V3.1: Re-test Lab 4 after the video overhaul
+- Run the Lab 4 test suite and any new targeted checks for the demo pipeline
+- Confirm the produced metrics and video artifacts match the requested structure and naming
+- Record any new debugging lessons in `LESSONS.md`

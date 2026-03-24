@@ -24,6 +24,8 @@ from lab6_common import (
     RIGHT_QPOS,
     load_both_pinocchio_models,
     load_mujoco_model,
+    LEFT_GRIP_Y_OFFSET,
+    RIGHT_GRIP_Y_OFFSET,
 )
 from coordination_layer import ObjectFrame, sync_trajectories
 from bimanual_controller import BimanualController
@@ -102,14 +104,13 @@ class TestSyncTrajectories:
 class TestObjectFrame:
     def test_ee_targets_from_bar_pos(self):
         """EE targets must be at the correct world-frame positions."""
-        from lab6_common import (BAR_PICK_POS, GRIPPER_TIP_OFFSET,
-                                 LEFT_GRIP_X_OFFSET, RIGHT_GRIP_X_OFFSET)
+        from lab6_common import (BAR_PICK_POS, GRIPPER_TIP_OFFSET)
         frame = ObjectFrame.from_bar_pos(BAR_PICK_POS)
         ee_L = frame.ee_target_left()
         ee_R = frame.ee_target_right()
 
-        expected_L = BAR_PICK_POS + np.array([LEFT_GRIP_X_OFFSET,  0.0, GRIPPER_TIP_OFFSET])
-        expected_R = BAR_PICK_POS + np.array([RIGHT_GRIP_X_OFFSET, 0.0, GRIPPER_TIP_OFFSET])
+        expected_L = BAR_PICK_POS + np.array([0.0, LEFT_GRIP_Y_OFFSET,  GRIPPER_TIP_OFFSET])
+        expected_R = BAR_PICK_POS + np.array([0.0, RIGHT_GRIP_Y_OFFSET, GRIPPER_TIP_OFFSET])
 
         np.testing.assert_allclose(ee_L, expected_L, atol=1e-10)
         np.testing.assert_allclose(ee_R, expected_R, atol=1e-10)

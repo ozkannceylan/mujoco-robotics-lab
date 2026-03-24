@@ -8,7 +8,8 @@ Pinocchio'nun analitik algoritmalarını kullanarak katı cisim dinamik büyükl
 
 - Betik: `src/a1_dynamics_fundamentals.py`
 - Ortak modül: `src/lab3_common.py`
-- Model: `models/ur5e.xml` (tork modu), `models/ur5e.urdf`
+- Analitik model: `models/ur5e.urdf`
+- Yurutulen MuJoCo yigi: `lab3_common.py` uzerinden yuklenen Menagerie UR5e + Robotiq
 
 ## Teori
 
@@ -43,14 +44,14 @@ Temel özellik: Ṁ - 2C antisimetriktir (pasiflik özelliği), sayısal olarak 
 
 `pin.computeGeneralizedGravity(model, data, q)` ile hesaplanır.
 
-MuJoCo'nun `qfrc_bias` değeri (sıfır hızda) ile çapraz doğrulama: maks hata < 0.0005 Nm.
+MuJoCo'nun `qfrc_bias` degeri (sifir hizda) ile capraz dogrulama: maks hata `8.01e-06`.
 
 ## Çapraz Doğrulama Sonuçları
 
-| Büyüklük | Yöntem | Maks Hata |
+| Buyukluk | Yontem | Maks Hata |
 |----------|--------|-----------|
-| g(q) | pin vs mj qfrc_bias | < 0.0005 Nm |
-| M(q) | pin CRBA vs mj fullM | < 0.00004 |
+| g(q) | Pinocchio vs MuJoCo `qfrc_bias` | `8.01e-06` |
+| M(q) | Pinocchio CRBA vs MuJoCo `mj_fullM()` | `3.34e-05` |
 
 ## Nasıl Çalıştırılır
 

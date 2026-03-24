@@ -2,7 +2,7 @@
 
 > **Status:** Not Started  
 > **Prerequisites:** Lab 1 (FK/IK), Lab 2 (6-DOF, Pinocchio)  
-> **Platform:** UR5e on MuJoCo + Pinocchio  
+> **Platform:** MuJoCo Menagerie UR5e + mounted Robotiq 2F-85, analyzed with Pinocchio  
 > **Capstone Demo:** End-effector maintains constant force against a surface while tracing a path
 
 ---
@@ -64,7 +64,9 @@ Task Spec (desired pose + desired force)
 ## Implementation Phases
 
 ### Phase 1 — Dynamics Fundamentals
-- Switch UR5e actuators from position to torque mode in MJCF
+- Start from the MuJoCo Menagerie UR5e model and preserve its real robot geometry
+- Mount the Robotiq 2F-85 so Labs 3–5 share the same hardware baseline
+- Switch the arm actuation path to a torque-level control workflow without replacing the robot model
 - Compute and visualize `M(q)`, `C(q,q̇)`, `g(q)` using Pinocchio
 - Implement gravity compensation — robot holds any pose hands-free
 - Validate: perturb the arm, it should stay in place
@@ -90,6 +92,7 @@ Task Spec (desired pose + desired force)
 ## Key Design Decisions for Claude Code
 
 - **Torque mode is critical.** The MJCF actuator tags must change from `position` to `torque`. Without this, MuJoCo's internal PD controller masks the dynamics.
+- **Use the real robot model.** Lab 3 must run on the Menagerie UR5e geometry, not a simplified/custom UR5e surrogate. Any Pinocchio model must match the MuJoCo robot actually used in simulation.
 - **Use Pinocchio for dynamics, MuJoCo for simulation.** Pinocchio computes `M`, `C`, `g`, `J`. MuJoCo applies torques and steps physics. Keep them separate.
 - **Impedance gains matter.** Start with low stiffness (K ~ 100–500 N/m) and increase. Too high = instability. Too low = no tracking.
 - **Contact parameters.** MuJoCo's `solref` and `solimp` on the table surface affect how "real" the contact feels. Document the tuning.

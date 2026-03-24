@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 import pinocchio as pin
 
-LAB2_SRC = Path(__file__).resolve().parents[1] / "src" / "lab-2-Ur5e-robotics-lab"
+LAB2_SRC = Path(__file__).resolve().parents[1] / "src"
 if str(LAB2_SRC) not in sys.path:
     sys.path.insert(0, str(LAB2_SRC))
 

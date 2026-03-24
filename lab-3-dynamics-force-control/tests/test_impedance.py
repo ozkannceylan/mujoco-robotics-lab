@@ -20,6 +20,21 @@ from b1_impedance_controller import (
 )
 
 
+def rot_x(theta: float) -> np.ndarray:
+    c, s = np.cos(theta), np.sin(theta)
+    return np.array([[1.0, 0.0, 0.0], [0.0, c, -s], [0.0, s, c]])
+
+
+def rot_y(theta: float) -> np.ndarray:
+    c, s = np.cos(theta), np.sin(theta)
+    return np.array([[c, 0.0, s], [0.0, 1.0, 0.0], [-s, 0.0, c]])
+
+
+def rot_z(theta: float) -> np.ndarray:
+    c, s = np.cos(theta), np.sin(theta)
+    return np.array([[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]])
+
+
 class TestOrientationError(unittest.TestCase):
     """Tests for the orientation error function."""
 
@@ -45,8 +60,7 @@ class TestOrientationError(unittest.TestCase):
 
     def test_identity_rotation(self) -> None:
         """Random rotation compared to itself gives zero."""
-        from scipy.spatial.transform import Rotation
-        R = Rotation.random(random_state=42).as_matrix()
+        R = rot_z(0.4) @ rot_y(-0.7) @ rot_x(0.2)
         e = orientation_error(R, R)
         np.testing.assert_allclose(e, 0.0, atol=1e-10)
 
