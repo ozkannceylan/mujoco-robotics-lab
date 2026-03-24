@@ -1,0 +1,277 @@
+<mujoco model="g1_humanoid">
+  <!--
+    Simplified Unitree G1 Humanoid Model for Lab 7 — Locomotion Fundamentals.
+
+    Kinematic structure:
+      - Floating base (freejoint, 6 DOF: tx,ty,tz,qw,qx,qy,qz)
+      - Waist: 1 yaw DOF
+      - Left leg:  hip_yaw, hip_roll, hip_pitch, knee_pitch, ankle_pitch, ankle_roll (6 DOF)
+      - Right leg: hip_yaw, hip_roll, hip_pitch, knee_pitch, ankle_pitch, ankle_roll (6 DOF)
+      - Arms: locked at neutral pose (0 actuated DOF)
+      - Total actuated: 13 joints
+      - Total q-dim: 7(freejoint) + 1(waist) + 12(legs) = 20
+
+    G1 geometry (simplified):
+      - Torso height: 0.40 m
+      - Thigh length: 0.35 m, Shin length: 0.35 m
+      - Hip height at home: ~0.78 m above ground
+      - Total mass: ~35 kg
+
+    Actuators: position-controlled (general, kp baked into biastype=affine)
+    Contact:   foot pad capsule + heel/toe spheres
+  -->
+
+  <compiler angle="radian" autolimits="true"/>
+
+  <option timestep="0.002" gravity="0 0 -9.81" integrator="implicitfast"/>
+
+  <default>
+    <joint limited="true" damping="5.0" armature="0.01" frictionloss="0.1"/>
+    <geom contype="1" conaffinity="1" condim="3" friction="0.8 0.005 0.0001"
+          rgba="0.6 0.65 0.7 1"/>
+  </default>
+
+  <asset>
+    <material name="body_mat"  rgba="0.60 0.65 0.70 1"/>
+    <material name="joint_mat" rgba="0.30 0.30 0.35 1"/>
+    <material name="foot_mat"  rgba="0.15 0.15 0.15 1"/>
+  </asset>
+
+  <worldbody>
+    <!-- ===================== TORSO ===================== -->
+    <body name="torso" pos="0 0 0.82">
+      <freejoint name="root"/>
+
+      <!-- IMU site for sensors -->
+      <site name="torso_imu_site" pos="0 0 0" size="0.01"/>
+
+      <!-- Torso box -->
+      <geom name="torso_geom" type="box" size="0.11 0.07 0.20"
+            pos="0 0 0" material="body_mat" mass="12.0"/>
+      <!-- Head (cosmetic sphere) -->
+      <geom name="head_geom" type="sphere" size="0.10"
+            pos="0 0 0.30" material="body_mat" mass="2.5"
+            contype="0" conaffinity="0"/>
+
+      <!-- ==================== WAIST ==================== -->
+      <body name="waist" pos="0 0 -0.18">
+        <joint name="waist_yaw" type="hinge" axis="0 0 1"
+               range="-0.50 0.50" damping="8.0"/>
+        <geom name="waist_geom" type="cylinder" size="0.08 0.04"
+              material="joint_mat" mass="2.0"/>
+
+        <!-- ==================== LEFT LEG ==================== -->
+        <body name="left_hip" pos="0 0.105 -0.04">
+          <joint name="left_hip_yaw" type="hinge" axis="0 0 1"
+                 range="-0.52 0.52" damping="5.0"/>
+          <geom name="left_hip_yaw_geom" type="sphere" size="0.04"
+                material="joint_mat" mass="0.8" contype="0" conaffinity="0"/>
+
+          <body name="left_hip_roll_link" pos="0 0 0">
+            <joint name="left_hip_roll" type="hinge" axis="1 0 0"
+                   range="-0.52 0.52" damping="5.0"/>
+            <geom name="left_hip_roll_geom" type="sphere" size="0.04"
+                  material="joint_mat" mass="0.5" contype="0" conaffinity="0"/>
+
+            <body name="left_thigh" pos="0 0 0">
+              <joint name="left_hip_pitch" type="hinge" axis="0 1 0"
+                     range="-1.57 0.52" damping="8.0"/>
+              <geom name="left_thigh_geom" type="capsule" size="0.05"
+                    fromto="0 0 0  0 0 -0.35"
+                    material="body_mat" mass="4.5"/>
+
+              <body name="left_shin" pos="0 0 -0.35">
+                <joint name="left_knee_pitch" type="hinge" axis="0 1 0"
+                       range="-0.05 2.35" damping="8.0"/>
+                <geom name="left_shin_geom" type="capsule" size="0.045"
+                      fromto="0 0 0  0 0 -0.35"
+                      material="body_mat" mass="3.5"/>
+
+                <body name="left_ankle_link" pos="0 0 -0.35">
+                  <joint name="left_ankle_pitch" type="hinge" axis="0 1 0"
+                         range="-0.70 0.52" damping="5.0"/>
+                  <geom name="left_ankle_link_geom" type="sphere" size="0.03"
+                        material="joint_mat" mass="0.3" contype="0" conaffinity="0"/>
+
+                  <body name="left_foot" pos="0 0 0">
+                    <joint name="left_ankle_roll" type="hinge" axis="1 0 0"
+                           range="-0.35 0.35" damping="3.0"/>
+                    <!-- Foot pad -->
+                    <geom name="left_foot_pad" type="box"
+                          size="0.08 0.04 0.015" pos="0.02 0 -0.015"
+                          material="foot_mat" mass="0.6"/>
+                    <!-- Heel sphere -->
+                    <geom name="left_foot_heel" type="sphere" size="0.025"
+                          pos="-0.055 0 -0.015" material="foot_mat" mass="0.1"/>
+                    <!-- Toe sphere -->
+                    <geom name="left_foot_toe" type="sphere" size="0.022"
+                          pos="0.095 0 -0.015" material="foot_mat" mass="0.1"/>
+                    <!-- Foot force site -->
+                    <site name="left_foot_site" pos="0.02 0 -0.03" size="0.01"/>
+                  </body>
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+
+        <!-- ==================== RIGHT LEG ==================== -->
+        <body name="right_hip" pos="0 -0.105 -0.04">
+          <joint name="right_hip_yaw" type="hinge" axis="0 0 1"
+                 range="-0.52 0.52" damping="5.0"/>
+          <geom name="right_hip_yaw_geom" type="sphere" size="0.04"
+                material="joint_mat" mass="0.8" contype="0" conaffinity="0"/>
+
+          <body name="right_hip_roll_link" pos="0 0 0">
+            <joint name="right_hip_roll" type="hinge" axis="1 0 0"
+                   range="-0.52 0.52" damping="5.0"/>
+            <geom name="right_hip_roll_geom" type="sphere" size="0.04"
+                  material="joint_mat" mass="0.5" contype="0" conaffinity="0"/>
+
+            <body name="right_thigh" pos="0 0 0">
+              <joint name="right_hip_pitch" type="hinge" axis="0 1 0"
+                     range="-1.57 0.52" damping="8.0"/>
+              <geom name="right_thigh_geom" type="capsule" size="0.05"
+                    fromto="0 0 0  0 0 -0.35"
+                    material="body_mat" mass="4.5"/>
+
+              <body name="right_shin" pos="0 0 -0.35">
+                <joint name="right_knee_pitch" type="hinge" axis="0 1 0"
+                       range="-0.05 2.35" damping="8.0"/>
+                <geom name="right_shin_geom" type="capsule" size="0.045"
+                      fromto="0 0 0  0 0 -0.35"
+                      material="body_mat" mass="3.5"/>
+
+                <body name="right_ankle_link" pos="0 0 -0.35">
+                  <joint name="right_ankle_pitch" type="hinge" axis="0 1 0"
+                         range="-0.70 0.52" damping="5.0"/>
+                  <geom name="right_ankle_link_geom" type="sphere" size="0.03"
+                        material="joint_mat" mass="0.3" contype="0" conaffinity="0"/>
+
+                  <body name="right_foot" pos="0 0 0">
+                    <joint name="right_ankle_roll" type="hinge" axis="1 0 0"
+                           range="-0.35 0.35" damping="3.0"/>
+                    <!-- Foot pad -->
+                    <geom name="right_foot_pad" type="box"
+                          size="0.08 0.04 0.015" pos="0.02 0 -0.015"
+                          material="foot_mat" mass="0.6"/>
+                    <!-- Heel sphere -->
+                    <geom name="right_foot_heel" type="sphere" size="0.025"
+                          pos="-0.055 0 -0.015" material="foot_mat" mass="0.1"/>
+                    <!-- Toe sphere -->
+                    <geom name="right_foot_toe" type="sphere" size="0.022"
+                          pos="0.095 0 -0.015" material="foot_mat" mass="0.1"/>
+                    <!-- Foot force site -->
+                    <site name="right_foot_site" pos="0.02 0 -0.03" size="0.01"/>
+                  </body>
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+
+      </body><!-- /waist -->
+
+      <!-- ==================== LEFT ARM (locked, no joints) ==================== -->
+      <body name="left_upper_arm" pos="0 0.155 0.12">
+        <geom name="left_upper_arm_geom" type="capsule" size="0.04"
+              fromto="0 0 0  0 0.12 -0.22"
+              material="body_mat" mass="2.5" contype="0" conaffinity="0"/>
+        <body name="left_forearm" pos="0 0.12 -0.22">
+          <geom name="left_forearm_geom" type="capsule" size="0.035"
+                fromto="0 0 0  0 0.08 -0.20"
+                material="body_mat" mass="1.5" contype="0" conaffinity="0"/>
+        </body>
+      </body>
+
+      <!-- ==================== RIGHT ARM (locked, no joints) ==================== -->
+      <body name="right_upper_arm" pos="0 -0.155 0.12">
+        <geom name="right_upper_arm_geom" type="capsule" size="0.04"
+              fromto="0 0 0  0 -0.12 -0.22"
+              material="body_mat" mass="2.5" contype="0" conaffinity="0"/>
+        <body name="right_forearm" pos="0 -0.12 -0.22">
+          <geom name="right_forearm_geom" type="capsule" size="0.035"
+                fromto="0 0 0  0 -0.08 -0.20"
+                material="body_mat" mass="1.5" contype="0" conaffinity="0"/>
+        </body>
+      </body>
+
+    </body><!-- /torso -->
+  </worldbody>
+
+  <!-- ===================== ACTUATORS ===================== -->
+  <!--
+    General position-servo actuators.
+    tau = kp*(ctrl - qpos) - kd*qvel  implemented via:
+      gainprm = kp
+      biasprm = [0, -kp, -kd]
+  -->
+  <actuator>
+    <!-- Waist -->
+    <general name="waist_yaw_act"       joint="waist_yaw"
+             gaintype="fixed" gainprm="200"
+             biastype="affine" biasprm="0 -200 -20"
+             ctrlrange="-0.50 0.50"/>
+
+    <!-- Left Leg -->
+    <general name="left_hip_yaw_act"    joint="left_hip_yaw"
+             gaintype="fixed" gainprm="200"
+             biastype="affine" biasprm="0 -200 -20"
+             ctrlrange="-0.52 0.52"/>
+    <general name="left_hip_roll_act"   joint="left_hip_roll"
+             gaintype="fixed" gainprm="200"
+             biastype="affine" biasprm="0 -200 -20"
+             ctrlrange="-0.52 0.52"/>
+    <general name="left_hip_pitch_act"  joint="left_hip_pitch"
+             gaintype="fixed" gainprm="300"
+             biastype="affine" biasprm="0 -300 -30"
+             ctrlrange="-1.57 0.52"/>
+    <general name="left_knee_pitch_act" joint="left_knee_pitch"
+             gaintype="fixed" gainprm="300"
+             biastype="affine" biasprm="0 -300 -30"
+             ctrlrange="-0.05 2.35"/>
+    <general name="left_ankle_pitch_act" joint="left_ankle_pitch"
+             gaintype="fixed" gainprm="150"
+             biastype="affine" biasprm="0 -150 -15"
+             ctrlrange="-0.70 0.52"/>
+    <general name="left_ankle_roll_act" joint="left_ankle_roll"
+             gaintype="fixed" gainprm="80"
+             biastype="affine" biasprm="0 -80 -8"
+             ctrlrange="-0.35 0.35"/>
+
+    <!-- Right Leg -->
+    <general name="right_hip_yaw_act"    joint="right_hip_yaw"
+             gaintype="fixed" gainprm="200"
+             biastype="affine" biasprm="0 -200 -20"
+             ctrlrange="-0.52 0.52"/>
+    <general name="right_hip_roll_act"   joint="right_hip_roll"
+             gaintype="fixed" gainprm="200"
+             biastype="affine" biasprm="0 -200 -20"
+             ctrlrange="-0.52 0.52"/>
+    <general name="right_hip_pitch_act"  joint="right_hip_pitch"
+             gaintype="fixed" gainprm="300"
+             biastype="affine" biasprm="0 -300 -30"
+             ctrlrange="-1.57 0.52"/>
+    <general name="right_knee_pitch_act" joint="right_knee_pitch"
+             gaintype="fixed" gainprm="300"
+             biastype="affine" biasprm="0 -300 -30"
+             ctrlrange="-0.05 2.35"/>
+    <general name="right_ankle_pitch_act" joint="right_ankle_pitch"
+             gaintype="fixed" gainprm="150"
+             biastype="affine" biasprm="0 -150 -15"
+             ctrlrange="-0.70 0.52"/>
+    <general name="right_ankle_roll_act" joint="right_ankle_roll"
+             gaintype="fixed" gainprm="80"
+             biastype="affine" biasprm="0 -80 -8"
+             ctrlrange="-0.35 0.35"/>
+  </actuator>
+
+  <!-- ===================== SENSORS ===================== -->
+  <sensor>
+    <accelerometer name="torso_accel" site="torso_imu_site"/>
+    <gyro          name="torso_gyro"  site="torso_imu_site"/>
+    <force         name="left_foot_force"  site="left_foot_site"/>
+    <force         name="right_foot_force" site="right_foot_site"/>
+  </sensor>
+
+</mujoco>

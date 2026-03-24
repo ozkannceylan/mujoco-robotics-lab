@@ -1,0 +1,285 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- G1 Humanoid Robot MJCF for VLA Integration Lab 9
+     Simplified model with ~25 actuated DOF for upper-body manipulation tasks.
+     Based on Unitree G1 specification.
+-->
+<mujoco model="g1_vla">
+  <compiler angle="radian" autolimits="true"/>
+
+  <option gravity="0 0 -9.81" timestep="0.005"/>
+
+  <default>
+    <default class="g1">
+      <joint damping="0.5" armature="0.01"/>
+      <geom contype="1" conaffinity="1" friction="0.8 0.02 0.001" rgba="0.7 0.7 0.8 1"/>
+      <motor ctrllimited="true"/>
+    </default>
+    <default class="collision">
+      <geom contype="1" conaffinity="1" group="3"/>
+    </default>
+    <default class="visual">
+      <geom contype="0" conaffinity="0" group="2" rgba="0.5 0.6 0.7 1"/>
+    </default>
+  </default>
+
+  <asset>
+    <texture name="grid" type="2d" builtin="checker" width="512" height="512"
+             rgb1="0.1 0.2 0.3" rgb2="0.2 0.3 0.4"/>
+    <material name="grid" texture="grid" texrepeat="8 8" reflectance="0.2"/>
+    <material name="robot_body" rgba="0.5 0.6 0.7 1"/>
+    <material name="robot_joint" rgba="0.3 0.4 0.5 1"/>
+  </asset>
+
+  <worldbody>
+    <!-- Ground plane -->
+    <geom name="floor" type="plane" size="5 5 0.1" material="grid" contype="1" conaffinity="1"/>
+
+    <!-- Lighting -->
+    <light name="main_light" pos="0 0 4" dir="0 0 -1" diffuse="0.8 0.8 0.8" specular="0.3 0.3 0.3" castshadow="true"/>
+    <light name="fill_light" pos="2 2 3" dir="-1 -1 -1" diffuse="0.4 0.4 0.4" specular="0.1 0.1 0.1"/>
+
+    <!-- G1 Robot Body -->
+    <body name="pelvis" pos="0 0 0.85">
+      <freejoint name="root"/>
+      <geom name="pelvis_geom" class="visual" type="box" size="0.12 0.08 0.1" pos="0 0 0"/>
+      <geom name="pelvis_col" class="collision" type="box" size="0.12 0.08 0.1" pos="0 0 0"/>
+      <inertial mass="8.0" pos="0 0 0" diaginertia="0.05 0.05 0.03"/>
+
+      <!-- Torso -->
+      <body name="torso" pos="0 0 0.15">
+        <joint name="torso_yaw" type="hinge" axis="0 0 1" range="-0.8 0.8" class="g1"/>
+        <geom name="torso_geom" class="visual" type="box" size="0.12 0.08 0.2" pos="0 0 0.1"/>
+        <geom name="torso_col" class="collision" type="box" size="0.12 0.08 0.2" pos="0 0 0.1"/>
+        <inertial mass="12.0" pos="0 0 0.1" diaginertia="0.15 0.1 0.08"/>
+
+        <!-- Head -->
+        <body name="head" pos="0 0 0.35">
+          <joint name="head_pitch" type="hinge" axis="0 1 0" range="-0.6 0.6" class="g1"/>
+          <joint name="head_yaw" type="hinge" axis="0 0 1" range="-1.0 1.0" class="g1"/>
+          <geom name="head_geom" class="visual" type="sphere" size="0.12" pos="0 0 0.05"/>
+          <geom name="head_col" class="collision" type="sphere" size="0.12" pos="0 0 0.05"/>
+          <inertial mass="2.0" pos="0 0 0.05" diaginertia="0.01 0.01 0.008"/>
+
+          <!-- Head camera (egocentric) -->
+          <camera name="head_cam" pos="0 0.12 0.05" euler="0 0 1.5708"
+                  fovy="90"/>
+        </body>
+
+        <!-- Left arm -->
+        <body name="left_shoulder_roll" pos="0.0 0.18 0.25">
+          <joint name="left_shoulder_roll" type="hinge" axis="1 0 0" range="-1.5 1.5" class="g1"/>
+          <geom name="lsr_geom" class="visual" type="cylinder" size="0.04 0.05" pos="0 0.04 0"/>
+          <inertial mass="1.5" pos="0 0.04 0" diaginertia="0.005 0.005 0.002"/>
+
+          <body name="left_shoulder_pitch" pos="0 0.08 0">
+            <joint name="left_shoulder_pitch" type="hinge" axis="0 1 0" range="-2.0 2.0" class="g1"/>
+            <geom name="lsp_geom" class="visual" type="cylinder" size="0.04 0.05" pos="0 0.04 0"/>
+            <inertial mass="1.5" pos="0 0.04 0" diaginertia="0.005 0.005 0.002"/>
+
+            <body name="left_shoulder_yaw" pos="0 0.08 0">
+              <joint name="left_shoulder_yaw" type="hinge" axis="0 0 1" range="-1.5 1.5" class="g1"/>
+              <geom name="lsy_geom" class="visual" type="cylinder" size="0.035 0.1" pos="0 0.05 0"/>
+              <inertial mass="1.2" pos="0 0.05 0" diaginertia="0.004 0.004 0.001"/>
+
+              <!-- Left elbow -->
+              <body name="left_elbow" pos="0 0.25 0">
+                <joint name="left_elbow" type="hinge" axis="0 1 0" range="-2.0 0.0" class="g1"/>
+                <geom name="le_geom" class="visual" type="cylinder" size="0.035 0.1" pos="0 0.05 0"/>
+                <inertial mass="1.0" pos="0 0.05 0" diaginertia="0.003 0.003 0.001"/>
+
+                <!-- Left wrist -->
+                <body name="left_wrist_roll" pos="0 0.22 0">
+                  <joint name="left_wrist_roll" type="hinge" axis="0 0 1" range="-1.5 1.5" class="g1"/>
+                  <geom name="lwr_geom" class="visual" type="cylinder" size="0.03 0.05" pos="0 0.03 0"/>
+                  <inertial mass="0.5" pos="0 0.03 0" diaginertia="0.001 0.001 0.0005"/>
+
+                  <body name="left_wrist_pitch" pos="0 0.06 0">
+                    <joint name="left_wrist_pitch" type="hinge" axis="0 1 0" range="-1.0 1.0" class="g1"/>
+                    <geom name="lwp_geom" class="visual" type="box" size="0.04 0.05 0.02" pos="0 0.04 0"/>
+                    <inertial mass="0.5" pos="0 0.04 0" diaginertia="0.001 0.001 0.0005"/>
+
+                    <!-- Left hand/gripper -->
+                    <body name="left_hand" pos="0 0.08 0">
+                      <joint name="left_gripper" type="slide" axis="0 0 1" range="0.0 0.08" class="g1"/>
+                      <geom name="lh_geom" class="visual" type="box" size="0.035 0.06 0.015" pos="0 0.03 0"/>
+                      <geom name="lh_col" class="collision" type="box" size="0.035 0.06 0.015" pos="0 0.03 0"/>
+                      <inertial mass="0.3" pos="0 0.03 0" diaginertia="0.0005 0.0005 0.0002"/>
+                      <site name="left_ee" pos="0 0.07 0" size="0.01"/>
+
+                      <!-- Wrist camera -->
+                      <camera name="left_wrist_cam" pos="0 0.0 0.03" euler="1.5708 0 0" fovy="90"/>
+                    </body>
+                  </body>
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+
+        <!-- Right arm -->
+        <body name="right_shoulder_roll" pos="0.0 -0.18 0.25">
+          <joint name="right_shoulder_roll" type="hinge" axis="1 0 0" range="-1.5 1.5" class="g1"/>
+          <geom name="rsr_geom" class="visual" type="cylinder" size="0.04 0.05" pos="0 -0.04 0"/>
+          <inertial mass="1.5" pos="0 -0.04 0" diaginertia="0.005 0.005 0.002"/>
+
+          <body name="right_shoulder_pitch" pos="0 -0.08 0">
+            <joint name="right_shoulder_pitch" type="hinge" axis="0 1 0" range="-2.0 2.0" class="g1"/>
+            <geom name="rsp_geom" class="visual" type="cylinder" size="0.04 0.05" pos="0 -0.04 0"/>
+            <inertial mass="1.5" pos="0 -0.04 0" diaginertia="0.005 0.005 0.002"/>
+
+            <body name="right_shoulder_yaw" pos="0 -0.08 0">
+              <joint name="right_shoulder_yaw" type="hinge" axis="0 0 1" range="-1.5 1.5" class="g1"/>
+              <geom name="rsy_geom" class="visual" type="cylinder" size="0.035 0.1" pos="0 -0.05 0"/>
+              <inertial mass="1.2" pos="0 -0.05 0" diaginertia="0.004 0.004 0.001"/>
+
+              <!-- Right elbow -->
+              <body name="right_elbow" pos="0 -0.25 0">
+                <joint name="right_elbow" type="hinge" axis="0 1 0" range="0.0 2.0" class="g1"/>
+                <geom name="re_geom" class="visual" type="cylinder" size="0.035 0.1" pos="0 -0.05 0"/>
+                <inertial mass="1.0" pos="0 -0.05 0" diaginertia="0.003 0.003 0.001"/>
+
+                <!-- Right wrist -->
+                <body name="right_wrist_roll" pos="0 -0.22 0">
+                  <joint name="right_wrist_roll" type="hinge" axis="0 0 1" range="-1.5 1.5" class="g1"/>
+                  <geom name="rwr_geom" class="visual" type="cylinder" size="0.03 0.05" pos="0 -0.03 0"/>
+                  <inertial mass="0.5" pos="0 -0.03 0" diaginertia="0.001 0.001 0.0005"/>
+
+                  <body name="right_wrist_pitch" pos="0 -0.06 0">
+                    <joint name="right_wrist_pitch" type="hinge" axis="0 1 0" range="-1.0 1.0" class="g1"/>
+                    <geom name="rwp_geom" class="visual" type="box" size="0.04 0.05 0.02" pos="0 -0.04 0"/>
+                    <inertial mass="0.5" pos="0 -0.04 0" diaginertia="0.001 0.001 0.0005"/>
+
+                    <!-- Right hand/gripper -->
+                    <body name="right_hand" pos="0 -0.08 0">
+                      <joint name="right_gripper" type="slide" axis="0 0 1" range="0.0 0.08" class="g1"/>
+                      <geom name="rh_geom" class="visual" type="box" size="0.035 0.06 0.015" pos="0 -0.03 0"/>
+                      <geom name="rh_col" class="collision" type="box" size="0.035 0.06 0.015" pos="0 -0.03 0"/>
+                      <inertial mass="0.3" pos="0 -0.03 0" diaginertia="0.0005 0.0005 0.0002"/>
+                      <site name="right_ee" pos="0 -0.07 0" size="0.01"/>
+
+                      <!-- Right wrist camera -->
+                      <camera name="right_wrist_cam" pos="0 0.0 0.03" euler="1.5708 0 0" fovy="90"/>
+                    </body>
+                  </body>
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+
+      </body> <!-- torso -->
+
+      <!-- Left leg (simplified for standing balance) -->
+      <body name="left_hip_yaw" pos="0.0 0.1 -0.1">
+        <joint name="left_hip_yaw" type="hinge" axis="0 0 1" range="-0.8 0.8" class="g1"/>
+        <body name="left_hip_roll" pos="0 0 0">
+          <joint name="left_hip_roll" type="hinge" axis="1 0 0" range="-0.5 0.5" class="g1"/>
+          <body name="left_hip_pitch" pos="0 0 0">
+            <joint name="left_hip_pitch" type="hinge" axis="0 1 0" range="-1.5 1.5" class="g1"/>
+            <geom name="lthigh_geom" class="visual" type="cylinder" size="0.06 0.2" pos="0 0 -0.2"/>
+            <geom name="lthigh_col" class="collision" type="cylinder" size="0.06 0.2" pos="0 0 -0.2"/>
+            <inertial mass="3.0" pos="0 0 -0.2" diaginertia="0.02 0.02 0.005"/>
+
+            <body name="left_knee" pos="0 0 -0.4">
+              <joint name="left_knee" type="hinge" axis="0 1 0" range="-0.1 2.5" class="g1"/>
+              <geom name="lshank_geom" class="visual" type="cylinder" size="0.05 0.18" pos="0 0 -0.18"/>
+              <geom name="lshank_col" class="collision" type="cylinder" size="0.05 0.18" pos="0 0 -0.18"/>
+              <inertial mass="2.0" pos="0 0 -0.18" diaginertia="0.01 0.01 0.002"/>
+
+              <body name="left_ankle" pos="0 0 -0.36">
+                <joint name="left_ankle_pitch" type="hinge" axis="0 1 0" range="-0.8 0.5" class="g1"/>
+                <joint name="left_ankle_roll" type="hinge" axis="1 0 0" range="-0.4 0.4" class="g1"/>
+                <geom name="lfoot_geom" class="visual" type="box" size="0.1 0.05 0.03" pos="0.02 0 -0.03"/>
+                <geom name="lfoot_col" class="collision" type="box" size="0.1 0.05 0.03" pos="0.02 0 -0.03"/>
+                <inertial mass="1.0" pos="0.02 0 -0.03" diaginertia="0.003 0.005 0.005"/>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+
+      <!-- Right leg (simplified) -->
+      <body name="right_hip_yaw" pos="0.0 -0.1 -0.1">
+        <joint name="right_hip_yaw" type="hinge" axis="0 0 1" range="-0.8 0.8" class="g1"/>
+        <body name="right_hip_roll" pos="0 0 0">
+          <joint name="right_hip_roll" type="hinge" axis="1 0 0" range="-0.5 0.5" class="g1"/>
+          <body name="right_hip_pitch" pos="0 0 0">
+            <joint name="right_hip_pitch" type="hinge" axis="0 1 0" range="-1.5 1.5" class="g1"/>
+            <geom name="rthigh_geom" class="visual" type="cylinder" size="0.06 0.2" pos="0 0 -0.2"/>
+            <geom name="rthigh_col" class="collision" type="cylinder" size="0.06 0.2" pos="0 0 -0.2"/>
+            <inertial mass="3.0" pos="0 0 -0.2" diaginertia="0.02 0.02 0.005"/>
+
+            <body name="right_knee" pos="0 0 -0.4">
+              <joint name="right_knee" type="hinge" axis="0 1 0" range="-0.1 2.5" class="g1"/>
+              <geom name="rshank_geom" class="visual" type="cylinder" size="0.05 0.18" pos="0 0 -0.18"/>
+              <geom name="rshank_col" class="collision" type="cylinder" size="0.05 0.18" pos="0 0 -0.18"/>
+              <inertial mass="2.0" pos="0 0 -0.18" diaginertia="0.01 0.01 0.002"/>
+
+              <body name="right_ankle" pos="0 0 -0.36">
+                <joint name="right_ankle_pitch" type="hinge" axis="0 1 0" range="-0.8 0.5" class="g1"/>
+                <joint name="right_ankle_roll" type="hinge" axis="1 0 0" range="-0.4 0.4" class="g1"/>
+                <geom name="rfoot_geom" class="visual" type="box" size="0.1 0.05 0.03" pos="0.02 0 -0.03"/>
+                <geom name="rfoot_col" class="collision" type="box" size="0.1 0.05 0.03" pos="0.02 0 -0.03"/>
+                <inertial mass="1.0" pos="0.02 0 -0.03" diaginertia="0.003 0.005 0.005"/>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+
+    </body> <!-- pelvis -->
+  </worldbody>
+
+  <actuator>
+    <!-- Torso -->
+    <motor name="torso_yaw" joint="torso_yaw" gear="100" ctrlrange="-80 80"/>
+
+    <!-- Head -->
+    <motor name="head_pitch" joint="head_pitch" gear="30" ctrlrange="-20 20"/>
+    <motor name="head_yaw" joint="head_yaw" gear="30" ctrlrange="-20 20"/>
+
+    <!-- Left arm -->
+    <motor name="left_shoulder_roll" joint="left_shoulder_roll" gear="100" ctrlrange="-80 80"/>
+    <motor name="left_shoulder_pitch" joint="left_shoulder_pitch" gear="100" ctrlrange="-80 80"/>
+    <motor name="left_shoulder_yaw" joint="left_shoulder_yaw" gear="50" ctrlrange="-40 40"/>
+    <motor name="left_elbow" joint="left_elbow" gear="50" ctrlrange="-40 40"/>
+    <motor name="left_wrist_roll" joint="left_wrist_roll" gear="20" ctrlrange="-15 15"/>
+    <motor name="left_wrist_pitch" joint="left_wrist_pitch" gear="20" ctrlrange="-15 15"/>
+    <motor name="left_gripper" joint="left_gripper" gear="10" ctrlrange="0 1"/>
+
+    <!-- Right arm -->
+    <motor name="right_shoulder_roll" joint="right_shoulder_roll" gear="100" ctrlrange="-80 80"/>
+    <motor name="right_shoulder_pitch" joint="right_shoulder_pitch" gear="100" ctrlrange="-80 80"/>
+    <motor name="right_shoulder_yaw" joint="right_shoulder_yaw" gear="50" ctrlrange="-40 40"/>
+    <motor name="right_elbow" joint="right_elbow" gear="50" ctrlrange="-40 40"/>
+    <motor name="right_wrist_roll" joint="right_wrist_roll" gear="20" ctrlrange="-15 15"/>
+    <motor name="right_wrist_pitch" joint="right_wrist_pitch" gear="20" ctrlrange="-15 15"/>
+    <motor name="right_gripper" joint="right_gripper" gear="10" ctrlrange="0 1"/>
+
+    <!-- Left leg -->
+    <motor name="left_hip_yaw" joint="left_hip_yaw" gear="150" ctrlrange="-100 100"/>
+    <motor name="left_hip_roll" joint="left_hip_roll" gear="150" ctrlrange="-100 100"/>
+    <motor name="left_hip_pitch" joint="left_hip_pitch" gear="200" ctrlrange="-150 150"/>
+    <motor name="left_knee" joint="left_knee" gear="200" ctrlrange="-150 150"/>
+    <motor name="left_ankle_pitch" joint="left_ankle_pitch" gear="80" ctrlrange="-60 60"/>
+    <motor name="left_ankle_roll" joint="left_ankle_roll" gear="40" ctrlrange="-30 30"/>
+
+    <!-- Right leg -->
+    <motor name="right_hip_yaw" joint="right_hip_yaw" gear="150" ctrlrange="-100 100"/>
+    <motor name="right_hip_roll" joint="right_hip_roll" gear="150" ctrlrange="-100 100"/>
+    <motor name="right_hip_pitch" joint="right_hip_pitch" gear="200" ctrlrange="-150 150"/>
+    <motor name="right_knee" joint="right_knee" gear="200" ctrlrange="-150 150"/>
+    <motor name="right_ankle_pitch" joint="right_ankle_pitch" gear="80" ctrlrange="-60 60"/>
+    <motor name="right_ankle_roll" joint="right_ankle_roll" gear="40" ctrlrange="-30 30"/>
+  </actuator>
+
+  <sensor>
+    <accelerometer name="imu_acc" site="left_ee"/>
+    <gyro name="imu_gyro" site="left_ee"/>
+    <framepos name="left_ee_pos" objtype="site" objname="left_ee"/>
+    <framepos name="right_ee_pos" objtype="site" objname="right_ee"/>
+    <framequat name="left_ee_quat" objtype="site" objname="left_ee"/>
+    <framequat name="right_ee_quat" objtype="site" objname="right_ee"/>
+  </sensor>
+
+</mujoco>
