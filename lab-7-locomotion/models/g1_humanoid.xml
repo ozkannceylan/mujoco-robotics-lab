@@ -39,7 +39,7 @@
 
   <worldbody>
     <!-- ===================== TORSO ===================== -->
-    <body name="torso" pos="0 0 0.82">
+    <body name="torso" pos="0 0 0.95">
       <freejoint name="root"/>
 
       <!-- IMU site for sensors -->
@@ -47,7 +47,8 @@
 
       <!-- Torso box -->
       <geom name="torso_geom" type="box" size="0.11 0.07 0.20"
-            pos="0 0 0" material="body_mat" mass="12.0"/>
+            pos="0 0 0" material="body_mat" mass="12.0"
+            contype="0" conaffinity="0"/>
       <!-- Head (cosmetic sphere) -->
       <geom name="head_geom" type="sphere" size="0.10"
             pos="0 0 0.30" material="body_mat" mass="2.5"
@@ -77,15 +78,17 @@
               <joint name="left_hip_pitch" type="hinge" axis="0 1 0"
                      range="-1.57 0.52" damping="8.0"/>
               <geom name="left_thigh_geom" type="capsule" size="0.05"
-                    fromto="0 0 0  0 0 -0.35"
-                    material="body_mat" mass="4.5"/>
+                    fromto="0 0 -0.03  0 0 -0.35"
+                    material="body_mat" mass="4.5"
+                    contype="0" conaffinity="0"/>
 
               <body name="left_shin" pos="0 0 -0.35">
                 <joint name="left_knee_pitch" type="hinge" axis="0 1 0"
                        range="-0.05 2.35" damping="8.0"/>
                 <geom name="left_shin_geom" type="capsule" size="0.045"
-                      fromto="0 0 0  0 0 -0.35"
-                      material="body_mat" mass="3.5"/>
+                      fromto="0 0 0  0 0 -0.30"
+                      material="body_mat" mass="3.5"
+                      contype="0" conaffinity="0"/>
 
                 <body name="left_ankle_link" pos="0 0 -0.35">
                   <joint name="left_ankle_pitch" type="hinge" axis="0 1 0"
@@ -132,15 +135,17 @@
               <joint name="right_hip_pitch" type="hinge" axis="0 1 0"
                      range="-1.57 0.52" damping="8.0"/>
               <geom name="right_thigh_geom" type="capsule" size="0.05"
-                    fromto="0 0 0  0 0 -0.35"
-                    material="body_mat" mass="4.5"/>
+                    fromto="0 0 -0.03  0 0 -0.35"
+                    material="body_mat" mass="4.5"
+                    contype="0" conaffinity="0"/>
 
               <body name="right_shin" pos="0 0 -0.35">
                 <joint name="right_knee_pitch" type="hinge" axis="0 1 0"
                        range="-0.05 2.35" damping="8.0"/>
                 <geom name="right_shin_geom" type="capsule" size="0.045"
-                      fromto="0 0 0  0 0 -0.35"
-                      material="body_mat" mass="3.5"/>
+                      fromto="0 0 0  0 0 -0.30"
+                      material="body_mat" mass="3.5"
+                      contype="0" conaffinity="0"/>
 
                 <body name="right_ankle_link" pos="0 0 -0.35">
                   <joint name="right_ankle_pitch" type="hinge" axis="0 1 0"
@@ -209,60 +214,60 @@
   <actuator>
     <!-- Waist -->
     <general name="waist_yaw_act"       joint="waist_yaw"
-             gaintype="fixed" gainprm="200"
-             biastype="affine" biasprm="0 -200 -20"
+             gaintype="fixed" gainprm="600"
+             biastype="affine" biasprm="0 -600 -30"
              ctrlrange="-0.50 0.50"/>
 
     <!-- Left Leg -->
     <general name="left_hip_yaw_act"    joint="left_hip_yaw"
-             gaintype="fixed" gainprm="200"
-             biastype="affine" biasprm="0 -200 -20"
+             gaintype="fixed" gainprm="600"
+             biastype="affine" biasprm="0 -600 -30"
              ctrlrange="-0.52 0.52"/>
     <general name="left_hip_roll_act"   joint="left_hip_roll"
-             gaintype="fixed" gainprm="200"
-             biastype="affine" biasprm="0 -200 -20"
+             gaintype="fixed" gainprm="600"
+             biastype="affine" biasprm="0 -600 -30"
              ctrlrange="-0.52 0.52"/>
     <general name="left_hip_pitch_act"  joint="left_hip_pitch"
-             gaintype="fixed" gainprm="300"
-             biastype="affine" biasprm="0 -300 -30"
+             gaintype="fixed" gainprm="900"
+             biastype="affine" biasprm="0 -900 -45"
              ctrlrange="-1.57 0.52"/>
     <general name="left_knee_pitch_act" joint="left_knee_pitch"
-             gaintype="fixed" gainprm="300"
-             biastype="affine" biasprm="0 -300 -30"
+             gaintype="fixed" gainprm="900"
+             biastype="affine" biasprm="0 -900 -45"
              ctrlrange="-0.05 2.35"/>
     <general name="left_ankle_pitch_act" joint="left_ankle_pitch"
-             gaintype="fixed" gainprm="150"
-             biastype="affine" biasprm="0 -150 -15"
+             gaintype="fixed" gainprm="450"
+             biastype="affine" biasprm="0 -450 -22"
              ctrlrange="-0.70 0.52"/>
     <general name="left_ankle_roll_act" joint="left_ankle_roll"
-             gaintype="fixed" gainprm="80"
-             biastype="affine" biasprm="0 -80 -8"
+             gaintype="fixed" gainprm="240"
+             biastype="affine" biasprm="0 -240 -12"
              ctrlrange="-0.35 0.35"/>
 
     <!-- Right Leg -->
     <general name="right_hip_yaw_act"    joint="right_hip_yaw"
-             gaintype="fixed" gainprm="200"
-             biastype="affine" biasprm="0 -200 -20"
+             gaintype="fixed" gainprm="600"
+             biastype="affine" biasprm="0 -600 -30"
              ctrlrange="-0.52 0.52"/>
     <general name="right_hip_roll_act"   joint="right_hip_roll"
-             gaintype="fixed" gainprm="200"
-             biastype="affine" biasprm="0 -200 -20"
+             gaintype="fixed" gainprm="600"
+             biastype="affine" biasprm="0 -600 -30"
              ctrlrange="-0.52 0.52"/>
     <general name="right_hip_pitch_act"  joint="right_hip_pitch"
-             gaintype="fixed" gainprm="300"
-             biastype="affine" biasprm="0 -300 -30"
+             gaintype="fixed" gainprm="900"
+             biastype="affine" biasprm="0 -900 -45"
              ctrlrange="-1.57 0.52"/>
     <general name="right_knee_pitch_act" joint="right_knee_pitch"
-             gaintype="fixed" gainprm="300"
-             biastype="affine" biasprm="0 -300 -30"
+             gaintype="fixed" gainprm="900"
+             biastype="affine" biasprm="0 -900 -45"
              ctrlrange="-0.05 2.35"/>
     <general name="right_ankle_pitch_act" joint="right_ankle_pitch"
-             gaintype="fixed" gainprm="150"
-             biastype="affine" biasprm="0 -150 -15"
+             gaintype="fixed" gainprm="450"
+             biastype="affine" biasprm="0 -450 -22"
              ctrlrange="-0.70 0.52"/>
     <general name="right_ankle_roll_act" joint="right_ankle_roll"
-             gaintype="fixed" gainprm="80"
-             biastype="affine" biasprm="0 -80 -8"
+             gaintype="fixed" gainprm="240"
+             biastype="affine" biasprm="0 -240 -12"
              ctrlrange="-0.35 0.35"/>
   </actuator>
 

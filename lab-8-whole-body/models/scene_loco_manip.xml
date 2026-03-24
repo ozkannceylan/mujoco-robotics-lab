@@ -1,0 +1,63 @@
+<mujoco model="g1_loco_manip_scene">
+  <!--
+    Lab 8: Whole-Body Loco-Manipulation Scene
+    G1 humanoid + ground plane + table + graspable box object
+  -->
+
+  <include file="g1_full.xml"/>
+
+  <statistic center="0.5 0 0.5" extent="2.0"/>
+
+  <visual>
+    <headlight diffuse="0.6 0.6 0.6" ambient="0.3 0.3 0.3" specular="0 0 0"/>
+    <rgba haze="0.15 0.25 0.35 1"/>
+    <global azimuth="150" elevation="-20"/>
+  </visual>
+
+  <worldbody>
+    <!-- Ground plane -->
+    <geom name="ground" type="plane" size="10 10 0.1" rgba="0.3 0.4 0.3 1"
+          condim="3" friction="1.0 0.005 0.0001"/>
+
+    <!-- Table: 0.75m high, 1.0m in front of robot start -->
+    <body name="table" pos="1.0 0 0.375">
+      <geom name="table_top" type="box" size="0.4 0.4 0.02" pos="0 0 0.375"
+            rgba="0.55 0.35 0.2 1" mass="20.0" condim="3" friction="0.8 0.005 0.0001"/>
+      <geom name="table_leg1" type="cylinder" size="0.03 0.355" pos="0.3 0.3 0"
+            rgba="0.4 0.25 0.15 1" mass="1.0"/>
+      <geom name="table_leg2" type="cylinder" size="0.03 0.355" pos="-0.3 0.3 0"
+            rgba="0.4 0.25 0.15 1" mass="1.0"/>
+      <geom name="table_leg3" type="cylinder" size="0.03 0.355" pos="0.3 -0.3 0"
+            rgba="0.4 0.25 0.15 1" mass="1.0"/>
+      <geom name="table_leg4" type="cylinder" size="0.03 0.355" pos="-0.3 -0.3 0"
+            rgba="0.4 0.25 0.15 1" mass="1.0"/>
+    </body>
+
+    <!-- Graspable box object on table -->
+    <body name="box_object" pos="1.0 0 0.78">
+      <freejoint name="box_joint"/>
+      <geom name="box_geom" type="box" size="0.05 0.03 0.03"
+            rgba="0.9 0.2 0.2 1" mass="0.5"
+            condim="3" friction="1.0 0.005 0.0001"/>
+      <inertial pos="0 0 0" mass="0.5" diaginertia="0.0003 0.0005 0.0005"/>
+      <site name="box_center" pos="0 0 0" size="0.01"/>
+    </body>
+
+    <!-- Cameras -->
+    <camera name="front" pos="2.0 0 1.0" xyaxes="0 1 0 -0.4 0 0.9"/>
+    <camera name="side" pos="0 2.5 1.0" xyaxes="-1 0 0 0 -0.4 0.9"/>
+    <camera name="top" pos="0.5 0 3.0" xyaxes="0 1 0 -1 0 0"/>
+    <camera name="tracking" pos="1.5 1.5 1.2" xyaxes="-0.7 0.7 0 -0.3 -0.3 0.9"/>
+
+    <!-- Lighting -->
+    <light name="spotlight" pos="1 0 3" dir="0 0 -1" diffuse="0.8 0.8 0.8"
+           specular="0.3 0.3 0.3" cutoff="60"/>
+  </worldbody>
+
+  <!-- Weld equality constraint for grasping (initially disabled) -->
+  <equality>
+    <weld name="grasp_weld" body1="left_wrist_pitch_link" body2="box_object"
+          relpose="0 0 -0.1 1 0 0 0" active="false"/>
+  </equality>
+
+</mujoco>

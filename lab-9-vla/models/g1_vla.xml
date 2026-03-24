@@ -172,8 +172,10 @@
       <!-- Left leg (simplified for standing balance) -->
       <body name="left_hip_yaw" pos="0.0 0.1 -0.1">
         <joint name="left_hip_yaw" type="hinge" axis="0 0 1" range="-0.8 0.8" class="g1"/>
+        <inertial mass="0.5" pos="0 0 0" diaginertia="0.001 0.001 0.001"/>
         <body name="left_hip_roll" pos="0 0 0">
           <joint name="left_hip_roll" type="hinge" axis="1 0 0" range="-0.5 0.5" class="g1"/>
+          <inertial mass="0.5" pos="0 0 0" diaginertia="0.001 0.001 0.001"/>
           <body name="left_hip_pitch" pos="0 0 0">
             <joint name="left_hip_pitch" type="hinge" axis="0 1 0" range="-1.5 1.5" class="g1"/>
             <geom name="lthigh_geom" class="visual" type="cylinder" size="0.06 0.2" pos="0 0 -0.2"/>
@@ -201,8 +203,10 @@
       <!-- Right leg (simplified) -->
       <body name="right_hip_yaw" pos="0.0 -0.1 -0.1">
         <joint name="right_hip_yaw" type="hinge" axis="0 0 1" range="-0.8 0.8" class="g1"/>
+        <inertial mass="0.5" pos="0 0 0" diaginertia="0.001 0.001 0.001"/>
         <body name="right_hip_roll" pos="0 0 0">
           <joint name="right_hip_roll" type="hinge" axis="1 0 0" range="-0.5 0.5" class="g1"/>
+          <inertial mass="0.5" pos="0 0 0" diaginertia="0.001 0.001 0.001"/>
           <body name="right_hip_pitch" pos="0 0 0">
             <joint name="right_hip_pitch" type="hinge" axis="0 1 0" range="-1.5 1.5" class="g1"/>
             <geom name="rthigh_geom" class="visual" type="cylinder" size="0.06 0.2" pos="0 0 -0.2"/>

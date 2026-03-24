@@ -44,10 +44,10 @@
   </link>
 
   <!-- Floating base joint — Pinocchio will use JointModelFreeFlyer -->
-  <joint name="root_joint" type="floating">
+  <joint name="root_joint" type="fixed">
     <parent link="world"/>
     <child link="torso"/>
-    <origin xyz="0 0 0.82" rpy="0 0 0"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
   </joint>
 
   <!-- ===== WAIST ===== -->
@@ -126,7 +126,7 @@
     </inertial>
     <collision>
       <origin xyz="0 0 -0.175" rpy="0 0 0"/>
-      <geometry><capsule radius="0.05" length="0.30"/></geometry>
+      <geometry><cylinder radius="0.05" length="0.30"/></geometry>
     </collision>
   </link>
 
@@ -149,7 +149,7 @@
     </inertial>
     <collision>
       <origin xyz="0 0 -0.175" rpy="0 0 0"/>
-      <geometry><capsule radius="0.045" length="0.30"/></geometry>
+      <geometry><cylinder radius="0.045" length="0.30"/></geometry>
     </collision>
   </link>
 
@@ -258,7 +258,7 @@
     </inertial>
     <collision>
       <origin xyz="0 0 -0.175" rpy="0 0 0"/>
-      <geometry><capsule radius="0.05" length="0.30"/></geometry>
+      <geometry><cylinder radius="0.05" length="0.30"/></geometry>
     </collision>
   </link>
 
@@ -281,7 +281,7 @@
     </inertial>
     <collision>
       <origin xyz="0 0 -0.175" rpy="0 0 0"/>
-      <geometry><capsule radius="0.045" length="0.30"/></geometry>
+      <geometry><cylinder radius="0.045" length="0.30"/></geometry>
     </collision>
   </link>
 
