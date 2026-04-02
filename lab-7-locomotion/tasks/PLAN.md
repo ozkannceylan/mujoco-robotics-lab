@@ -1,113 +1,110 @@
-# Lab 7: Locomotion Fundamentals — Implementation Plan
+# Lab 7: Locomotion Fundamentals — Milestone Plan
 
-## Overview
-Implement stable bipedal walking on the Unitree G1 humanoid using ZMP-based planning and
-whole-body IK. This lab is the paradigm shift from fixed-base (Labs 1–6) to floating-base
-dynamics where the robot can fall.
-
-**Platform:** Unitree G1 (29-DOF) from MuJoCo Menagerie at `vla_zero_to_hero/third_party/mujoco_menagerie/unitree_g1/`
-**Pinocchio:** Load via `buildModelFromMJCF` (no separate URDF needed)
+> **Platform:** Unitree G1 on MuJoCo
+> **Capstone:** Stable bipedal walking on flat ground (10+ steps)
+> **Rule:** ONE milestone per session. No exceptions.
 
 ---
 
-## Phase 1: G1 Setup & Standing Balance
+## M0: Load G1 and Understand the Robot
 
-### Step 1.1: Folder structure and lab7_common.py
-- Load G1 in MuJoCo and Pinocchio
-- Define G1 joint/actuator/velocity index maps
-- Define standing keyframe constants (pelvis z=0.757m after settling, CoM z≈0.66m)
-- Utilities: `mj_to_pin_state()`, `pin_to_mj_state()` (quaternion convention swap)
-- **Expected output:** Both models load without errors, correct nq/nv/nu printed
+- [ ] Load Unitree G1 from MuJoCo Menagerie
+- [ ] Print full joint list: name, index, range, actuator mapping
+- [ ] Identify and document: which joints are legs, arms, waist, head
+- [ ] Count total DOFs, actuated DOFs, leg DOFs
+- [ ] Set arms to neutral pose and lock them
+- [ ] Run 2s simulation with no control (freefall collapse)
 
-### Step 1.2: standing_controller.py
-- Reset to keyframe, set ctrl = q_stand for 29 actuators
-- Run for 5s, apply 5N perturbation force at t=3s for 0.2s
-- Record and plot CoM x,y,z over time
-- Verify robot recovers to within 5mm of initial CoM after perturbation
-- **Expected output:** Plot of CoM trajectory showing recovery, `tests/test_standing.py` passes
-
----
-
-## Phase 2: ZMP Planning
-
-### Step 2.1: lipm_planner.py — LIPM dynamics and preview controller
-- Implement `LIPMPreviewController` (Kajita 2003)
-  - Discrete-time LIPM: x_{k+1} = A x_k + b u_k, p = C x_k
-  - Augmented system with error integrator for tracking
-  - Solve DARE via `scipy.linalg.solve_discrete_are`
-  - Compute state feedback gains K_e, K_s and preview gains f(j)
-- **Expected output:** Preview gains computed without errors
-
-### Step 2.2: lipm_planner.py — Footstep plan and trajectory generation
-- Implement `FootstepPlanner`: alternating left/right steps, fixed stride
-  - Step length: 0.10m, step width: 0.10m (G1 foot half-width)
-  - 12 steps total (6 left, 6 right)
-- Implement `generate_zmp_reference()`: ZMP stays over support foot during single support,
-  linearly interpolates during double support
-- Implement `swing_trajectory()`: parabolic height, linear horizontal interpolation
-- Apply LIPMPreviewController to generate CoM trajectory from ZMP reference
-- **Expected output:** Plot of CoM trajectory, ZMP trajectory, support polygon over time
-
-### Step 2.3: Tests
-- `tests/test_lipm.py`: verify ZMP stays inside support polygon throughout trajectory
-- **Success criterion:** max ZMP deviation from support polygon < 1mm
+**Gate:**
+| Criterion | Target | Status |
+|-----------|--------|--------|
+| Joint table printed | complete | |
+| DOF layout in `docs/g1_joint_map.md` | complete | |
+| Collapse video | `media/m0_freefall.mp4` | |
+| T-pose screenshot | `media/m0_tpose.png` | |
 
 ---
 
-## Phase 3: Walking Gait Execution
+## M1: Standing with Joint PD + Gravity Compensation
 
-### Step 3.1: whole_body_ik.py
-- Implement `WholeBodyIK` using Pinocchio:
-  - Fix pelvis at desired position and upright orientation
-  - Solve left leg IK: Jacobian of `left_foot` frame w.r.t. left leg joints (v[6:12])
-  - Solve right leg IK: Jacobian of `right_foot` frame w.r.t. right leg joints (v[12:18])
-  - Damped least squares: `J† = Jᵀ(JJᵀ + λI)⁻¹`
-  - Integrate with `pin.integrate()` for proper quaternion handling
-- **Expected output:** IK converges for typical walking configurations
+- [ ] Joint PD controller for leg joints: `tau = Kp*(q_ref - q) + Kd*(0 - qd) + qfrc_bias`
+- [ ] `q_ref` = G1 standing config (Menagerie default or tuned)
+- [ ] Stand 10s on flat ground without falling
+- [ ] Apply 5N lateral push at t=3s, robot recovers
 
-### Step 3.2: walking_demo.py — Gait execution controller
-- Pre-compute full trajectory offline: CoM, left foot, right foot at T=0.01s steps
-- Gait phase state machine: INIT → LEFT_SWING → DOUBLE_SUPPORT → RIGHT_SWING → ...
-- At each MuJoCo step:
-  1. Look up desired CoM and foot positions from pre-computed trajectory
-  2. Solve whole-body IK → desired joint angles
-  3. Send to MuJoCo position actuators (legs + waist)
-  4. Keep arms at home pose
-- **Expected output:** Robot walks 10+ steps without falling
-
-### Step 3.3: Tuning and validation
-- Tune: step timing, step length, LIPM z_c, IK lambda, perturbation gains
-- Validate: 10+ steps, gait visually smooth, ZMP in support polygon
-- **Success criterion:** 10+ stable steps on flat ground
+**Gate:**
+| Criterion | Target | Status |
+|-----------|--------|--------|
+| Stands 10s | base height within 5cm of initial | |
+| Recovers from 5N push | no fall | |
+| Video | `media/m1_standing.mp4` | |
 
 ---
 
-## Phase 4: Documentation & Blog
+## M2: CoM Tracking and Support Polygon
 
-### Step 4.1: docs/LAB_07.md
-- Floating-base dynamics, ZMP theory, LIPM derivation, results
+- [ ] Compute CoM via Pinocchio (`computeCenterOfMass`)
+- [ ] Cross-validate: Pinocchio vs MuJoCo (`data.subtree_com[0]`)
+- [ ] Compute support polygon from foot contact points
+- [ ] CoM visualizer: CoM projection vs support polygon over time
+- [ ] CoM-based balance controller: PD on CoM position
 
-### Step 4.2: docs-turkish/LAB_07.md
-- Turkish translation
-
-### Step 4.3: blog/lab_07_locomotion.md
-- Blog post: "Making a Humanoid Walk: The ZMP Approach"
-
-### Step 4.4: README.md
-- Lab summary for GitHub
+**Gate:**
+| Criterion | Target | Status |
+|-----------|--------|--------|
+| CoM cross-validation error | < 5mm | |
+| CoM inside support polygon during 5N push | yes | |
+| Plot | `media/m2_com_polygon.png` | |
+| Video | `media/m2_com_balance.mp4` | |
 
 ---
 
-## Key Parameters (to be tuned)
-| Parameter | Initial Value | Notes |
-|-----------|--------------|-------|
-| z_c (LIPM height) | 0.66 m | CoM height above ground |
-| pelvis_z_stand | 0.757 m | Pelvis height after settling |
-| step_length | 0.10 m | Forward displacement per step |
-| step_width | 0.10 m | Y distance from center to foot |
-| step_height | 0.05 m | Swing foot peak clearance |
-| T_single_support | 0.8 s | Single support duration |
-| T_double_support | 0.2 s | Double support duration |
-| N_preview | 200 | Preview window (at T=0.01s) |
-| IK_lambda | 1e-3 | Damped LS regularization |
-| IK_step_size | 0.5 | IK integration step |
+## M3: Single Step (Weight Shift + Foot Lift)
+
+- [ ] Weight shift: move CoM over stance foot
+- [ ] Lift swing foot 5cm, move forward 15cm, place down
+- [ ] ONE step only, not walking
+- [ ] Task-space IK: CoM target + swing foot target + stance foot fixed
+
+**Gate:**
+| Criterion | Target | Status |
+|-----------|--------|--------|
+| One step without falling | yes | |
+| Swing foot clearance | > 3cm | |
+| Stable after step for 2s | yes | |
+| Video | `media/m3_single_step.mp4` | |
+
+---
+
+## M4: ZMP Walking (10+ steps)
+
+- [ ] LIPM for CoM trajectory generation
+- [ ] Hard-coded footstep plan: 12 alternating steps, 15cm stride
+- [ ] ZMP-stable CoM trajectory (preview control or analytical LIPM)
+- [ ] Whole-body IK execution (CoM + feet trajectories -> joint angles)
+
+**Gate:**
+| Criterion | Target | Status |
+|-----------|--------|--------|
+| Steps completed | >= 10 | |
+| ZMP inside support polygon | yes (plot) | |
+| Base roll/pitch | < 10 deg | |
+| Walking video | `media/m4_walking.mp4` | |
+| ZMP plot | `media/m4_zmp.png` | |
+
+---
+
+## M5: Documentation and Capstone
+
+- [ ] `docs/ARCHITECTURE.md`: floating-base dynamics, controller design, IK pipeline, ZMP theory, lessons
+- [ ] `docs-turkish/ARCHITECTURE_TR.md`: Turkish translation
+- [ ] `docs/CODE_WALKTHROUGH.md`: code walkthrough
+- [ ] Capstone demo script with state overlay
+- [ ] Blog post: "Making a Humanoid Walk: From Standing to ZMP Gait"
+
+**Gate:**
+| Criterion | Target | Status |
+|-----------|--------|--------|
+| All docs complete | yes | |
+| Capstone video | end-to-end | |
+| Blog word count | > 1000 | |

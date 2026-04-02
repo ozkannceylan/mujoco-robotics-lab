@@ -1,30 +1,74 @@
 <mujoco model="ur5e_lab6_dual">
   <!--
-    Lab 6 Scene: Dual UR5e arms facing each other across a shared table.
-    Left arm base at origin (0,0,0), right arm base at (1.0,0,0) rotated 180° yaw.
-    Table centered at (0.5, 0, 0.15); table surface at z=0.17.
-    Large box object (free body) resting on table surface, graspable by both arms.
-    Weld equality constraints (disabled by default) for rigid grasp simulation.
+    Lab 6 Scene: Dual UR5e arms facing each other.
+    Left arm base at origin, right arm base at (1.0, 0, 0) rotated 180 deg yaw.
+    Shared table centered at (0.5, 0, 0.15); table surface at z = 0.17.
+    Box object on table for cooperative manipulation.
   -->
 
-  <compiler angle="radian" autolimits="true"/>
-  <option timestep="0.001" gravity="0 0 -9.81" integrator="RK4"/>
+  <compiler angle="radian" meshdir="assets" autolimits="true"/>
+  <option timestep="0.001" gravity="0 0 -9.81" integrator="implicitfast"/>
 
+  <!-- ============================================================
+       Shared defaults (Menagerie UR5e class hierarchy)
+       ============================================================ -->
   <default>
-    <joint damping="1.0" armature="0.01" limited="true"/>
-    <geom rgba="0.33 0.47 0.58 1" density="800" contype="1" conaffinity="1"/>
-    <motor ctrllimited="true" ctrlrange="-180 180"/>
+    <default class="ur5e">
+      <material specular="0.5" shininess="0.25"/>
+      <joint axis="0 1 0" range="-6.28319 6.28319" armature="0.1"/>
+      <default class="size3">
+        <default class="size3_limited">
+          <joint range="-3.1415 3.1415"/>
+        </default>
+      </default>
+      <default class="size1">
+      </default>
+      <default class="visual">
+        <geom type="mesh" contype="0" conaffinity="0" group="2"/>
+      </default>
+      <default class="collision">
+        <geom type="capsule" group="3"/>
+        <default class="eef_collision">
+          <geom type="cylinder"/>
+        </default>
+      </default>
+      <site size="0.001" rgba="0.5 0.5 0.5 0.3" group="4"/>
+    </default>
   </default>
 
-  <statistic center="0.5 0 0.4" extent="1.8"/>
-
-  <visual>
-    <headlight diffuse="0.6 0.6 0.6" ambient="0.3 0.3 0.3" specular="0 0 0"/>
-    <rgba haze="0.15 0.25 0.35 1"/>
-    <global azimuth="150" elevation="-25" offwidth="1920" offheight="1080"/>
-  </visual>
-
+  <!-- ============================================================
+       Shared mesh assets (loaded once, used by both arms)
+       ============================================================ -->
   <asset>
+    <!-- Menagerie UR5e materials -->
+    <material class="ur5e" name="black" rgba="0.033 0.033 0.033 1"/>
+    <material class="ur5e" name="jointgray" rgba="0.278 0.278 0.278 1"/>
+    <material class="ur5e" name="linkgray" rgba="0.82 0.82 0.82 1"/>
+    <material class="ur5e" name="urblue" rgba="0.49 0.678 0.8 1"/>
+
+    <!-- Menagerie UR5e meshes -->
+    <mesh file="base_0.obj"/>
+    <mesh file="base_1.obj"/>
+    <mesh file="shoulder_0.obj"/>
+    <mesh file="shoulder_1.obj"/>
+    <mesh file="shoulder_2.obj"/>
+    <mesh file="upperarm_0.obj"/>
+    <mesh file="upperarm_1.obj"/>
+    <mesh file="upperarm_2.obj"/>
+    <mesh file="upperarm_3.obj"/>
+    <mesh file="forearm_0.obj"/>
+    <mesh file="forearm_1.obj"/>
+    <mesh file="forearm_2.obj"/>
+    <mesh file="forearm_3.obj"/>
+    <mesh file="wrist1_0.obj"/>
+    <mesh file="wrist1_1.obj"/>
+    <mesh file="wrist1_2.obj"/>
+    <mesh file="wrist2_0.obj"/>
+    <mesh file="wrist2_1.obj"/>
+    <mesh file="wrist2_2.obj"/>
+    <mesh file="wrist3.obj"/>
+
+    <!-- Scene materials -->
     <texture type="skybox" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0"
       width="512" height="3072"/>
     <texture type="2d" name="groundplane" builtin="checker" mark="edge"
@@ -36,9 +80,23 @@
     <material name="box_obj" rgba="0.90 0.70 0.20 1"/>
   </asset>
 
-  <!-- Include arm definitions — MuJoCo merges worldbody and actuator children -->
+  <statistic center="0.5 0 0.4" extent="1.8"/>
+
+  <visual>
+    <headlight diffuse="0.6 0.6 0.6" ambient="0.3 0.3 0.3" specular="0 0 0"/>
+    <rgba haze="0.15 0.25 0.35 1"/>
+    <global azimuth="150" elevation="-25" offwidth="1920" offheight="1080"/>
+  </visual>
+
+  <!-- Include arm definitions -->
   <include file="ur5e_left.xml"/>
   <include file="ur5e_right.xml"/>
+
+  <!-- Weld constraints for bimanual grasp (disabled by default, activated in M4) -->
+  <equality>
+    <weld name="left_grasp" body1="left_wrist_3_link" body2="box" active="false"/>
+    <weld name="right_grasp" body1="right_wrist_3_link" body2="box" active="false"/>
+  </equality>
 
   <worldbody>
     <!-- Lighting -->
@@ -49,52 +107,36 @@
     <!-- Floor -->
     <geom name="floor" size="0 0 0.05" type="plane" material="groundplane"/>
 
-    <!--
-      Table: centered between the two arm bases at x=0.5.
-      Body pos="0.5 0 0.15" means the body origin is at z=0.15.
-      Table top geom half-height = 0.02, so table surface is at z = 0.15 + 0.02 = 0.17.
-    -->
+    <!-- Table: centered between the two arm bases at x=0.5.
+         Narrowed to x half-extent 0.20 (table spans x=0.3..0.7) to avoid
+         collision with arm shoulder/upper-arm links near the bases.
+         Body pos z=0.15, table top half-height=0.02 -> surface at z=0.17. -->
     <body name="table" pos="0.5 0 0.15">
-      <geom name="table_top" type="box" size="0.40 0.30 0.02"
-            contype="1" conaffinity="1" material="table_wood"/>
-      <!-- Table legs (visual only, no collision) -->
-      <geom type="cylinder" pos="-0.36 -0.26 -0.085" size="0.025 0.065"
+      <geom name="table_top" type="box" size="0.20 0.30 0.02"
+            contype="1" conaffinity="1" material="table_wood"
+            friction="0.8 0.005 0.0001"/>
+      <!-- Table legs (visual only) -->
+      <geom type="cylinder" pos="-0.16 -0.26 -0.085" size="0.025 0.065"
             rgba="0.3 0.3 0.3 1" contype="0" conaffinity="0"/>
-      <geom type="cylinder" pos=" 0.36 -0.26 -0.085" size="0.025 0.065"
+      <geom type="cylinder" pos=" 0.16 -0.26 -0.085" size="0.025 0.065"
             rgba="0.3 0.3 0.3 1" contype="0" conaffinity="0"/>
-      <geom type="cylinder" pos="-0.36  0.26 -0.085" size="0.025 0.065"
+      <geom type="cylinder" pos="-0.16  0.26 -0.085" size="0.025 0.065"
             rgba="0.3 0.3 0.3 1" contype="0" conaffinity="0"/>
-      <geom type="cylinder" pos=" 0.36  0.26 -0.085" size="0.025 0.065"
+      <geom type="cylinder" pos=" 0.16  0.26 -0.085" size="0.025 0.065"
             rgba="0.3 0.3 0.3 1" contype="0" conaffinity="0"/>
     </body>
 
-    <!--
-      Large box object (free body, graspable by both arms).
-      Dimensions: 30cm x 15cm x 15cm  →  half-extents: 0.15 x 0.075 x 0.075
-      Table surface at z=0.17.  Box half-height = 0.075.
-      Box center at z = 0.17 + 0.075 = 0.245.
-      Centered in x between arms (x=0.5) and y=0.
-      Mass ~2 kg set via density override; box volume = 0.3*0.15*0.15 = 0.00675 m³,
-      so density = 2.0 / 0.00675 ≈ 296 kg/m³.
-    -->
+    <!-- Box object (free body).
+         30cm x 15cm x 15cm -> half-extents: 0.15 x 0.075 x 0.075.
+         Table surface at z=0.17, box half-height=0.075 -> center at z=0.245. -->
     <body name="box" pos="0.5 0 0.245">
       <freejoint name="box_freejoint"/>
       <geom name="box_geom" type="box" size="0.15 0.075 0.075"
             contype="1" conaffinity="1" condim="4"
-            solref="0.02 1" solimp="0.9 0.95 0.001"
+            friction="2.0 0.01 0.001"
+            solref="0.01 1" solimp="0.95 0.99 0.001"
             density="296" material="box_obj"/>
     </body>
   </worldbody>
-
-  <!--
-    Weld equality constraints for rigid grasp simulation.
-    Disabled by default (active="false").
-    Enable programmatically: set data.eq_active[id] = 1 in Python.
-    body1 = tool flange body, body2 = box free body.
-  -->
-  <equality>
-    <weld name="left_grasp"  body1="left_tool0"  body2="box" active="false"/>
-    <weld name="right_grasp" body1="right_tool0" body2="box" active="false"/>
-  </equality>
 
 </mujoco>

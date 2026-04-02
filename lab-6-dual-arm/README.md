@@ -1,207 +1,158 @@
 # Lab 6: Dual-Arm Coordination
 
-Two UR5e robots sharing a workspace, coordinating to pick up a large box,
-carry it 30 cm across the table, and place it — without colliding with each
-other and without dropping the object.
+Cooperative bimanual manipulation with two UR5e arms in MuJoCo. The arms grasp a box from opposite sides, lift it, carry it laterally, and place it back on the table.
 
-This lab builds on Labs 3–5. It introduces the object-centric frame
-abstraction, three coordination modes (synchronized, master-slave, symmetric),
-dual impedance control with internal force management, and a bimanual state
-machine that orchestrates the full pick-carry-place pipeline.
+## Overview
 
----
+Two UR5e arms are placed 1 meter apart on a shared table. A 30x15x15 cm box sits between them. The system progresses through 5 milestones (M0-M4), each with explicit gate criteria:
 
-## Architecture
+| Milestone | Description | Key Result |
+|-----------|-------------|------------|
+| M0 | Scene validation | 12 joints, EE z-dot=1.0 |
+| M1 | Independent PD control | Max error 0.000247 rad |
+| M2 | FK/IK cross-validation | FK error 0.000 mm, IK 20/20 |
+| M3 | Coordinated approach | 0.1 mm Cartesian error, 2 ms sync |
+| M4 | Cooperative carry | Lift 15 cm, carry 22 cm, rot 3 deg |
+| M5 | Capstone demo + docs | End-to-end video with overlay |
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                BimanualGraspStateMachine                 │
-│   IDLE→APPROACH→PRE_GRASP→GRASP→LIFT→CARRY→LOWER        │
-│   →RELEASE→RETREAT→DONE                                  │
-└──────────────────────┬──────────────────────────────────┘
-                       │ current state + targets
-                       ▼
-┌──────────────┐   ┌────────────────────┐   ┌─────────────────────┐
-│ DualArmModel │──▶│ CoordinatedPlanner │──▶│ SynchronizedTraj    │
-│              │   │                    │   │ q_left[T], q_right[T│
-│ fk_left(q)   │   │ plan_synchronized  │   │ timestamps[T]       │
-│ fk_right(q)  │   │ plan_master_slave  │   └──────────┬──────────┘
-│ jacobian_*(q)│   │ plan_symmetric     │              │
-│ ik_left(p)   │   └────────────────────┘              ▼
-│ ik_right(p)  │                           ┌─────────────────────┐
-└──────┬───────┘                           │ DualImpedanceCtrl   │
-       │                                   │ tau = J^T*F + g(q)  │
-       │   ┌──────────────────────┐        │ + squeeze force      │
-       └──▶│ DualCollisionChecker │        └──────────┬──────────┘
-           │ HPP-FCL: self, cross, │                  │ (tau_L, tau_R)
-           │ env collision checks  │                  ▼
-           └──────────────────────┘        ┌─────────────────────┐
-                                           │   MuJoCo Simulation  │
-                                           │ ctrl[:6]  = tau_L    │
-                                           │ ctrl[6:12]= tau_R    │
-                                           │ mj_step()            │
-                                           └─────────────────────┘
+## Prerequisites
+
+```bash
+pip install mujoco numpy pinocchio scipy imageio[ffmpeg] matplotlib
 ```
 
-Pinocchio is the analytical brain (FK, Jacobians, IK, gravity, collision
-geometry). MuJoCo is the physics simulator (contact, dynamics, rendering).
-Neither duplicates the other's computation.
+Python 3.10+ required. MuJoCo Menagerie mesh assets must be accessible via the symlink in `models/assets/`.
 
----
-
-## Key Concepts
-
-### Object-centric frame
-All cooperative motion is planned relative to the object, not relative to
-individual arm bases. Grasp offsets (`left_ee = object_pose * offset_left`)
-are computed once at grasp time and held constant during transport.
-
-### Three coordination modes
-- **Synchronized linear**: both arms move to independent SE3 targets,
-  arriving simultaneously. Duration auto-computed from velocity limits.
-- **Master-slave**: master follows prescribed waypoints; slave reconstructs the
-  object pose from the master pose and tracks its grasp offset.
-- **Symmetric**: both arms derive targets from an object trajectory directly.
-  Used for lift/carry/lower phases.
-
-### Dual impedance with internal force
-```
-tau = J^T * (K_p * e_x + K_d * e_xd) + g(q)
-```
-Symmetric gains prevent unintended internal forces. A 10 N squeeze force along
-the inter-EE axis maintains grip during transport.
-
-### Weld constraint
-MuJoCo equality constraints (`left_grasp`, `right_grasp`) are activated at
-contact and deactivated at release, simulating rigid grasps without needing
-to model finger friction.
-
----
-
-## Repository Structure
+## Project Structure
 
 ```
 lab-6-dual-arm/
-├── src/
-│   ├── lab6_common.py              # Paths, constants, model loaders
-│   ├── dual_arm_model.py           # DualArmModel + ObjectFrame
-│   ├── dual_collision_checker.py   # HPP-FCL collision checking
-│   ├── coordinated_planner.py      # 3 coordination modes
-│   ├── cooperative_controller.py   # Dual impedance controller
-│   ├── bimanual_grasp.py           # Bimanual state machine
-│   ├── a1_independent_motion.py    # Demo: independent arm motion
-│   ├── a2_coordinated_approach.py  # Demo: synchronized approach
-│   ├── b1_cooperative_carry.py     # Demo: full carry pipeline
-│   └── capstone_demo.py            # Full multi-scenario demo
-│
-├── models/
-│   ├── ur5e_left.xml               # Left UR5e (prefixed names)
-│   ├── ur5e_right.xml              # Right UR5e (180° yaw, prefixed names)
-│   └── scene_dual.xml              # Full scene: arms + table + box + welds
-│
-├── tests/
-│   ├── test_dual_model.py          # FK cross-validation, Jacobians
-│   ├── test_dual_collision.py      # Collision/free config tests
-│   ├── test_coordinated_planner.py # Timing sync, relative pose invariance
-│   ├── test_bimanual_grasp.py      # State machine transitions
-│   └── test_cooperative_controller.py
-│
-├── docs/
-│   ├── 01_dual_arm_setup.md        # Kinematics, scene, collision checking
-│   ├── 02_coordinated_motion.md    # Object-centric planning, 3 modes
-│   └── 03_cooperative_manipulation.md  # Impedance control, state machine
-│
-├── docs-turkish/
-│   └── ...                         # Turkish translations
-│
-├── tasks/
-│   ├── PLAN.md
-│   ├── ARCHITECTURE.md
-│   ├── TODO.md
-│   └── LESSONS.md
-│
-└── media/                          # Videos, plots
+  models/
+    scene_dual.xml       # Main MJCF scene (table, box, weld constraints)
+    ur5e_left.xml        # Left arm (base at origin)
+    ur5e_right.xml       # Right arm (base at x=1.0m)
+    ur5e.urdf            # Pinocchio URDF (Lab 3 Menagerie-matching)
+    assets/              # Symlink to Menagerie mesh files
+  src/
+    lab6_common.py       # Shared constants and utilities
+    dual_arm_model.py    # Pinocchio FK, Jacobian, DLS IK
+    joint_pd_controller.py  # Joint PD + gravity compensation
+    grasp_pose_calculator.py  # Grasp pose from box state
+    bimanual_state_machine.py  # 6-state cooperative pipeline
+    m0_validate_scene.py    # M0: scene structure check
+    m1_independent_motion.py  # M1: per-arm PD control
+    m2_fk_validation.py     # M2: FK cross-validation
+    m2_ik_validation.py     # M2: IK convergence + round-trip
+    m2_ik_visual.py         # M2: visual IK verification
+    m3_coordinated_approach.py  # M3: collision-free approach
+    m4_cooperative_carry.py    # M4: full pick-and-place
+    m5_capstone_demo.py        # M5: capstone with overlay
+  docs/
+    ARCHITECTURE.md      # Comprehensive architecture document
+    CODE_WALKTHROUGH.md  # Step-by-step reading guide
+  docs-turkish/
+    ARCHITECTURE_TR.md   # Turkish translation
+  blog/
+    lab6_dual_arm.md     # Technical blog post
+  media/                 # Generated videos and plots
+  tasks/
+    TODO.md              # Progress tracking
+    LESSONS.md           # Bug journal (L1-L12)
 ```
 
----
+## Running Milestone Scripts
 
-## Dependencies
-
-```
-Python   >= 3.10
-MuJoCo   >= 3.0
-pinocchio >= 2.6
-hppfcl   >= 2.4      (ships with pinocchio on most installs)
-numpy    >= 1.24
-matplotlib >= 3.7
-```
-
-Install:
-```bash
-pip install mujoco pin numpy matplotlib
-```
-
----
-
-## Running the Demos
-
-All demos are run from the `src/` directory or with the project root on
-`PYTHONPATH`:
+Each milestone builds on the previous. Run in order:
 
 ```bash
-# Phase 1: independent arm motion test
-python src/a1_independent_motion.py
+cd lab-6-dual-arm
 
-# Phase 2: coordinated simultaneous approach to the box
-python src/a2_coordinated_approach.py
+# M0: Validate scene structure
+python3 src/m0_validate_scene.py
 
-# Phase 3: full cooperative carry pipeline
-python src/b1_cooperative_carry.py
+# M1: Independent joint PD control
+python3 src/m1_independent_motion.py
 
-# Capstone: full multi-scenario demo with metrics
-python src/capstone_demo.py
+# M2: FK/IK validation
+python3 src/m2_fk_validation.py
+python3 src/m2_ik_validation.py
+python3 src/m2_ik_visual.py
+
+# M3: Coordinated approach
+python3 src/m3_coordinated_approach.py
+
+# M4: Cooperative carry
+python3 src/m4_cooperative_carry.py
+
+# M5: Capstone demo (runs full pipeline)
+python3 src/m5_capstone_demo.py
 ```
 
-Run all tests:
-```bash
-pytest tests/ -v
+## Expected Results
+
+### M3: Coordinated Approach
+Both arms approach the box from opposite sides with collision-free trajectories. Arrival synchronization within 2 ms.
+
+### M4: Cooperative Carry
+Full 6-state pipeline: APPROACH -> CLOSE -> GRASP -> LIFT -> CARRY -> PLACE. Box lifted 15 cm, carried 22 cm in +y direction, placed back on table with <3 cm z-error and <10 deg rotation.
+
+### M5: Capstone
+End-to-end video with state overlay text. Summary trajectory plot showing box position through all states.
+
+## Architecture
+
+The system follows the project-wide pattern:
+
+```
+Pinocchio = analytical brain (FK, Jacobian, IK)
+MuJoCo   = physics simulator (step, render, contact, weld constraints)
 ```
 
----
+Key design decisions:
+- **Joint PD control only** (no Cartesian impedance) for reliability across large reconfigurations
+- **Collision-free IK search** (300 random starts with MuJoCo contact check) for safe dual-arm motion
+- **Weld constraints for grasping** (instead of friction-based) for deterministic box attachment
+- **Smooth-step trajectory interpolation** for natural-looking motion
+- **Carry in +y direction** (not +x) due to workspace reachability limits with 1m arm spacing
 
-## Results Summary
+See `docs/ARCHITECTURE.md` for the full technical deep-dive.
 
-| Metric | Value |
-|--------|-------|
-| FK cross-validation error (Pinocchio vs MuJoCo) | < 1 mm |
-| IK convergence (Levenberg-Marquardt) | < 100 iterations, tol = 1e-4 |
-| Arm-arm collision check latency | < 1 ms (collision-free config) |
-| Synchronized approach timing error | < 1 simulation timestep (1 ms) |
-| EE position tracking error during carry | < 5 mm RMS |
-| Object rotation during carry | < 5 degrees |
-| Cooperative carry placement error | < 1 cm |
-| Internal squeeze force | ~10 N along grasp axis |
+## Key Lessons Learned
 
----
+1. Both arms must have identical base orientation. Facing direction is handled by IK targets, not base rotation.
+2. The "standard" UR5e URDF does not match MuJoCo Menagerie. Lab 3's hand-tuned version is required.
+3. Weld constraint `eq_data` must be updated to the current relative pose before activation.
+4. IK solutions must be collision-checked against the full scene, not just kinematic limits.
+5. Large joint reconfigurations need ramped interpolation, not step commands.
 
-## Docs
+See `tasks/LESSONS.md` for all 12 lessons with symptom/root-cause/fix/takeaway format.
 
-- `docs/01_dual_arm_setup.md` — Dual-arm kinematics, MuJoCo scene, FK
-  cross-validation, arm-arm collision checking with HPP-FCL.
-- `docs/02_coordinated_motion.md` — Object-centric frame, SE3 SLERP
-  interpolation, three coordination modes, IK warm-starting.
-- `docs/03_cooperative_manipulation.md` — Dual impedance control, internal
-  force theory, squeeze force, bimanual state machine, full carry pipeline.
+## Documentation
 
----
+- [Architecture](docs/ARCHITECTURE.md) - System design, module breakdown, controller design, IK pipeline, state machine walkthrough
+- [Code Walkthrough](docs/CODE_WALKTHROUGH.md) - Guided reading order with line references
+- [Architecture (Turkish)](docs-turkish/ARCHITECTURE_TR.md) - Turkish translation
+- [Blog Post](blog/lab6_dual_arm.md) - "From One Arm to Two" technical narrative
 
-## Connection to Prior Labs
+## Videos
 
-| Lab | Pattern reused in Lab 6 |
-|-----|------------------------|
-| Lab 3 | Impedance control loop: `tau = J^T * F + g(q)`, gravity compensation |
-| Lab 4 | HPP-FCL collision checker structure, `is_collision_free`, `is_path_free` |
-| Lab 5 | `GraspStateMachine` pattern: enum states, `step()`, weld constraint management |
+Generated by the milestone scripts into `media/`:
+- `m0_scene.png` - Scene screenshot
+- `m1_independent.mp4` - Independent PD control
+- `m3_approach.mp4` - Coordinated approach
+- `m4_carry.mp4` - Full cooperative carry
+- `m5_capstone.mp4` - Capstone with state overlay
+- `m5_trajectory.png` - Box trajectory plot
 
-All patterns are reimplemented within Lab 6 (no cross-lab imports) so each lab
-remains independently runnable.
+## Part of MuJoCo Robotics Lab
+
+This is Lab 6 in a 9-lab progression:
+1. 2-Link Planar Arm
+2. UR5e 6-DOF
+3. Dynamics & Force Control
+4. Motion Planning
+5. Grasping & Manipulation
+6. **Dual-Arm Coordination** (this lab)
+7. Locomotion Fundamentals
+8. Whole-Body Loco-Manipulation
+9. VLA Integration

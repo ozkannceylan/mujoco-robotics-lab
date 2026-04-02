@@ -271,3 +271,19 @@ When Pinocchio and MuJoCo disagree:
 3. Check `lab-N-<name>/tasks/TODO.md` for current state
 4. Check `lab-N-<name>/tasks/LESSONS.md` for known issues
 5. Resume from "Current Focus" in TODO.md
+
+
+## Lab 6 Rules
+- ONE milestone per session. Do NOT proceed to next milestone.
+- Every milestone ends with: gate criteria check + evidence (screenshot/plot/table).
+- If gate fails, fix THIS milestone. Do not work around it.
+- Controller mode changes per state (see state-controller map below).
+- No impedance control for large motions. Joint PD only until within 10cm of target.
+
+## Lab 7 Rules
+- ONE milestone per session. Do NOT proceed to next milestone.
+- Every milestone ends with: gate criteria check + evidence.
+- Evidence MUST include video (media/mN_*.mp4) or screenshot (media/mN_*.png) for every milestone. No exceptions.
+- If gate fails, fix THIS milestone. Do not work around it.
+- Print numerical gate results in a table format.
+- Do NOT implement anything beyond current milestone scope.
