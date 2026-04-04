@@ -287,3 +287,10 @@ When Pinocchio and MuJoCo disagree:
 - If gate fails, fix THIS milestone. Do not work around it.
 - Print numerical gate results in a table format.
 - Do NOT implement anything beyond current milestone scope.
+
+## Pinocchio Rules (MANDATORY)
+- All foot/CoM control MUST go through Pinocchio IK. No open-loop joint offsets.
+- If Pinocchio gives unexpected results, DEBUG THE FRAME CONVENTION. Do NOT replace with open-loop hacks.
+- Always use pin.LOCAL_WORLD_ALIGNED for Jacobians (not LOCAL, not WORLD)
+- Floating base: nq != nv (quaternion vs tangent). Use pin.integrate() for configuration updates, NEVER q += dq.
+- Validate every Jacobian column with finite differences: perturb joint i by eps=1e-6, recompute FK, compare (FK_new - FK_old)/eps with Jacobian column i. If signs don't match, your frame is wrong.

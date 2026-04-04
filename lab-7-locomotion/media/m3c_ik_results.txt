@@ -1,0 +1,138 @@
+M3c — Static Whole-Body IK Validation (pure Pinocchio)
+Parameters: lambda=0.01, alpha=0.3, dq_max=0.1
+
+Model: nq=36, nv=35
+Standing CoM:       [0.003283, 0.000082, 0.691852]
+Standing pelvis Z:  0.790000
+Left foot:          [-0.000002, 0.118506, 0.033136]
+Right foot:         [-0.000002, -0.118506, 0.033136]
+
+==========================================================================================
+  TEST: 1. Identity (targets = current)
+==========================================================================================
+  CoM target:  [0.003283, 0.000082, 0.691852]
+  Converged:   YES (0 iterations)
+  Final CoM:   [0.003283, 0.000082, 0.691852]
+  Final L foot:[-0.000002, 0.118506, 0.033136]
+  Final R foot:[-0.000002, -0.118506, 0.033136]
+  Pelvis Z:    0.790000 (err=0.0000mm)
+
+  Metric                         Value           Gate            Status
+  ---------------------------------------------------------------------------
+  CoM XY error                   0.0000 mm   < 5mm           PASS
+  L foot pos error               0.0000 mm   < 2mm           PASS
+  R foot pos error               0.0000 mm   < 2mm           PASS
+  L foot ori error               0.0000 mrad (info)          —
+  R foot ori error               0.0000 mrad (info)          —
+  Pelvis Z error                 0.0000 mm   (info)          —
+  Pelvis ori error               0.0000 mrad (info)          —
+
+==========================================================================================
+  TEST: 2. CoM shift left 5cm (Y -= 0.05m)
+==========================================================================================
+  CoM target:  [0.003283, -0.049918, 0.691852]
+  Converged:   YES (20 iterations)
+  Final CoM:   [0.003285, -0.049789, 0.688562]
+  Final L foot:[-0.000003, 0.118467, 0.033647]
+  Final R foot:[-0.000003, -0.118527, 0.033403]
+  Pelvis Z:    0.789227 (err=0.7733mm)
+
+  Metric                         Value           Gate            Status
+  ---------------------------------------------------------------------------
+  CoM XY error                   0.1285 mm   < 5mm           PASS
+  L foot pos error               0.5119 mm   < 2mm           PASS
+  R foot pos error               0.2677 mm   < 2mm           PASS
+  L foot ori error               0.0007 mrad (info)          —
+  R foot ori error               0.0007 mrad (info)          —
+  Pelvis Z error                 0.7733 mm   (info)          —
+  Pelvis ori error               0.0204 mrad (info)          —
+
+  Leg joint changes from standing (rad):
+    left_hip_pitch_joint                -0.000657
+    left_hip_roll_joint                 +0.059714
+    left_hip_yaw_joint                  -0.010586
+    left_knee_joint                     -0.000030
+    left_ankle_pitch_joint              +0.000371
+    left_ankle_roll_joint               -0.060624
+    right_hip_pitch_joint               -0.000633
+    right_hip_roll_joint                +0.059731
+    right_hip_yaw_joint                 -0.010587
+    right_knee_joint                    -0.000080
+    right_ankle_pitch_joint             +0.000398
+    right_ankle_roll_joint              -0.060641
+
+==========================================================================================
+  TEST: 3. CoM shift right 5cm (Y += 0.05m)
+==========================================================================================
+  CoM target:  [0.003283, 0.050082, 0.691852]
+  Converged:   YES (20 iterations)
+  Final CoM:   [0.003285, 0.049954, 0.688520]
+  Final L foot:[-0.000003, 0.118527, 0.033403]
+  Final R foot:[-0.000003, -0.118467, 0.033647]
+  Pelvis Z:    0.789226 (err=0.7736mm)
+
+  Metric                         Value           Gate            Status
+  ---------------------------------------------------------------------------
+  CoM XY error                   0.1285 mm   < 5mm           PASS
+  L foot pos error               0.2678 mm   < 2mm           PASS
+  R foot pos error               0.5121 mm   < 2mm           PASS
+  L foot ori error               0.0007 mrad (info)          —
+  R foot ori error               0.0007 mrad (info)          —
+  Pelvis Z error                 0.7736 mm   (info)          —
+  Pelvis ori error               0.0204 mrad (info)          —
+
+  Leg joint changes from standing (rad):
+    left_hip_pitch_joint                -0.000637
+    left_hip_roll_joint                 -0.059743
+    left_hip_yaw_joint                  +0.010589
+    left_knee_joint                     -0.000081
+    left_ankle_pitch_joint              +0.000402
+    left_ankle_roll_joint               +0.060653
+    right_hip_pitch_joint               -0.000661
+    right_hip_roll_joint                -0.059726
+    right_hip_yaw_joint                 +0.010588
+    right_knee_joint                    -0.000031
+    right_ankle_pitch_joint             +0.000375
+    right_ankle_roll_joint              +0.060636
+
+==========================================================================================
+  TEST: 4. CoM shift forward 3cm (X += 0.03m)
+==========================================================================================
+  CoM target:  [0.033283, 0.000082, 0.691852]
+  Converged:   YES (11 iterations)
+  Final CoM:   [0.032621, 0.000082, 0.691118]
+  Final L foot:[0.000012, 0.118506, 0.033379]
+  Final R foot:[0.000012, -0.118506, 0.033379]
+  Pelvis Z:    0.789528 (err=0.4722mm)
+
+  Metric                         Value           Gate            Status
+  ---------------------------------------------------------------------------
+  CoM XY error                   0.6615 mm   < 5mm           PASS
+  L foot pos error               0.2431 mm   < 2mm           PASS
+  R foot pos error               0.2431 mm   < 2mm           PASS
+  L foot ori error               0.0006 mrad (info)          —
+  R foot ori error               0.0006 mrad (info)          —
+  Pelvis Z error                 0.4722 mm   (info)          —
+  Pelvis ori error               0.0042 mrad (info)          —
+
+  Leg joint changes from standing (rad):
+    left_hip_pitch_joint                +0.044005
+    left_knee_joint                     +0.006909
+    left_ankle_pitch_joint              -0.050917
+    right_hip_pitch_joint               +0.044005
+    right_knee_joint                    +0.006909
+    right_ankle_pitch_joint             -0.050917
+
+==========================================================================================
+  M3c GATE RESULTS
+==========================================================================================
+  Criterion                                               Value                Status
+-------------------------------------------------------------------------------------
+  Identity converges in < 5 iters                         0 iters              PASS
+  All 4 tests converge (< 200 iters)                      max=20 iters         PASS
+  Foot position error < 2mm (all tests)                   max=0.5121mm         PASS
+  CoM XY error < 5mm (all tests)                          max=0.6615mm         PASS
+  Results saved                                           m3c_ik_results.txt   PASS
+-------------------------------------------------------------------------------------
+  OVERALL                                                                      ALL PASS
+==========================================================================================

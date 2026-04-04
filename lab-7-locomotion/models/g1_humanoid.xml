@@ -25,6 +25,11 @@
 
   <option timestep="0.002" gravity="0 0 -9.81" integrator="implicitfast"/>
 
+  <visual>
+    <global offwidth="1920" offheight="1080"/>
+    <quality shadowsize="4096"/>
+  </visual>
+
   <default>
     <joint limited="true" damping="5.0" armature="0.01" frictionloss="0.1"/>
     <geom contype="1" conaffinity="1" condim="3" friction="0.8 0.005 0.0001"
@@ -32,12 +37,21 @@
   </default>
 
   <asset>
+    <texture name="grid" type="2d" builtin="checker" width="512" height="512"
+             rgb1="0.15 0.15 0.18" rgb2="0.20 0.20 0.24"/>
+    <material name="grid_mat" texture="grid" texrepeat="8 8" reflectance="0.1"/>
     <material name="body_mat"  rgba="0.60 0.65 0.70 1"/>
     <material name="joint_mat" rgba="0.30 0.30 0.35 1"/>
     <material name="foot_mat"  rgba="0.15 0.15 0.15 1"/>
   </asset>
 
   <worldbody>
+    <!-- Ground plane -->
+    <geom name="ground" type="plane" size="10 10 0.01" material="grid_mat"
+          contype="1" conaffinity="1"/>
+    <light name="main_light" pos="0 0 3" dir="0 0 -1" diffuse="0.8 0.8 0.8"
+           specular="0.3 0.3 0.3" castshadow="true"/>
+
     <!-- ===================== TORSO ===================== -->
     <body name="torso" pos="0 0 0.82">
       <freejoint name="root"/>
