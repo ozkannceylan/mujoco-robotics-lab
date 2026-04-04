@@ -1,7 +1,7 @@
 # Lab 6 — TODO
 
 ## Current Focus
-**M4 complete.** Next session: M5 (Capstone demo + documentation).
+**Lab 6 complete.** All milestones M0-M5 done.
 
 ## Completed
 - [x] M0: Build and validate dual-arm scene
@@ -40,8 +40,18 @@
   - Gate: lift 15.0cm (≥13), carry 22.0cm (≥18), place dz=0.0cm (<3), rot=4.0° (<10)
   - Video: media/m4_carry.mp4, plot: media/m4_box_trajectory.png
 
+- [x] M5: Capstone demo + documentation
+  - Part A: docs/ARCHITECTURE.md (1553 lines, 7 sections + appendix)
+  - Part B: docs-turkish/ARCHITECTURE_TR.md (569 lines, 7 sections — same structure)
+  - Part C: docs/CODE_WALKTHROUGH.md (765 lines, guided reading order)
+  - Part D: src/m5_capstone_demo.py — state-overlay video + trajectory plot
+    - Video: media/m5_capstone.mp4 (state name burned on each frame)
+    - Plot: media/m5_trajectory.png (box xyz vs time with state boundaries)
+  - Part E: README.md (158 lines — overview, prerequisites, structure, how to run)
+  - Part F: blog/lab6_dual_arm.md (2460 words — "From One Arm to Two")
+
 ## Pending
-- [ ] M5: Capstone demo + documentation
+- None — Lab 6 complete
 
 ## Blockers
 - None

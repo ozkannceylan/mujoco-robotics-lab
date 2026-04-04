@@ -1,28 +1,69 @@
 # Lab 7: TODO
 
-## Phase 1: G1 Setup & Standing Balance
-- [ ] Step 1.1: lab7_common.py — model loading, joint maps, utilities
-- [ ] Step 1.2: standing_controller.py — standing demo with perturbation
-- [ ] Step 1.3: tests/test_standing.py
+## M0: Load G1 and Understand the Robot — COMPLETE
+- [x] Load real Menagerie G1 (scene.xml, 29 DOF, mesh geometry)
+- [x] Joint table, DOF layout, freefall video, T-pose screenshot
 
-## Phase 2: ZMP Planning
-- [ ] Step 2.1: lipm_planner.py — LIPMPreviewController (DARE, gains)
-- [ ] Step 2.2: lipm_planner.py — FootstepPlanner, trajectory generation
-- [ ] Step 2.3: tests/test_lipm.py
+## M1: Standing with Joint PD + Gravity Compensation — COMPLETE
+- [x] ctrl = q_ref + qfrc_bias/Kp (Kp=500), stands 10s, 5N push recovery
+- [x] Pelvis deviation: 1.6mm (gate: 5cm)
 
-## Phase 3: Walking Gait Execution
-- [ ] Step 3.1: whole_body_ik.py — WholeBodyIK class
-- [ ] Step 3.2: walking_demo.py — capstone walking demo
-- [ ] Step 3.3: tests/test_ik.py — IK convergence tests
+## M2: CoM Tracking and Support Polygon — COMPLETE
+- [x] CoM cross-validation: Pinocchio vs MuJoCo = 0.000mm (gate: <5mm)
+- [x] Fix: pin_q[2] = mj_qpos[2] - PELVIS_MJCF_Z (0.793m offset)
+- [x] Support polygon from 8 foot contact spheres (4 per foot)
+- [x] CoM Jacobian balance controller: delta_q = K * J_com_pinv * com_error
+- [x] CoM inside support polygon: 100% (gate: yes)
+- [x] Gate: m2_com_polygon.png, m2_com_balance.mp4
 
-## Phase 4: Documentation & Blog
-- [ ] Step 4.1: docs/LAB_07.md
-- [ ] Step 4.2: docs-turkish/LAB_07.md
-- [ ] Step 4.3: blog/lab_07_locomotion.md
-- [ ] Step 4.4: README.md
+## M3: Single Step — REBUILD (previous M3/M4 deleted: zero Pinocchio, open-loop hacks)
+
+### M3a: Pinocchio Frame Convention Validation (pure math) — COMPLETE
+- [x] Load G1 in Pinocchio, set standing config (q[2]=-0.003, legs at zero)
+- [x] CoM Jacobian: all 12 leg joints validated (max error 1.03e-08)
+- [x] Left foot Jacobian (left_ankle_roll_link, ID=15, LOCAL_WORLD_ALIGNED): all PASS (max 1.09e-07)
+- [x] Right foot Jacobian (right_ankle_roll_link, ID=28): all PASS (max 1.09e-07)
+- [x] Also validated OP_FRAME variants (left_foot ID=16, right_foot ID=29): identical results
+- [x] Gate: 0/36 failures, all < 1e-4
+- [x] Output saved to media/m3a_jacobian_validation.txt
+
+### M3b: Foot FK Cross-Validation (Pinocchio vs MuJoCo) — COMPLETE
+- [x] 10 random leg configs within joint limits, floating base at standing pose
+- [x] Foot position error: 0.0000mm max (gate: <2mm) — machine-precision match
+- [x] CoM error: 0.0000mm max (gate: <5mm) — machine-precision match
+- [x] Quaternion mapping documented: MuJoCo (w,x,y,z) → Pinocchio (x,y,z,w), Z offset = 0.793
+- [x] Screenshot: media/m3b_config.png
+- [x] Results: media/m3b_fk_validation.txt
+
+### M3c: Static Whole-Body IK (pure Pinocchio math) — COMPLETE
+- [x] Stacked Jacobian DLS: feet(6D×2) + CoM_XY(2D) + pelvis_Z(1D) + pelvis_ori(3D) = 18 tasks
+- [x] Identity test: 0 iterations, exact match (gate: <5 iters)
+- [x] CoM shift left 5cm: 20 iters, CoM err=0.13mm, max foot slip=0.51mm
+- [x] CoM shift right 5cm: 20 iters, CoM err=0.13mm, max foot slip=0.51mm
+- [x] CoM forward 3cm: 11 iters, CoM err=0.66mm, max foot slip=0.24mm
+- [x] Joint changes physically sensible: hip_roll/ankle_roll for lateral, hip_pitch/ankle_pitch for sagittal
+- [x] Gate: ALL PASS — foot < 2mm, CoM < 5mm, identity < 5 iters
+- [x] Results: media/m3c_ik_results.txt
+
+### M3d: IK Weight Shift in Simulation — COMPLETE
+- [x] Pre-compute IK trajectory: 11 waypoints along CoM Y-shift path (whole_body_ik from M3c)
+- [x] Cosine-smooth ramp over 1.5s, hold 2s, K_VEL=40 (ζ≈0.89)
+- [x] CoM shift: 53.5mm (gate: >= 40mm)
+- [x] Left foot drift: 0.70mm (gate: < 5mm)
+- [x] Right foot drift: 1.36mm (gate: < 5mm)
+- [x] Robot standing: min pelvis Z = 0.789m (gate: > 0.6m)
+- [x] Gate: ALL PASS — video: m3d_weight_shift.mp4, screenshot: m3d_shifted.png
+
+### M3e: Full single step with Pinocchio IK (pending)
+
+## M4: ZMP Walking — REBUILD (pending, blocked on M3)
+
+## M5: Documentation and Capstone
+- [ ] Full docs (English + Turkish)
+- [ ] Capstone demo + blog
 
 ## Current Focus
-> Step 1.1: lab7_common.py
+> M3d COMPLETE — ready for M3e (full single step with Pinocchio IK)
 
 ## Blockers
 > None
