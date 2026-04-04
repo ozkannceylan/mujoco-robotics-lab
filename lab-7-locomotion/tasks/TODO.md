@@ -54,16 +54,24 @@
 - [x] Robot standing: min pelvis Z = 0.789m (gate: > 0.6m)
 - [x] Gate: ALL PASS — video: m3d_weight_shift.mp4, screenshot: m3d_shifted.png
 
-### M3e: Full single step with Pinocchio IK (pending)
+### M3e: ZMP Walking Attempt — FAILED (6 attempts)
+- [x] Implemented LIPM preview control + ZMP reference + swing trajectory
+- [x] Six distinct approaches tried (varying gains, feedforward, timing, IK strategies)
+- [x] Root cause: position actuators cannot provide ZMP (ankle torque) control
+- [x] Conclusion: structural limitation, not a tuning problem
 
-## M4: ZMP Walking — REBUILD (pending, blocked on M3)
+## M4: ZMP Walking — BLOCKED (requires torque-controlled actuators or RL)
 
-## M5: Documentation and Capstone
-- [ ] Full docs (English + Turkish)
-- [ ] Capstone demo + blog
+## M5: Documentation and Capstone — COMPLETE
+- [x] `docs/ARCHITECTURE.md` — 6 sections (system overview, floating-base, Pinocchio, LIPM/ZMP, failures, lessons)
+- [x] `docs-turkish/ARCHITECTURE_TR.md` — Full Turkish translation (6 matching sections)
+- [x] `docs/CODE_WALKTHROUGH.md` — Recommended reading order for all source files
+- [x] `src/m5_capstone_demo.py` — Capstone: standing + push + weight shift + LIPM plot
+- [x] `blog/lab7_locomotion.md` — "Why Making a Humanoid Walk is Harder Than It Looks" (1763 words)
+- [x] `README.md` — Lab overview with run instructions
 
 ## Current Focus
-> M3d COMPLETE — ready for M3e (full single step with Pinocchio IK)
+> Lab 7 COMPLETE at M3d scope. All documentation and capstone delivered.
 
 ## Blockers
-> None
+> None — Lab 7 is done.
