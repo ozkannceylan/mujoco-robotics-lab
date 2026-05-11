@@ -24,7 +24,7 @@ _SRC = Path(__file__).resolve().parent
 if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 
-_LAB3_SRC = _SRC.parent.parent / "lab-3-dynamics-force-control.planned" / "src"
+_LAB3_SRC = _SRC.parent.parent / "lab-3-dynamics-force-control" / "src"
 if str(_LAB3_SRC) not in sys.path:
     sys.path.insert(0, str(_LAB3_SRC))
 

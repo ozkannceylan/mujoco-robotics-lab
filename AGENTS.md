@@ -178,7 +178,7 @@ mujoco-robotics-lab/
 │
 ├── lab-1-2link-arm/                          # ✅ Published
 ├── lab-2-Ur5e-robotics-lab/                  # ✅ Published
-├── lab-3-dynamics-force-control.planned/     # 🚧 WIP
+├── lab-3-dynamics-force-control/             # ✅ Published
 ├── lab-4-motion-planning.planned/            # 🚧 WIP
 ├── lab-5-grasping-manipulation.planned/      # 🚧 WIP
 ├── lab-6-dual-arm.planned/                   # 🚧 WIP

@@ -16,9 +16,9 @@ _LAB_DIR = Path(__file__).resolve().parent.parent
 PROJECT_ROOT = _LAB_DIR.parent
 MODELS_DIR = _LAB_DIR / "models"
 MEDIA_DIR = _LAB_DIR / "media"
-URDF_PATH = PROJECT_ROOT / "lab-3-dynamics-force-control.planned" / "models" / "ur5e.urdf"
+URDF_PATH = PROJECT_ROOT / "lab-3-dynamics-force-control" / "models" / "ur5e.urdf"
 
-_LAB3_SRC_DIR = PROJECT_ROOT / "lab-3-dynamics-force-control.planned" / "src"
+_LAB3_SRC_DIR = PROJECT_ROOT / "lab-3-dynamics-force-control" / "src"
 if str(_LAB3_SRC_DIR) not in sys.path:
     sys.path.insert(0, str(_LAB3_SRC_DIR))
 

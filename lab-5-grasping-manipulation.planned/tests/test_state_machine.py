@@ -28,7 +28,7 @@ from lab5_common import (
 from grasp_planner import GraspConfigs, compute_grasp_configs
 from grasp_state_machine import GraspStateMachine, State
 
-add_lab_src_to_path("lab-3-dynamics-force-control.planned")
+add_lab_src_to_path("lab-3-dynamics-force-control")
 add_lab_src_to_path("lab-4-motion-planning.planned")
 
 from collision_checker import CollisionChecker  # noqa: E402

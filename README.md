@@ -14,7 +14,7 @@ An open curriculum for rebuilding robotics fundamentals in **MuJoCo**, with **Pi
 |-----|-------|--------|
 | 1   | 2-link planar arm | Complete |
 | 2   | UR5e 6-DOF arm | Complete |
-| 3   | Dynamics & force control | Planned |
+| 3   | Dynamics & force control | Complete |
 | 4   | Motion planning & collision avoidance | Planned |
 | 5   | Grasping & manipulation | Planned |
 | 6   | Dual-arm coordination | Planned |
@@ -64,6 +64,27 @@ A full 6-DOF industrial manipulator using the **UR5e** model from MuJoCo Menager
 
 ---
 
+### Lab 3: Dynamics & Force Control
+
+The first lab where the robot actually pushes on something. Lab 3 leaves pure kinematics behind: rigid-body dynamics from Pinocchio (`M`, `C`, `g`) feed gravity compensation, Cartesian impedance, and a hybrid position-force controller running on the **MuJoCo Menagerie UR5e + mounted Robotiq 2F-85** under torque-level control.
+
+**Final demo**: End-effector descends to a table, regulates a **constant 5 N downward force**, and traces a straight line in XY with sub-2 mm position error.
+
+![Lab 3 — Constant-Force Line Trace](lab-3-dynamics-force-control/media/capstone_line_trace.png)
+
+| Metric | Value |
+|---|---|
+| Pinocchio↔MuJoCo dynamics parity | 8.0e-06 (gravity) / 3.3e-05 (mass matrix) |
+| Gravity-comp hold (max joint error) | 8.91e-06 rad |
+| Hybrid force-control in-band rate (5 ± 1 N) | 99.96 % |
+| Line-trace in-band rate (5 ± 1 N) | 94.07 % |
+| Line-trace max XY error | 1.70 mm |
+| Tests shipped with the lab | 34 across 4 files |
+
+[Go to Lab 3](lab-3-dynamics-force-control/)
+
+---
+
 ## Repository Structure
 
 ```
@@ -84,6 +105,15 @@ mujoco-robotics-lab/
 │   ├── docs-turkish/             #   Turkish documentation
 │   ├── media/                    #   Videos and GIFs
 │   ├── tests/                    #   Unit tests
+│   └── README.md                 #   Lab overview
+│
+├── lab-3-dynamics-force-control/ # Lab 3: Dynamics & Force Control
+│   ├── src/                      #   A1, A2, B1, B2, C1, C2 + lab3_common
+│   ├── models/                   #   UR5e URDF + torque/table MJCF scenes
+│   ├── docs/                     #   English documentation
+│   ├── docs-turkish/             #   Turkish documentation
+│   ├── media/                    #   Plots, validation video
+│   ├── tests/                    #   Pytest suite (34 tests)
 │   └── README.md                 #   Lab overview
 │
 ├── CLAUDE.md                     # Project instructions for AI assistant
@@ -110,23 +140,27 @@ python3 lab-1-2link-arm/src/c1_draw_square.py
 
 # Lab 2: UR5e cube drawing
 python3 lab-2-Ur5e-robotics-lab/src/c3_draw_cube.py
+
+# Lab 3: constant-force line trace on a table
+python3 lab-3-dynamics-force-control/src/c2_line_trace.py
 ```
 
 ---
 
 ## Topics Covered
 
-Both labs cover the same fundamental topics at different scales:
+The published labs cover the same fundamental topics at increasing scale and physical realism:
 
-| Topic | Lab 1 (2-DOF) | Lab 2 (6-DOF) |
-|---|---|---|
-| Forward Kinematics | Analytic 2-link FK | DH + Pinocchio + MuJoCo cross-validation |
-| Jacobian | 2x2 analytic | Geometric, Pinocchio, numerical + singularity analysis |
-| Inverse Kinematics | Analytic + pseudo-inverse + DLS | Pseudo-inverse + adaptive DLS |
-| Dynamics | M, C, g from MuJoCo | Pinocchio RNEA, ABA, CRBA + cross-validation |
-| Trajectory | Cubic, quintic | Cubic, quintic, trapezoidal, min-jerk, multi-segment |
-| Control | PD + gravity compensation | PD+g, computed torque, task-space impedance, OSC |
-| Integration | Square drawing | Pick-and-place pipeline + 3D cube drawing |
+| Topic | Lab 1 (2-DOF) | Lab 2 (6-DOF) | Lab 3 (Force Control) |
+|---|---|---|---|
+| Forward Kinematics | Analytic 2-link FK | DH + Pinocchio + MuJoCo cross-validation | Reused from Lab 2 |
+| Jacobian | 2x2 analytic | Geometric, Pinocchio, numerical + singularity analysis | Pinocchio Jacobians for `τ = Jᵀ·F` |
+| Inverse Kinematics | Analytic + pseudo-inverse + DLS | Pseudo-inverse + adaptive DLS | DLS into contact-aware targets |
+| Dynamics | M, C, g from MuJoCo | Pinocchio RNEA, ABA, CRBA + cross-validation | RNEA/CRBA parity at sub-1e-4 |
+| Trajectory | Cubic, quintic | Cubic, quintic, trapezoidal, min-jerk, multi-segment | Straight-line task-space path under contact |
+| Control | PD + gravity compensation | PD+g, computed torque, task-space impedance, OSC | Gravity comp + Cartesian impedance + hybrid force |
+| Contact | — | — | `mj_contactForce` over full EE contact set, 5 ± 1 N regulation |
+| Integration | Square drawing | Pick-and-place pipeline + 3D cube drawing | Constant-force line trace on a table |
 
 ---
 

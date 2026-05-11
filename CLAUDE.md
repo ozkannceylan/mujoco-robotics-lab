@@ -33,7 +33,7 @@ pip install mujoco numpy pinocchio scipy imageio[ffmpeg] matplotlib meshcat
 
 ```bash
 # All tests for a specific lab
-pytest lab-3-dynamics-force-control.planned/tests/
+pytest lab-3-dynamics-force-control/tests/
 
 # Single test file
 pytest lab-4-motion-planning.planned/tests/test_collision.py
@@ -54,7 +54,7 @@ Each lab has numbered scripts (a1, a2, b1, c1, etc.) that run in order:
 ```bash
 python3 lab-1-2link-arm/src/c1_draw_square.py        # Lab 1 capstone
 python3 lab-2-Ur5e-robotics-lab/src/c3_draw_cube.py   # Lab 2 capstone
-python3 lab-3-dynamics-force-control.planned/src/c1_force_control.py
+python3 lab-3-dynamics-force-control/src/c1_force_control.py
 python3 lab-4-motion-planning.planned/src/capstone_demo.py
 python3 lab-5-grasping-manipulation.planned/src/record_pro_demo.py
 ```
@@ -91,7 +91,7 @@ Later labs import from earlier labs via `sys.path` manipulation. The UR5e URDF f
 
 ```python
 # In lab4_common.py — importing from Lab 3
-_LAB3_SRC_DIR = PROJECT_ROOT / "lab-3-dynamics-force-control.planned" / "src"
+_LAB3_SRC_DIR = PROJECT_ROOT / "lab-3-dynamics-force-control" / "src"
 if str(_LAB3_SRC_DIR) not in sys.path:
     sys.path.insert(0, str(_LAB3_SRC_DIR))
 
@@ -242,9 +242,9 @@ Standardize on mujoco_menagerie naming convention. Print `model.names` on first 
 Published (portfolio-ready, documented in main README):
 - [x] Lab 1: 2-Link Planar Arm (square drawing demo)
 - [x] Lab 2: UR5e 6-DOF Arm (cube drawing demo)
+- [x] Lab 3: Dynamics & Force Control (gravity comp, Cartesian impedance, hybrid force control on a real table-contact scene)
 
 In progress (folders suffixed `.planned/`, real code on disk but not yet portfolio-ready):
-- [ ] Lab 3: Dynamics & Force Control (gravity comp, Cartesian impedance, force control)
 - [ ] Lab 4: Motion Planning & Collision Avoidance (RRT*, TOPP-RA, capstone demo)
 - [ ] Lab 5: Grasping & Manipulation (custom gripper, DLS IK, pick-and-place state machine)
 - [ ] Lab 6: Dual-Arm Coordination

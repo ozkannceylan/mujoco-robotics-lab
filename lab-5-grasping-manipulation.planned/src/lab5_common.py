@@ -20,7 +20,7 @@ MEDIA_DIR = _LAB_DIR / "media"
 SCENE_PATH = MODELS_DIR / "scene_grasp.xml"
 
 # Pinocchio model: arm-only URDF from Lab 3 (no gripper needed for FK/IK)
-_LAB3_DIR = _LAB_DIR.parent / "lab-3-dynamics-force-control.planned"
+_LAB3_DIR = _LAB_DIR.parent / "lab-3-dynamics-force-control"
 URDF_PATH = _LAB3_DIR / "models" / "ur5e.urdf"
 
 # ---------------------------------------------------------------------------
