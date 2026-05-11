@@ -25,6 +25,7 @@ Bipedal locomotion on the **Unitree G1 humanoid** (29 DOF, 33.34 kg) using MuJoC
 | M3d | Quasi-static weight shift in simulation | **53.5 mm** shift / drift **0.70 mm** (L) / **1.36 mm** (R) |
 | M3e | Dynamic ZMP walking | **FAILED** — structural limitation, see notes |
 | M5 | Documentation + capstone | 6-section ARCHITECTURE.md + blog + capstone video |
+| Tests | Standing / IK / LIPM unit tests | **34 test methods** across `tests/test_standing.py` (9), `tests/test_ik.py` (7), `tests/test_lipm.py` (18) |
 
 ---
 
@@ -94,6 +95,9 @@ python3 lab-7-locomotion/src/m3d_weight_shift.py
 
 # Capstone — standing + push + weight shift + LIPM plot overlay
 python3 lab-7-locomotion/src/m5_capstone_demo.py
+
+# Unit tests (standing / whole-body IK / LIPM)
+python3 -m pytest lab-7-locomotion/tests -q
 ```
 
 ---
@@ -108,6 +112,7 @@ lab-7-locomotion/
 ├── docs-turkish/     ARCHITECTURE_TR.md
 ├── blog/             "Why Making a Humanoid Walk is Harder Than It Looks"
 ├── media/            Per-milestone videos + plots + validation .txt artifacts
+├── tests/            Pytest suite (34 methods across standing / IK / LIPM)
 └── tasks/            TODO / LESSONS
 ```
 
