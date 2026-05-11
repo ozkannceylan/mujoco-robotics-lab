@@ -1,8 +1,28 @@
 # MuJoCo Robotics Lab
 
-A hands-on robotics lab series for rebuilding robotics fundamentals in simulation with **MuJoCo**. Each lab focuses on a different robot, progressing from simple planar arms to industrial 6-DOF manipulators.
+[![MuJoCo](https://img.shields.io/badge/sim-MuJoCo-cc0000.svg)](https://mujoco.org/)
+[![Pinocchio](https://img.shields.io/badge/dynamics-Pinocchio-1f6feb.svg)](https://github.com/stack-of-tasks/pinocchio)
+[![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
+[![License](https://img.shields.io/badge/license-Apache_2.0-green.svg)](LICENSE)
+[![GitHub stars](https://img.shields.io/github/stars/ozkannceylan/mujoco-robotics-lab?style=social)](https://github.com/ozkannceylan/mujoco-robotics-lab/stargazers)
 
-The labs build up the same core pipeline step by step: **forward kinematics, Jacobians, inverse kinematics, dynamics, trajectory generation, control, and a final integration demo**.
+An open curriculum for rebuilding robotics fundamentals in **MuJoCo**, with **Pinocchio** as the analytical brain for cross-validation. Each lab is a self-contained progression from forward kinematics through dynamics and control to a final integration demo. Code, models, metrics, and bilingual writeups (English + Turkish) ship together so every result is reproducible.
+
+## Lab Roadmap
+
+| Lab | Topic | Status |
+|-----|-------|--------|
+| 1   | 2-link planar arm | Complete |
+| 2   | UR5e 6-DOF arm | Complete |
+| 3   | Dynamics & force control | Planned |
+| 4   | Motion planning & collision avoidance | Planned |
+| 5   | Grasping & manipulation | Planned |
+| 6   | Dual-arm coordination | Planned |
+| 7   | Locomotion fundamentals | Planned |
+| 8   | Whole-body loco-manipulation | Planned |
+| 9   | VLA integration | Planned |
+
+Only labs marked **Complete** have published writeups and metrics in this README. Planned labs may have in-progress code on disk but are not yet portfolio-ready.
 
 ---
 
