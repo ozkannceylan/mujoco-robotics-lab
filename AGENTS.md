@@ -176,10 +176,14 @@ mujoco-robotics-lab/
 ├── plan/                             # Lab briefs (MASTER_PLAN.md, LAB_03.md … LAB_09.md)
 ├── README.md                         # Main project README
 │
-├── lab-1-2link-arm/                  # ✅ Complete
-├── lab-2-Ur5e-robotics-lab/          # ✅ Complete
-├── lab-3-dynamics-force-control/     # ✅ Complete
-├── lab-4-motion-planning/            # ✅ Complete
+├── lab-1-2link-arm/                          # ✅ Published
+├── lab-2-Ur5e-robotics-lab/                  # ✅ Published
+├── lab-3-dynamics-force-control.planned/     # 🚧 WIP
+├── lab-4-motion-planning.planned/            # 🚧 WIP
+├── lab-5-grasping-manipulation.planned/      # 🚧 WIP
+├── lab-6-dual-arm.planned/                   # 🚧 WIP
+├── lab-7-locomotion.planned/                 # 🚧 WIP
+│   # Labs 8 (whole-body) and 9 (VLA) are roadmap-only — no folder yet.
 │
 │   # Each lab follows this layout:
 │   ├── tasks/    # PLAN.md, ARCHITECTURE.md, TODO.md, LESSONS.md
@@ -190,9 +194,6 @@ mujoco-robotics-lab/
 │   ├── media/    # Plots, GIFs, videos
 │   ├── tests/    # test_*.py files
 │   └── README.md
-│
-├── lab-5-grasping-manipulation/      # ✅ Complete
-├── ... (labs 6–9 follow same structure)
 │
 └── blog/                             # Blog posts per lab
 ```
