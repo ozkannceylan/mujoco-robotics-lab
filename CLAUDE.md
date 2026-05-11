@@ -245,6 +245,7 @@ Published (portfolio-ready, documented in main README):
 - [x] Lab 3: Dynamics & Force Control (gravity comp, Cartesian impedance, hybrid force control on a real table-contact scene)
 - [x] Lab 4: Motion Planning & Collision Avoidance (from-scratch RRT/RRT*, real-geometry collision truth, shortcutting + TOPP-RA, slalom capstone)
 - [x] Lab 5: Grasping & Manipulation (custom MJCF jaw gripper, DLS IK, 11-state pick-and-place, Lab 3+4 integration). Core pipeline complete; record_pro_demo.py hardening (Phase 5.1/5.2/5.4) is the only remaining track.
+- [x] Lab 6: Dual-Arm Coordination (two UR5e arms, Pinocchio dual-arm DLS IK, weld-constraint cooperative carry, milestone-gated verification M0-M5)
 
 In progress (folders suffixed `.planned/`, real code on disk but not yet portfolio-ready):
 - [ ] Lab 5: Grasping & Manipulation (custom gripper, DLS IK, pick-and-place state machine)

@@ -17,7 +17,7 @@ An open curriculum for rebuilding robotics fundamentals in **MuJoCo**, with **Pi
 | 3   | Dynamics & force control | Complete |
 | 4   | Motion planning & collision avoidance | Complete |
 | 5   | Grasping & manipulation | Complete\* |
-| 6   | Dual-arm coordination | Planned |
+| 6   | Dual-arm coordination | Complete |
 | 7   | Locomotion fundamentals | Planned |
 | 8   | Whole-body loco-manipulation | Planned |
 | 9   | VLA integration | Planned |
@@ -128,6 +128,27 @@ Lab 5 is the first lab that picks something up. A custom MJCF parallel-jaw gripp
 
 ---
 
+### Lab 6: Dual-Arm Coordination
+
+Two UR5e arms 1 m apart grasp a 30×15×15 cm box from opposite sides, lift it, carry it laterally, and place it back on the table. Verification is **milestone-based** — each of M0–M5 ends with explicit numerical gate criteria and a recorded artifact rather than a unit-test suite.
+
+**Final demo**: 6-state cooperative carry pipeline (APPROACH → CLOSE → GRASP → LIFT → CARRY → PLACE) with arrival synchronization within 2 ms between arms and weld-constraint grasping.
+
+![Lab 6 — Box Trajectory](lab-6-dual-arm/media/m4_box_trajectory.png)
+
+| Metric | Value |
+|---|---|
+| FK Pinocchio↔MuJoCo round-trip | 0.000 mm |
+| IK convergence | 20/20 (6-DOF) + 5/5 (pos-only) |
+| Per-arm Cartesian error (approach) | 0.10 mm (L) / 0.09 mm (R) |
+| Arrival synchronization between arms | 2.0 ms |
+| Lift / carry distance | 15 cm / 22 cm |
+| Place dz / rotation error | 0.0 cm / 4° |
+
+[Go to Lab 6](lab-6-dual-arm/)
+
+---
+
 ## Repository Structure
 
 ```
@@ -178,6 +199,15 @@ mujoco-robotics-lab/
 │   ├── tests/                    #   Pytest suite (33 tests)
 │   └── README.md                 #   Lab overview
 │
+├── lab-6-dual-arm/               # Lab 6: Dual-Arm Coordination
+│   ├── src/                      #   Milestones M0-M5 + dual-arm kinematics
+│   ├── models/                   #   scene_dual.xml + per-arm MJCF + URDF
+│   ├── docs/                     #   ARCHITECTURE.md + CODE_WALKTHROUGH.md
+│   ├── docs-turkish/             #   ARCHITECTURE_TR.md
+│   ├── blog/                     #   Long-form blog post
+│   ├── media/                    #   Per-milestone videos + trajectory plots
+│   └── README.md                 #   Lab overview
+│
 ├── CLAUDE.md                     # Project instructions for AI assistant
 └── README.md                     # This file
 ```
@@ -211,6 +241,9 @@ python3 lab-4-motion-planning/src/capstone_demo.py
 
 # Lab 5: pick-and-place capstone
 python3 lab-5-grasping-manipulation/src/pick_place_demo.py
+
+# Lab 6: dual-arm cooperative carry capstone
+python3 lab-6-dual-arm/src/m5_capstone_demo.py
 ```
 
 ---
