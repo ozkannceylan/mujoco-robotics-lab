@@ -180,7 +180,7 @@ mujoco-robotics-lab/
 ├── lab-2-Ur5e-robotics-lab/                  # ✅ Published
 ├── lab-3-dynamics-force-control/             # ✅ Published
 ├── lab-4-motion-planning/                    # ✅ Published
-├── lab-5-grasping-manipulation.planned/      # 🚧 WIP
+├── lab-5-grasping-manipulation/              # ✅ Published (Phase 5 pro-demo hardening pending)
 ├── lab-6-dual-arm.planned/                   # 🚧 WIP
 ├── lab-7-locomotion.planned/                 # 🚧 WIP
 │   # Labs 8 (whole-body) and 9 (VLA) are roadmap-only — no folder yet.

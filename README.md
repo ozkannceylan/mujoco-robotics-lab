@@ -16,13 +16,15 @@ An open curriculum for rebuilding robotics fundamentals in **MuJoCo**, with **Pi
 | 2   | UR5e 6-DOF arm | Complete |
 | 3   | Dynamics & force control | Complete |
 | 4   | Motion planning & collision avoidance | Complete |
-| 5   | Grasping & manipulation | Planned |
+| 5   | Grasping & manipulation | Complete\* |
 | 6   | Dual-arm coordination | Planned |
 | 7   | Locomotion fundamentals | Planned |
 | 8   | Whole-body loco-manipulation | Planned |
 | 9   | VLA integration | Planned |
 
 Only labs marked **Complete** have published writeups and metrics in this README. Planned labs may have in-progress code on disk but are not yet portfolio-ready.
+
+\* **Lab 5** ships its core pick-and-place pipeline complete and tested; a separate *pro demo hardening* track (record_pro_demo.py + RRT\* integration) is still open and is called out in the Lab 5 README.
 
 ---
 
@@ -105,6 +107,27 @@ Lab 4 introduces obstacles. RRT and RRT\* are implemented from scratch in 6-D jo
 
 ---
 
+### Lab 5: Grasping & Manipulation
+
+Lab 5 is the first lab that picks something up. A custom MJCF parallel-jaw gripper is bolted to the UR5e; an 11-state pick-and-place machine drives the gripper, DLS IK plans 4 grasp configurations, and Lab 3 + Lab 4 handle execution and motion planning under the hood. No new low-level control or planning code — Lab 5 is integration.
+
+**Final demo**: 150 g, 40 mm cube picked from one tabletop location and placed at another with sub-0.1 mm IK accuracy and sub-5 mrad joint tracking.
+
+> Note: the core pick-and-place pipeline is shipped and tested. A pro-demo hardening track (record_pro_demo.py) is still open and is documented in the Lab 5 README.
+
+| Metric | Value |
+|---|---|
+| IK position accuracy | < 0.1 mm |
+| Joint tracking error | < 5 mrad |
+| Gripper gap (open / closed) | 60 mm / 0 mm |
+| Box mass | 150 g |
+| Planning time per segment | 200–600 ms (RRT\*, 6000 iter) |
+| Tests shipped with the lab | 33 across 3 files |
+
+[Go to Lab 5](lab-5-grasping-manipulation/)
+
+---
+
 ## Repository Structure
 
 ```
@@ -145,6 +168,16 @@ mujoco-robotics-lab/
 │   ├── tests/                    #   Pytest suite (44 passed, 1 skipped)
 │   └── README.md                 #   Lab overview
 │
+├── lab-5-grasping-manipulation/  # Lab 5: Grasping & Manipulation
+│   ├── src/                      #   Gripper / DLS IK / state machine / demo
+│   ├── models/                   #   ur5e_gripper.xml + scene_grasp.xml
+│   ├── docs/                     #   English documentation
+│   ├── docs-turkish/             #   Turkish documentation
+│   ├── blog/                     #   Long-form blog post
+│   ├── media/                    #   pick_place_demo.mp4, pick_place_pro.mp4
+│   ├── tests/                    #   Pytest suite (33 tests)
+│   └── README.md                 #   Lab overview
+│
 ├── CLAUDE.md                     # Project instructions for AI assistant
 └── README.md                     # This file
 ```
@@ -175,6 +208,9 @@ python3 lab-3-dynamics-force-control/src/c2_line_trace.py
 
 # Lab 4: RRT* slalom through 4 tabletop obstacles
 python3 lab-4-motion-planning/src/capstone_demo.py
+
+# Lab 5: pick-and-place capstone
+python3 lab-5-grasping-manipulation/src/pick_place_demo.py
 ```
 
 ---
