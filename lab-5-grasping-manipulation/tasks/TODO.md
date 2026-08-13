@@ -35,12 +35,19 @@
 
 ## Phase 5: Pro Demo Hardening (2026-03-17)
 - [x] Step 5.3: Fix matplotlib env issue in Lab 4 (rrt_planner.py + test skip) — DONE (2026-03-17)
-- [ ] Step 5.1: Fix IK orientation formula in record_pro_demo.py (SO3 log)
-- [ ] Step 5.2: Integrate Lab 4 RRT* for collision-free planning in record_pro_demo.py
-- [ ] Step 5.4: Re-record pro demo video, verify no self-collision
+- [x] Step 5.1: Fix IK orientation formula in record_pro_demo.py (SO3 log) — DONE (verified in code 2026-08-13: `_so3_log()` at record_pro_demo.py:294, used in `compute_ik` at :349)
+- [x] Step 5.2: Integrate Lab 4 RRT* for collision-free planning in record_pro_demo.py — DONE (verified in code 2026-08-13: `plan_collision_free()` at :84 with `shortcut_path`; all 4 long-distance transitions use `run_phase_planned()` at :659/:682/:688/:711; short vertical moves intentionally stay on raw `run_phase`)
+- [ ] Step 5.4: Re-record pro demo video, verify no self-collision in any frame
+  - Note (2026-08-13 review): `media/pick_place_pro.mp4` exists but cannot be confirmed to post-date the 5.1/5.2 code. No "no self-collision" verification is recorded in LESSONS.md. Re-record with the current script and log the verification before checking this off.
 
 ## Current Focus
-> Step 5.1: Fix IK orientation error formula in record_pro_demo.py
+> Step 5.4: Re-record pro demo with current record_pro_demo.py (5.1+5.2 already in code), verify no self-collision, log result in LESSONS.md
 
 ## Blockers
 > None
+
+## Review Note (2026-08-13)
+Project-wide review found TODO was stale: Steps 5.1 and 5.2 were already implemented
+in `src/record_pro_demo.py` but never checked off here, and no LESSONS.md entry was
+written for that work. Only Step 5.4 genuinely remains. See `tasks/PROJECT_REVIEW_2026-08-13.md`
+at repo root for the full audit.

@@ -1,5 +1,9 @@
 # Lessons
 
+> **Scope note (2026-08-13):** This file covers **Labs 1–2 only** (written before the
+> per-lab convention existed). Lessons for Labs 3–7 live in each lab's
+> `tasks/LESSONS.md`. Content below is still valid and worth keeping.
+
 ## Lab 1: 2-Link Planar Arm
 
 - Hata: MuJoCo XML'de `range="-3.14 3.14"` yazıldı ama MuJoCo varsayılan olarak derece kullanır. Sonuç: ±3.14° (±0.055 rad) limit, büyük constraint kuvvetleri.

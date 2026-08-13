@@ -16,7 +16,9 @@ Build a portfolio-ready robotics lab series using MuJoCo, progressing from simpl
 - Lab 3 (Dynamics & Force Control) is complete — RNEA/CRBA, gravity compensation, Cartesian impedance, hybrid force control
 - Lab 4 (Motion Planning) is complete — Pinocchio+HPP-FCL collision checking, RRT*, TOPP-RA trajectory parameterization
 - Lab 5 (Grasping & Manipulation) is complete — custom parallel-jaw gripper, DLS IK, pick-and-place state machine, Lab 3+4 integration
-- Labs 6–9 are planned — dual-arm, locomotion, whole-body, VLA
+- Lab 6 (Dual-Arm Coordination) is complete — dual UR5e, weld-constraint cooperative carry, milestone-gated M0–M5
+- Lab 7 (Locomotion) is complete at M3d scope — G1 standing + weight shift; ZMP walking blocked by position actuators, deferred to Lab 8
+- Labs 8–9 are planned — whole-body loco-manipulation (must own gait generation via torque control), VLA
 - End goals: strengthen fundamentals for humanoid VLA work, prepare for robotics interviews, build a portfolio demo
 
 ---
@@ -244,7 +246,7 @@ Published (portfolio-ready, documented in main README):
 - [x] Lab 2: UR5e 6-DOF Arm (cube drawing demo)
 - [x] Lab 3: Dynamics & Force Control (gravity comp, Cartesian impedance, hybrid force control on a real table-contact scene)
 - [x] Lab 4: Motion Planning & Collision Avoidance (from-scratch RRT/RRT*, real-geometry collision truth, shortcutting + TOPP-RA, slalom capstone)
-- [x] Lab 5: Grasping & Manipulation (custom MJCF jaw gripper, DLS IK, 11-state pick-and-place, Lab 3+4 integration). Core pipeline complete; record_pro_demo.py hardening (Phase 5.1/5.2/5.4) is the only remaining track.
+- [x] Lab 5: Grasping & Manipulation (custom MJCF jaw gripper, DLS IK, 11-state pick-and-place, Lab 3+4 integration). Core pipeline complete; Phase 5.1 (SO3-log IK) and 5.2 (RRT* integration) are implemented in record_pro_demo.py — only Step 5.4 (re-record pro demo + verify no self-collision) remains.
 - [x] Lab 6: Dual-Arm Coordination (two UR5e arms, Pinocchio dual-arm DLS IK, weld-constraint cooperative carry, milestone-gated verification M0-M5)
 - [x] Lab 7: Locomotion Fundamentals (Unitree G1, floating-base Pinocchio, stacked-Jacobian whole-body IK, standing + weight shift on M3d scope; M4 ZMP walking deferred as structural limitation of position actuators)
 

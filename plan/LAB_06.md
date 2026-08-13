@@ -1,9 +1,12 @@
 # Lab 6: Dual-Arm Coordination
 
-> **Status:** Not Started  
+> **Status:** ✅ Complete (2026-05, commit `242c4ac`) — milestone-gated M0–M5, see `lab-6-dual-arm/tasks/TODO.md`
 > **Prerequisites:** Lab 5 (grasping & manipulation)  
-> **Platform:** Dual UR5e or G1 upper body on MuJoCo  
+> **Platform:** Dual UR5e on MuJoCo (G1 upper-body option not used)  
 > **Capstone Demo:** Two arms cooperatively lift and transport a large object
+> **Scope note:** Shipped with **weld-constraint** cooperative carry, not the internal
+> force control described below. The brief text is preserved as originally planned;
+> `lab-6-dual-arm/docs/ARCHITECTURE.md` describes what was actually built.
 
 ---
 

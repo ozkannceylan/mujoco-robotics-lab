@@ -24,17 +24,29 @@ Integration    Loco-Manip     Fundamentals   Coordination
 
 ## Lab Summary
 
-| Lab | Title | Capstone Demo |
-|-----|-------|---------------|
-| 1 | 2-Link Planar Robot | Draw a square with end-effector |
-| 2 | 6-DOF Robot Arm (DH & Pinocchio) | Draw a cube in 3D space |
-| 3 | Dynamics & Force Control | Constant-force surface contact |
-| 4 | Motion Planning & Collision Avoidance | Obstacle-free trajectory in cluttered scene |
-| 5 | Grasping & Manipulation | Pick and place an object |
-| 6 | Dual-Arm Coordination | Two arms carry an object together |
-| 7 | Locomotion Fundamentals | Stable bipedal walking on flat ground |
-| 8 | Whole-Body Loco-Manipulation | Walk while carrying an object |
-| 9 | VLA Integration | "Pick up the red cup" — end-to-end language-to-action |
+_Status refreshed 2026-08-13 (project review). This table is the single source of truth for lab status; the root README roadmap table mirrors it._
+
+| Lab | Title | Capstone Demo | Status |
+|-----|-------|---------------|--------|
+| 1 | 2-Link Planar Robot | Draw a square with end-effector | ✅ Complete (no unit tests — see review note) |
+| 2 | 6-DOF Robot Arm (DH & Pinocchio) | Draw a cube in 3D space | ✅ Complete (34 tests) |
+| 3 | Dynamics & Force Control | Constant-force surface contact | ✅ Complete (34 tests; blog post never written) |
+| 4 | Motion Planning & Collision Avoidance | Slalom through 4 obstacles (RRT* + TOPP-RA) | ✅ Complete (45 tests; blog post never written) |
+| 5 | Grasping & Manipulation | Pick and place an object | ✅ Complete — one open item: re-record pro demo (Step 5.4) |
+| 6 | Dual-Arm Coordination | Two arms cooperatively carry an object (weld-constraint) | ✅ Complete (milestone-gated M0–M5; unit tests intentionally removed) |
+| 7 | Locomotion Fundamentals | Standing balance + quasi-static weight shift (M0–M3d); ZMP walking documented as structurally infeasible with position actuators | ✅ Complete at M3d scope (34 tests; M4 blocked by design) |
+| 8 | Whole-Body Loco-Manipulation | Walk while carrying an object | 📋 Planned — see dependency note below |
+| 9 | VLA Integration | "Pick up the red cup" — end-to-end language-to-action | 📋 Planned |
+
+### Lab 8 dependency note (from Lab 7 outcome)
+
+`plan/LAB_08.md` Phase 2 says "combine Lab 7's gait generator with the whole-body QP" —
+**Lab 7 has no working gait generator.** M4 ZMP walking is blocked: MuJoCo Menagerie G1
+position actuators cannot track the dynamic reference (IK converges, PD replay fails —
+6 attempts, see `lab-7-locomotion/README.md` Scope Deferral). Lab 8 must treat gait
+generation as *its own deliverable*, built on the torque-level inverse-dynamics path
+(Pinocchio RNEA → joint torques) that LAB_08's architecture already prescribes. Lab 9's
+data pipeline depends on Lab 8's controllers, so this is the critical path for the series.
 
 ---
 
@@ -77,7 +89,7 @@ INTEGRATION (Labs 8-9)
 |------|-------|-----------|
 | 1 | Custom 2-link planar | Minimal complexity, focus on math |
 | 2–5 | UR5e + Robotiq 2F-85 (MuJoCo Menagerie) | Industry-standard fixed-base manipulation stack |
-| 6 | Dual UR5e or G1 upper body | Transition point |
+| 6 | Dual UR5e (shipped) | Transition point — G1 upper-body option was not used |
 | 7–9 | Unitree G1 | Full humanoid with Dex3 hands |
 
 ### Platform Lock
@@ -93,29 +105,24 @@ For Labs 2–5, the robot baseline is fixed:
 
 ## Repo Structure
 
+_Updated 2026-08-13 to match the actual layout (the original planned layout with
+`shared/`, root `blog/`, and `lab_XX_*` naming was never adopted)._
+
 ```
-robotics-lab/
-├── MASTER_PLAN.md
-├── README.md
-├── blog/
-│   ├── lab_01_planar_robot.md
-│   ├── lab_02_6dof_arm.md
-│   └── ...
-├── lab_01_planar_robot/
-│   ├── README.md
-│   ├── docs/
-│   │   └── LAB_01.md
-│   ├── src/
-│   ├── models/
-│   ├── config/
-│   └── media/
-├── lab_02_6dof_arm/
-│   └── (same structure)
-├── ...
-├── shared/
-│   ├── utils/
-│   └── visualization/
-└── requirements.txt
+mujoco-robotics-lab/
+├── README.md                      # Portfolio front page with roadmap/status table
+├── CLAUDE.md / AGENTS.md          # Agent workflow rules
+├── plan/                          # Lab briefs (LAB_01..09) + this master plan
+├── tasks/                         # Project-level status board + Labs 1–2 lessons
+├── tools/
+│   └── video_producer.py          # Reusable 3-phase demo video pipeline
+├── lab-1-2link-arm/               # src/, models/, docs/, docs-turkish/, media/, blog/, ros2_bridge/
+├── lab-2-Ur5e-robotics-lab/       #   + tests/ (labs 2–5, 7)
+├── lab-3-dynamics-force-control/  # Labs 3–7 additionally have tasks/{PLAN,ARCHITECTURE,TODO,LESSONS}.md
+├── lab-4-motion-planning/
+├── lab-5-grasping-manipulation/
+├── lab-6-dual-arm/                # No tests/ — milestone-gated verification instead
+└── lab-7-locomotion/
 ```
 
 ---
@@ -124,15 +131,20 @@ robotics-lab/
 
 Each lab produces three artifacts:
 
-1. **Code** — Working implementation under `lab_XX/src/`
-2. **Documentation** — Technical writeup in `lab_XX/docs/LAB_XX.md`
-3. **Blog Post** — Public-facing article in `blog/`
+1. **Code** — Working implementation under `lab-N-<name>/src/`
+2. **Documentation** — Technical writeup in `docs/` (EN) + `docs-turkish/` (TR).
+   _Convention drift note: the original `docs/LAB_XX.md` single-file convention was
+   abandoned; Labs 1–2 use per-module notes (`a1_*.md`…), Labs 3–7 use
+   `ARCHITECTURE.md` + `CODE_WALKTHROUGH.md`. Both are acceptable._
+3. **Blog Post** — Public-facing article in the lab's `blog/` folder.
+   _Status: written for Labs 1, 2, 5, 6, 7. **Missing for Labs 3 and 4** despite being
+   a success criterion in their briefs — tracked in `tasks/todo.md`._
 
 ---
 
 ## Documentation Template
 
-Every `LAB_XX.md`:
+Every lab writeup should cover:
 
 ```
 # Lab XX: [Title]
@@ -158,24 +170,26 @@ Every blog post:
 
 ---
 
-## Timeline Estimate
+## Timeline
 
-| Phase | Labs | Duration | Notes |
-|-------|------|----------|-------|
-| Foundations | 1–2 | ✅ Complete | |
-| Control & Planning | 3–4 | ~2 weeks | |
-| Manipulation | 5–6 | ~2 weeks | |
-| Locomotion | 7–8 | ~3 weeks | Paradigm shift |
-| VLA | 9 | ~2 weeks | Builds on humanoid_vla |
+| Phase | Labs | Status | Notes |
+|-------|------|--------|-------|
+| Foundations | 1–2 | ✅ Complete (2026-03) | |
+| Control & Planning | 3–4 | ✅ Complete (2026-03, published 2026-05) | |
+| Manipulation | 5–6 | ✅ Complete (2026-03/05) | Lab 5 Step 5.4 re-record still open |
+| Locomotion | 7 | ✅ Complete at M3d scope (2026-05) | M4 ZMP walking blocked → moved to Lab 8 |
+| Whole-Body | 8 | 📋 Not started | Must own gait generation via torque control |
+| VLA | 9 | 📋 Not started | Builds on humanoid_vla; needs Lab 8 controllers for demo data |
 
 ---
 
 ## Risk Register
 
-| Risk | Mitigation |
-|------|------------|
-| Contact physics instability (Lab 5) | condim/solref tuning; simpler grasp primitives as fallback |
-| Bipedal walking divergence (Lab 7) | Start with standing balance; use reference trajectories |
-| G1 model complexity (Labs 7–8) | Prototype on simplified biped first |
-| GPU memory for VLA (Lab 9) | Cloud GPU for training; INT8 for local inference |
-| Scope creep | Hard-scoped capstone demo per lab — ship when demo works |
+| Risk | Status / Mitigation |
+|------|---------------------|
+| Contact physics instability (Lab 5) | ✅ Handled — condim/solref tuning worked; see Lab 5 LESSONS.md |
+| Bipedal walking divergence (Lab 7) | ⚠️ **Materialized, different root cause**: not divergence but the Menagerie G1 *position-actuator model* — PD replay cannot track dynamic ZMP references (6 attempts). Finding feeds Lab 8's torque-control design. |
+| G1 model complexity (Labs 7–8) | Partially retired — G1 stack works for quasi-static tasks |
+| GPU memory for VLA (Lab 9) | Open — cloud GPU for training; INT8 for local inference |
+| Scope creep | Working — hard-scoped capstones shipped for 7 labs |
+| Doc drift (new, 2026-08) | Tracking docs went stale while code advanced (Lab 5 Phase 5) or regressed silently (Lab 6 test removal). Mitigation: project-level status board in `tasks/todo.md`, refreshed at each review. |

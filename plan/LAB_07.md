@@ -1,9 +1,13 @@
 # Lab 7: Locomotion Fundamentals
 
-> **Status:** Not Started
+> **Status:** ✅ Complete at M3d scope (2026-05, commit `40ac393`) — see `lab-7-locomotion/tasks/TODO.md`
 > **Prerequisites:** Lab 3 (dynamics & force control)
 > **Platform:** Unitree G1 on MuJoCo
-> **Capstone Demo:** Stable bipedal walking on flat ground (10+ steps)
+> **Capstone Demo (original):** Stable bipedal walking on flat ground (10+ steps)
+> **Scope note:** Walking was **formally deferred**: Menagerie G1 position actuators
+> cannot track dynamic ZMP references (M3e failed 6 attempts — IK converges, PD replay
+> fails). Shipped scope = standing balance + quasi-static weight shift (M0–M3d) + the
+> documented finding. Dynamic walking moves to Lab 8's torque-control stack.
 
 ---
 
