@@ -1,5 +1,16 @@
 # Lab 7: Locomotion Fundamentals — Milestone Plan
 
+> ## SUPERSEDED (2026-08-13)
+>
+> **Outcome is tracked in [`TODO.md`](TODO.md) — lab complete at M3d scope; M4 blocked
+> (position actuators cannot track dynamic references); M5 re-scoped to documentation.
+> This file is preserved as the original plan.**
+>
+> The unchecked boxes, blank gate columns, and the "10+ steps" capstone below record
+> what was *intended* at the start of the lab, not what shipped. Do not read them as
+> outstanding work, and do not treat the M4 artifact paths listed here as delivered
+> evidence — those media files were removed (see `LESSONS.md`).
+
 > **Platform:** Unitree G1 on MuJoCo
 > **Capstone:** Stable bipedal walking on flat ground (10+ steps)
 > **Rule:** ONE milestone per session. No exceptions.

@@ -26,11 +26,29 @@ MODELS_DIR: Path = LAB_DIR / "models"
 MEDIA_DIR: Path = LAB_DIR / "media"
 DOCS_DIR: Path = LAB_DIR / "docs"
 
-# Menagerie G1 — the real model with mesh geometry and calibrated inertias
-_MENAGERIE_G1_DIR: Path = (
+# Menagerie G1 — the real model with mesh geometry and calibrated inertias.
+# Canonical location is <project root>/third_party/mujoco_menagerie/unitree_g1.
+# The legacy sibling-checkout location is kept as a fallback for older setups.
+_MENAGERIE_G1_CANDIDATES: list[Path] = [
+    PROJECT_ROOT / "third_party" / "mujoco_menagerie" / "unitree_g1",
     PROJECT_ROOT.parent / "vla_zero_to_hero"
-    / "third_party" / "mujoco_menagerie" / "unitree_g1"
-)
+    / "third_party" / "mujoco_menagerie" / "unitree_g1",
+]
+
+
+def _resolve_menagerie_g1_dir() -> Path:
+    """Return the first existing Menagerie G1 directory.
+
+    Falls back to the canonical (first) candidate so that error messages
+    from the model loaders point at the expected location.
+    """
+    for candidate in _MENAGERIE_G1_CANDIDATES:
+        if (candidate / "g1.xml").exists():
+            return candidate
+    return _MENAGERIE_G1_CANDIDATES[0]
+
+
+_MENAGERIE_G1_DIR: Path = _resolve_menagerie_g1_dir()
 G1_MJCF_PATH: Path = _MENAGERIE_G1_DIR / "g1.xml"
 G1_SCENE_PATH: Path = _MENAGERIE_G1_DIR / "scene.xml"
 
@@ -138,6 +156,13 @@ CTRL_STAND: np.ndarray = np.array([
     0.2, -0.2, 0.0, 1.28, 0.0, 0.0, 0.0,
 ])
 
+# Standing joint angles of the 29 actuated joints, in the same order as
+# CTRL_STAND. For position servos the ctrl target equals the joint angle, so
+# this is the identical vector under a name that reads as "configuration"
+# rather than "command". Kept as a distinct alias because the IK / kinematics
+# code (whole_body_ik, standing_controller) reasons about it as a qpos slice.
+Q_STAND_JOINTS: np.ndarray = CTRL_STAND
+
 # Pelvis MJCF offset: <body name="pelvis" pos="0 0 0.793"> in g1.xml.
 # Pinocchio FreeFlyer adds this to q[2], so: pelvis_world_z = pin_q[2] + 0.793.
 # Conversely: pin_q[2] = mj_qpos[2] - 0.793.
@@ -222,7 +247,17 @@ def load_g1_pinocchio(
     path = mjcf_path or G1_MJCF_PATH
     if not path.exists():
         raise FileNotFoundError(f"G1 MJCF not found at {path}.")
-    model = pin.buildModelFromMJCF(str(path), pin.JointModelFreeFlyer())
+    # Pinocchio >= 4.1 requires an explicit root joint NAME alongside the root
+    # joint model, and returns (model, constraint_models) rather than a bare
+    # model. Older releases accept the two-argument form and return the model
+    # directly, so support both.
+    try:
+        built = pin.buildModelFromMJCF(
+            str(path), pin.JointModelFreeFlyer(), "root_joint"
+        )
+    except TypeError:
+        built = pin.buildModelFromMJCF(str(path), pin.JointModelFreeFlyer())
+    model = built[0] if isinstance(built, tuple) else built
     data = model.createData()
     return model, data
 
@@ -263,6 +298,50 @@ def pin_q_to_mj(pin_q: np.ndarray) -> np.ndarray:
     q = pin_q.copy()
     q[2] = pin_q[2] + PELVIS_MJCF_Z
     q[3:7] = pin_quat_to_mj(pin_q[3:7])
+    return q
+
+
+def pelvis_world_to_pin_base(pelvis_world: np.ndarray) -> np.ndarray:
+    """Convert a desired pelvis WORLD position to the Pinocchio base translation.
+
+    The MJCF places the pelvis body at z=PELVIS_MJCF_Z relative to the
+    FreeFlyer frame, so ``pelvis_world_z = pin_q[2] + PELVIS_MJCF_Z``.
+
+    Args:
+        pelvis_world: (3,) desired pelvis position in the world frame [m].
+
+    Returns:
+        (3,) Pinocchio q[0:3] FreeFlyer translation.
+    """
+    base = np.asarray(pelvis_world, dtype=float).copy()
+    base[2] -= PELVIS_MJCF_Z
+    return base
+
+
+def build_pin_q_standing(pelvis_world_pos: np.ndarray | None = None) -> np.ndarray:
+    """Build the full Pinocchio q vector (nq=36) for the standing pose.
+
+    The FreeFlyer translation is set so the pelvis ends up at the desired
+    world position (accounting for the PELVIS_MJCF_Z offset), the base
+    orientation is upright, and the 29 actuated joints take their standing
+    keyframe values.
+
+    Args:
+        pelvis_world_pos: (3,) desired pelvis WORLD position.
+                          Defaults to [0, 0, PELVIS_Z_STAND].
+
+    Returns:
+        (nq=36,) configuration in Pinocchio convention.
+    """
+    if pelvis_world_pos is None:
+        world_pos = np.array([0.0, 0.0, PELVIS_Z_STAND])
+    else:
+        world_pos = np.asarray(pelvis_world_pos, dtype=float)
+
+    q = np.zeros(NQ)
+    q[0:3] = pelvis_world_to_pin_base(world_pos)
+    q[3:7] = [0.0, 0.0, 0.0, 1.0]   # upright, Pinocchio quat order (x,y,z,w)
+    q[7:NQ] = Q_STAND_JOINTS
     return q
 
 

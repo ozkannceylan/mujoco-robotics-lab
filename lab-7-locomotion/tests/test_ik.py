@@ -27,6 +27,19 @@ def pelvis_world_from_q(q_pin: np.ndarray) -> np.ndarray:
     return p
 
 
+def pin_point_to_world(p_pin: np.ndarray) -> np.ndarray:
+    """Convert a point from the Pinocchio root frame to the MuJoCo world frame.
+
+    The MJCF places the pelvis body at z=PELVIS_MJCF_Z, so Pinocchio's root
+    frame sits PELVIS_MJCF_Z below the MuJoCo world frame. Every Pinocchio
+    placement (frames and CoM alike) therefore needs the same z offset to be
+    compared against world-frame quantities such as ground height or Z_C.
+    """
+    p = np.asarray(p_pin, dtype=float).copy()
+    p[2] += PELVIS_MJCF_Z
+    return p
+
+
 @pytest.fixture(scope="module")
 def ik_solver():
     """Create a WholeBodyIK solver once for the test module."""
@@ -127,7 +140,9 @@ def test_ik_upright_orientation(ik_solver, q_stand):
 def test_com_at_standing(ik_solver, q_stand):
     """CoM at standing should be near (0, 0, Z_C) (within 15 cm)."""
     from lab7_common import Z_C
-    com = ik_solver.get_com_position(q_stand)
+    # get_com_position returns the CoM in the Pinocchio root frame (the same
+    # frame get_foot_positions uses); lift it into the world frame first.
+    com = pin_point_to_world(ik_solver.get_com_position(q_stand))
     pelvis_world = pelvis_world_from_q(q_stand)
     # CoM should be below the pelvis and above the ground
     assert 0.3 < com[2] < pelvis_world[2] + 0.1, (

@@ -215,3 +215,106 @@ unactuated freejoint at qpos[0:7] / qvel[0:6]. You cannot directly command pelvi
 - Uses Pinocchio's frame Jacobian in LOCAL frame with Jlog6 for proper SE3 error. The stance foot constraint ensures no slip; other tasks are balanced by weights.
 - They lock upper-body joints (arms, head) to reduce the problem size.
 - Our stacked DLS IK from M3c is architecturally similar but uses DLS instead of QP. Both should work for the walking pipeline.
+
+---
+
+## Project Review Cleanup (2026-08-13)
+
+Defects found by a repo-wide review after the lab was declared complete. All fixed
+in one pass; recorded here because most of them are traps future labs can repeat.
+
+### Renaming a symbol in the common module silently broke every importer
+- **Symptom:** `pytest lab-7-locomotion/tests/` failed at COLLECTION with
+  `ImportError: cannot import name 'build_pin_q_standing' from 'lab7_common'`.
+  Both `test_ik.py` and `test_standing.py` errored out, so the README's "34 tests
+  pass" claim had been untrue since the Menagerie rewrite.
+- **Root cause:** Commit `c6c1bdb` rewrote `lab7_common.py` for the 29-DOF Menagerie
+  G1 and dropped `Q_STAND_JOINTS`, `pelvis_world_to_pin_base()`, and
+  `build_pin_q_standing()`. The rewrite never ran the importers, and *`src`* modules
+  (`whole_body_ik.py`, `standing_controller.py`) imported those names too — so the
+  breakage was not confined to tests. Nothing imported them at module scope during
+  the milestone demos that were actually being run, so it went unnoticed.
+- **Fix:** Restored all three in `lab7_common.py`, adapted to the Menagerie model.
+  `Q_STAND_JOINTS` is now an explicit alias of `CTRL_STAND` (for position servos the
+  ctrl target *is* the joint angle, so one array with two names beats two arrays
+  that can drift apart).
+- **Takeaway:** The lab common module is a published API for every other file in the
+  lab. After editing it, run the whole test suite — not just the demo you are on.
+  A collection error is invisible if you only ever run `python3 src/mN_*.py`.
+
+### Hard-coded absolute-ish model path pointed outside the repo
+- **Symptom:** Every model-loading test raised `FileNotFoundError` on a fresh clone.
+- **Root cause:** `_MENAGERIE_G1_DIR` was `PROJECT_ROOT.parent / "vla_zero_to_hero" /
+  "third_party" / ...` — a sibling checkout on the original author's machine, not
+  anything inside this repository.
+- **Fix:** `_resolve_menagerie_g1_dir()` now probes a candidate list, preferring the
+  in-repo `PROJECT_ROOT / "third_party" / "mujoco_menagerie" / "unitree_g1"` and
+  keeping the old sibling path as a fallback.
+- **Takeaway:** CLAUDE.md already says "no hardcoded absolute paths". A path that
+  escapes `PROJECT_ROOT` via `.parent` violates the spirit of that rule even though
+  it is technically relative.
+
+### Pinocchio 4.1 changed the `buildModelFromMJCF` signature and return type
+- **Symptom:** `Boost.Python.ArgumentError: Python argument types ... did not match
+  C++ signature` for `buildModelFromMJCF(str, JointModelFreeFlyer)`.
+- **Root cause:** Pinocchio >= 4.1 requires an explicit root joint *name* as a third
+  argument, and then returns a `(model, constraint_models)` tuple instead of a bare
+  model. It also emits a DeprecationWarning pointing at
+  `buildModelAndLegacyConstraintsFromMjcf`.
+- **Fix:** `load_g1_pinocchio()` calls the three-argument form, falls back to the
+  two-argument form on `TypeError`, and unwraps the tuple when it gets one.
+- **Takeaway:** Pin the Pinocchio API defensively at the loader boundary so a version
+  bump touches one function instead of every milestone script.
+
+### Pinocchio's root frame sits PELVIS_MJCF_Z below the MuJoCo world frame
+- **Symptom:** `test_com_at_standing` failed with `Standing CoM z = -0.134`, i.e. the
+  centre of mass was apparently 13 cm *underground*.
+- **Root cause:** A frame-convention error in the test, not in the physics. The MJCF
+  declares `<body name="pelvis" pos="0 0 0.793">`, so when Pinocchio builds the model
+  with a FreeFlyer root, its world origin ends up `PELVIS_MJCF_Z` below MuJoCo's.
+  *Every* Pinocchio placement carries that offset uniformly. Verified against MuJoCo:
+  pin CoM z `-0.1341` + `0.793` = `0.6589` = `mj_data.subtree_com[0][2]` exactly, and
+  pin `left_foot` z `-0.7929` + `0.793` ≈ `0.0001` = the foot site on the ground.
+- **Fix:** Added `pin_point_to_world()` to `tests/test_ik.py` and applied it to the
+  CoM before comparing against `Z_C`. `WholeBodyIK.get_com_position()` and
+  `get_foot_positions()` were left alone — both return Pinocchio-frame values, which
+  is self-consistent; it was the test that mixed frames.
+- **Takeaway:** Per the Pinocchio rules in CLAUDE.md — when Pinocchio "looks wrong",
+  debug the frame convention before touching the solver. A clean constant offset
+  across *all* frames is the signature of a frame origin mismatch, never a bug in
+  the kinematics. Cross-validating one point against MuJoCo localises it in seconds.
+
+### Removed media that asserted a milestone which never shipped
+- **Symptom:** `media/m4_walking.mp4` and `media/m4_zmp.png` sat at exactly the paths
+  `tasks/PLAN.md` names as the M4 gate artifacts, so anyone browsing the folder would
+  conclude M4 (ZMP walking) shipped. It did not — M4 is formally blocked, and those
+  files were outputs of the deleted open-loop pipeline this file already disowns
+  ("zero Pinocchio, open-loop hacks").
+- **Fix:** Deleted five orphaned files — `m4_walking.mp4`, `m4_zmp.png`,
+  `m3_single_step.mp4`, `walking_results.png`, `lipm_trajectory.png`. The last three
+  had lost their producing scripts. Git history preserves all of them.
+  `tasks/PLAN.md` gained a SUPERSEDED banner so its M4 artifact rows can no longer be
+  read as delivered evidence.
+- **Takeaway:** Media files are claims. An artifact left at a gate path is read as
+  "this gate passed" regardless of what the docs say. Delete the evidence when you
+  delete the pipeline that produced it.
+
+### Two scripts wrote the same video filename
+- **Symptom:** `README.md` cited `media/m3e_zmp_walking.mp4`, but no script wrote that
+  name; `m3e_zmp_walking_sim.py` wrote `m3e_single_step.mp4` — the *same* path
+  `m3e_single_step.py` writes. Running the two demos in order silently overwrote one
+  video with the other, and the README-cited file was unreproducible.
+- **Fix:** `m3e_zmp_walking_sim.py` now writes `m3e_zmp_walking.mp4` (matching the
+  README and the file already on disk). `m3e_single_step.py`'s plot went from
+  `m3_step_analysis.png` to `m3e_step_analysis.png` for the `mN_*` convention; the
+  on-disk file was renamed to match. Docstrings and summary prints updated too.
+- **Takeaway:** Every media file cited in the README must have exactly one producing
+  script writing exactly that name. Grep the write paths against the README citations
+  before declaring a lab portfolio-ready.
+
+### Scratch files in src/ can hijack pytest collection
+- **Fix:** Deleted `src/test_claude.py`, `src/test2.py`, `src/test3.py`, `src/test4.py`,
+  `src/test_write.py` (trivial scaffold junk) and `src/walking_demo.py` (the "Phase 3
+  capstone" of the deleted architecture, superseded by `m5_capstone_demo.py`).
+- **Takeaway:** `test_*.py` anywhere on the collection path is a pytest target. Never
+  park scratch files under that name in `src/`.

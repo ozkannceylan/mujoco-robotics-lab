@@ -124,10 +124,8 @@ Combines standing + push recovery + weight shift into a single demonstration. Al
 | `src/lipm_planner.py` | Earlier LIPM implementation (superseded by `lipm_preview_control.py`) |
 | `src/standing_controller.py` | Earlier standing controller (superseded by `m1_standing.py`) |
 | `src/whole_body_ik.py` | Earlier IK implementation (superseded by `m3c_static_ik.py`) |
-| `src/walking_demo.py` | Earlier walking demo (superseded by `m3e_zmp_walking_sim.py`) |
 | `src/m3e_single_step.py` | Single step attempt variant |
 | `src/m3e_zmp_walking_plan.py` | ZMP plan visualization script |
-| `src/test*.py` | Development test scripts |
 
 ## Key Patterns
 

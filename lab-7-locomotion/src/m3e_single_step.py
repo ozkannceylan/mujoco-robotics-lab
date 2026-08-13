@@ -508,7 +508,7 @@ def main() -> None:
         axes[3].grid(True, alpha=0.3)
 
         fig.tight_layout()
-        plot_path = MEDIA_DIR / "m3_step_analysis.png"
+        plot_path = MEDIA_DIR / "m3e_step_analysis.png"
         fig.savefig(str(plot_path), dpi=150)
         plt.close(fig)
         print(f"  Plot: {plot_path}")
@@ -554,7 +554,7 @@ def main() -> None:
     )
 
     print(f"  {'Video saved':<50s} {'m3e_single_step.mp4':<25s} PASS")
-    print(f"  {'Plot saved':<50s} {'m3_step_analysis.png':<25s} PASS")
+    print(f"  {'Plot saved':<50s} {'m3e_step_analysis.png':<25s} PASS")
 
     all_pass = g1 and g2 and g3 and g4
     print(

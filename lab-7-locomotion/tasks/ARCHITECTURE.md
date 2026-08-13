@@ -1,5 +1,7 @@
 # Lab 7: Locomotion Fundamentals — Architecture
 
+> **Superseded by [`../docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md) — kept as the original planning sketch.**
+
 ## Module Map
 
 | File | Role |

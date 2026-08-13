@@ -26,6 +26,7 @@ from lab7_common import (
     Q_STAND_JOINTS,
     NQ,
     NV,
+    PELVIS_MJCF_Z,
     LEFT_FOOT_FRAME,
     RIGHT_FOOT_FRAME,
     load_g1_pinocchio,
@@ -268,7 +269,10 @@ def _smoke_test() -> None:
     # Shift desired feet slightly forward (5 cm)
     lf_des = lf0 + np.array([0.05, 0.0, 0.0])
     rf_des = rf0 + np.array([0.05, 0.0, 0.0])
+    # solve() expects the pelvis target in WORLD coordinates, whereas q0[0:3] is
+    # the Pinocchio FreeFlyer translation — convert, or the offset is applied twice.
     pelvis_des = q0[0:3].copy()
+    pelvis_des[2] += PELVIS_MJCF_Z
 
     q_sol, conv = ik.solve(q0, pelvis_des, lf_des, rf_des)
     lf_sol, rf_sol = ik.get_foot_positions(q_sol)

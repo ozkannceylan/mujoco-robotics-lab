@@ -20,7 +20,7 @@ Gate criteria (M3e):
   - Right foot >= 2cm forward
   - Foot lifts >= 1cm during swing
   - Stable 2s after landing
-  - Video: media/m3e_single_step.mp4
+  - Video: media/m3e_zmp_walking.mp4
   - Plot: media/m3e_com_tracking.png
 """
 
@@ -379,7 +379,7 @@ def main() -> None:
     # ------------------------------------------------------------------
     import imageio
     MEDIA_DIR.mkdir(parents=True, exist_ok=True)
-    video_path = MEDIA_DIR / "m3e_single_step.mp4"
+    video_path = MEDIA_DIR / "m3e_zmp_walking.mp4"
     writer = imageio.get_writer(str(video_path), fps=RENDER_FPS,
                                 codec="libx264",
                                 output_params=["-pix_fmt", "yuv420p"])
