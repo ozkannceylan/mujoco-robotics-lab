@@ -27,6 +27,7 @@ from lab3_common import (
     MEDIA_DIR,
     load_mujoco_model,
     load_pinocchio_model,
+    mj_dense_mass_matrix,
 )
 
 
@@ -147,8 +148,7 @@ def cross_validate_mass_matrix(
     mj_data.qpos[:NUM_JOINTS] = q
     mj_data.qvel[:NUM_JOINTS] = 0.0
     mujoco.mj_forward(mj_model, mj_data)
-    M_mj_full = np.zeros((mj_model.nv, mj_model.nv))
-    mujoco.mj_fullM(mj_model, M_mj_full, mj_data.qM)
+    M_mj_full = mj_dense_mass_matrix(mj_model, mj_data)
     M_mj = M_mj_full[:NUM_JOINTS, :NUM_JOINTS]
 
     return float(np.max(np.abs(M_pin - M_mj)))

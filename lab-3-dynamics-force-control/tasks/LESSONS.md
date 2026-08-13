@@ -2,6 +2,12 @@
 
 ## Bugs & Fixes
 
+### 2026-08-13 — MuJoCo 3.11 removed `MjData.qM` and changed the `mj_fullM` signature
+**Symptom:** After the environment moved to `mujoco==3.11.0`, three tests in `tests/test_dynamics.py` (`TestCrossValidation::test_cross_val_home` / `_random` / `_zeros`) failed with `AttributeError: 'mujoco._structs.MjData' object has no attribute 'qM'`, raised from `a1_dynamics_fundamentals.py:151`.
+**Root cause:** MuJoCo 3.11 dropped the Python-visible packed sparse inertia buffer `MjData.qM`. `mj_fullM` was re-signatured at the same time: it is now `mj_fullM(model, data, dst)` — it reads the inertia straight off `MjData` and writes the dense `(nv, nv)` result into `dst` — instead of the legacy `mj_fullM(model, dst, data.qM)`. The `dst` argument moved from second to third position, so the old call is both an attribute error *and* an argument-order error. `MjData.M` still exists in 3.11 but is the packed sparse buffer (length 21 for `nv=6`), not a dense matrix, so it is not a drop-in replacement.
+**Fix:** Added `mj_dense_mass_matrix(mj_model, mj_data)` to `src/lab3_common.py` as the single version-agnostic accessor. It probes `getattr(mj_data, "qM", None)`: when absent it calls the 3.11 form `mujoco.mj_fullM(mj_model, mj_data, dense)`, and when present it falls back to the legacy `mujoco.mj_fullM(mj_model, dense, qM)`. `cross_validate_mass_matrix()` in `a1_dynamics_fundamentals.py` now calls the helper. Cross-validation error is unchanged at `3.34e-05`, matching the number already published in `docs/a1_dynamics_fundamentals.md`, which confirms the new call returns the same matrix. Suite back to `34 passed`.
+**Takeaway:** Simulator accessors are API surface that churns between minor versions. Wrap every raw MuJoCo struct field the lab depends on in a helper inside `lab<N>_common.py` — then a breaking upstream rename is a one-line fix in one file instead of a grep across every script. Prefer a `getattr` probe over a version-string comparison: it tests for the capability actually needed rather than for a number.
+
 ### 2026-03-17 — Lab 3 had to be migrated back onto the canonical hardware baseline
 **Symptom:** Lab 3 was previously documented as complete on a simplified local UR5e path, which did not satisfy the project-wide requirement for Menagerie UR5e + Robotiq.
 **Root cause:** Lab-level implementation drifted away from the project hardware lock.

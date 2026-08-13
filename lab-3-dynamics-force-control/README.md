@@ -94,7 +94,8 @@ Lab 3 runs on the canonical project hardware stack: MuJoCo Menagerie `universal_
 | File | Purpose |
 |---|---|
 | `src/lab3_common.py` | Canonical model loaders, IDs, actuator mapping, IK helpers |
-| `src/record_lab3_validation.py` | Headless validation video recorder |
+| `src/record_lab3_validation.py` | Headless validation video recorder (sign-off artifact) |
+| `src/record_lab3_demo.py` | Portfolio demo recorder — drives the shared 3-phase [`tools/video_producer.py`](../tools/video_producer.py) pipeline (animated metrics → native MuJoCo capture of the line-trace capstone → ffmpeg composition) |
 
 ---
 
@@ -116,6 +117,9 @@ python3 lab-3-dynamics-force-control/src/c2_line_trace.py
 
 # Re-record the validation video
 python3 lab-3-dynamics-force-control/src/record_lab3_validation.py
+
+# Re-record the 3-phase portfolio demo video (metrics + simulation + composition)
+python3 lab-3-dynamics-force-control/src/record_lab3_demo.py
 ```
 
 ---
@@ -128,7 +132,8 @@ lab-3-dynamics-force-control/
 ├── models/           UR5e URDF (Pinocchio) + MuJoCo scenes (torque actuators, table contact)
 ├── docs/             English study notes
 ├── docs-turkish/     Turkish study notes
-├── media/            Plots and recorded validation video
+├── blog/             "Position Control Pushes Through Walls" long-form write-up
+├── media/            Plots, the recorded validation video, and the 3-phase demo video (+ its two intermediate clips)
 ├── tests/            Pytest suite (34 tests across 4 files)
 └── tasks/            PLAN / ARCHITECTURE / TODO / LESSONS
 ```
@@ -144,6 +149,8 @@ lab-3-dynamics-force-control/
 | B1 — Impedance control | [Impedance Control](docs/b1_impedance_control.md) | [Empedans Kontrolü](docs-turkish/b1_empedans_kontrolu.md) |
 | C1 — Force control | [Force Control](docs/c1_force_control.md) | [Kuvvet Kontrolü](docs-turkish/c1_kuvvet_kontrolu.md) |
 
+Blog post: [`blog/lab3_blog_post.md`](blog/lab3_blog_post.md) — *"Position Control Pushes Through Walls"*.
+
 ---
 
 ## Media
@@ -154,7 +161,11 @@ lab-3-dynamics-force-control/
 - Compliance comparison: [`media/compliance_comparison.png`](media/compliance_comparison.png), [`media/compliance_per_axis.png`](media/compliance_per_axis.png)
 - Gravity-compensation hold / perturb: [`media/gravity_comp_hold.png`](media/gravity_comp_hold.png), [`media/gravity_comp_perturb.png`](media/gravity_comp_perturb.png)
 - Dynamics parity: [`media/mass_matrix_heatmap.png`](media/mass_matrix_heatmap.png), [`media/gravity_vector_bar.png`](media/gravity_vector_bar.png), [`media/gravity_sweep.png`](media/gravity_sweep.png)
-- Validation video: [`media/lab3_validation_real_stack.mp4`](media/lab3_validation_real_stack.mp4)
+- Validation video: [`media/lab3_validation_real_stack.mp4`](media/lab3_validation_real_stack.mp4) — the sign-off recording produced by `src/record_lab3_validation.py`
+- Demo video: [`media/lab3_demo.mp4`](media/lab3_demo.mp4) — the composed portfolio cut (title card → metrics → simulation → end card) produced by `src/record_lab3_demo.py`
+- Demo intermediates, both written by the same recorder and kept so either half can be re-cut without re-running the simulations:
+  - [`media/lab3_metrics.mp4`](media/lab3_metrics.mp4) — phase 1, the animated Matplotlib presentation of the dynamics-parity, gravity-compensation, and force-control KPIs
+  - [`media/lab3_simulation.mp4`](media/lab3_simulation.mp4) — phase 2, the native MuJoCo capture of the constant-force line-trace capstone with live force/tracking overlays
 
 ---
 

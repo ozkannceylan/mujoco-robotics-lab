@@ -284,6 +284,39 @@ def get_gripper_actuator_id(mj_model) -> int:
     return mujoco.mj_name2id(mj_model, mujoco.mjtObj.mjOBJ_ACTUATOR, GRIPPER_ACTUATOR_NAME)
 
 
+def mj_dense_mass_matrix(mj_model, mj_data) -> np.ndarray:
+    """Return MuJoCo's joint-space mass matrix M(q) as a dense (nv, nv) array.
+
+    Handles the MuJoCo API change around 3.11: `MjData.qM` (the packed sparse
+    inertia buffer) was removed and `mj_fullM` now takes `MjData` directly as
+    its second argument, writing into the dense destination array.
+
+      - MuJoCo >= 3.11:  mj_fullM(model, data, dst)
+      - MuJoCo <  3.11:  mj_fullM(model, dst, data.qM)
+
+    The caller is responsible for having run `mj_forward`/`mj_step` (or at
+    least `mj_crb`) so that the inertia buffer is current.
+
+    Args:
+        mj_model: MuJoCo model.
+        mj_data: MuJoCo data with an up-to-date inertia buffer.
+
+    Returns:
+        Dense symmetric mass matrix, shape (nv, nv).
+    """
+    import mujoco
+
+    dense = np.zeros((mj_model.nv, mj_model.nv))
+    qM = getattr(mj_data, "qM", None)
+    if qM is None:
+        # MuJoCo >= 3.11: dense destination is the third argument.
+        mujoco.mj_fullM(mj_model, mj_data, dense)
+    else:
+        # Legacy signature: (model, dst, packed_sparse_qM).
+        mujoco.mj_fullM(mj_model, dense, qM)
+    return dense
+
+
 def get_table_surface_z(mj_model) -> float:
     """Return the world-frame Z of the table surface."""
     table_geom_id = get_mj_geom_id(mj_model, "table_top")

@@ -22,7 +22,8 @@ lab-3-dynamics-force-control/
 │   ├── b2_compliance_demo.py       # Soft/medium/stiff compliance comparisons
 │   ├── c1_force_control.py         # Hybrid position-force controller + contact interpretation
 │   ├── c2_line_trace.py            # Constant-force line tracing capstone
-│   └── record_lab3_validation.py   # Lab 3 validation video generator
+│   ├── record_lab3_validation.py   # Lab 3 validation video generator (sign-off artifact)
+│   └── record_lab3_demo.py         # Portfolio demo video via tools/video_producer.py 3-phase pipeline
 ├── models/
 │   └── ur5e.urdf                   # Pinocchio-side UR5e + fixed Robotiq payload model
 ├── tests/
@@ -134,6 +135,22 @@ Responsibilities:
 - run the canonical Lab 3 validation sequence
 - save the sign-off video into `media/`
 - overlay measured force and tracking values over the MuJoCo scene
+
+### `record_lab3_demo.py`
+
+Responsibilities:
+
+- recompute the Lab 3 headline metrics by rerunning the validation simulations
+- drive the shared `tools/video_producer.py` pipeline in three phases:
+  1. animated Matplotlib metrics clip → `media/lab3_metrics.mp4`
+  2. native MuJoCo capture of the line-trace capstone → `media/lab3_simulation.mp4`
+  3. ffmpeg composition with title/end cards and crossfades → `media/lab3_demo.mp4`
+- keep the portfolio cut derived from the same controllers the tests guard, never from hand-authored numbers
+
+Cross-repo dependency: this is the only Lab 3 module that imports outside the lab
+(`tools/video_producer.py`, added to `sys.path` from `PROJECT_ROOT`). It requires
+`ffmpeg` and a working MuJoCo render context, so it is a media tool rather than
+part of the validated control path.
 
 ## Validation Rules
 

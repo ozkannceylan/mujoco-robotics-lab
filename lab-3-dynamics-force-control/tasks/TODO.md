@@ -10,6 +10,11 @@
 - [x] Step R7: Expand tests and telemetry so reviewed risks are covered by regression checks
 - [x] Step R8: Update README/docs/media so only the canonical stack is presented as Lab 3 completion
 
+## Post-Completion Review Follow-Ups (2026-08-13)
+- [x] Step F1: Fix the MuJoCo 3.11 `MjData.qM` / `mj_fullM` API break — added `mj_dense_mass_matrix()` to `lab3_common.py`, suite back to `34 passed` (see LESSONS.md)
+- [x] Step F2: Write the blog post required by `plan/LAB_03.md` — `blog/lab3_blog_post.md`, "Position Control Pushes Through Walls"
+- [x] Step F3: Document the orphaned demo pipeline — `src/record_lab3_demo.py` and its three MP4 outputs now appear in README and ARCHITECTURE.md
+
 ## Current Focus
 > Lab 3 is complete. No open implementation blockers remain inside this lab.
 

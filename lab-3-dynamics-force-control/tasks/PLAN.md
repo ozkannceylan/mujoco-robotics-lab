@@ -57,6 +57,15 @@ Lab 3 is completed on:
 - README: `lab-3-dynamics-force-control/README.md`
 - Validation video: `lab-3-dynamics-force-control/media/lab3_validation_real_stack.mp4`
 - Recorder: `lab-3-dynamics-force-control/src/record_lab3_validation.py`
+- Demo video: `lab-3-dynamics-force-control/media/lab3_demo.mp4` (with intermediates `lab3_metrics.mp4`, `lab3_simulation.mp4`)
+- Demo recorder: `lab-3-dynamics-force-control/src/record_lab3_demo.py` (3-phase `tools/video_producer.py` pipeline)
+- Blog post: `lab-3-dynamics-force-control/blog/lab3_blog_post.md` — satisfies the "Blog post published" success criterion in `plan/LAB_03.md`
+
+## Post-Completion Maintenance
+
+- 2026-08-13: MuJoCo upgraded to 3.11, which removed `MjData.qM` and re-signatured `mj_fullM`.
+  Mass-matrix parity now goes through `mj_dense_mass_matrix()` in `src/lab3_common.py`.
+  Parity result is unchanged (`3.34e-05`) and the suite is back to `34 passed`.
 
 ## Residual Note
 
