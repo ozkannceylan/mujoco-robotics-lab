@@ -340,9 +340,14 @@ def main() -> None:
             #
             #   where u = qdd_des + Kp·(q_des − q) + Kd·(qd_des − qd)
 
-            # Mass matrix (2×2, symmetric)
+            # Mass matrix (2×2, symmetric).
+            # MuJoCo >= 3.11: qM removed, mj_fullM(model, data, dst).
             M = np.zeros((model.nv, model.nv))
-            mujoco.mj_fullM(model, M, data.qM)
+            qM = getattr(data, "qM", None)
+            if qM is None:
+                mujoco.mj_fullM(model, data, M)
+            else:
+                mujoco.mj_fullM(model, M, qM)
 
             bias = data.qfrc_bias.copy()          # Coriolis + gravity
             passive = data.qfrc_passive.copy()    # joint damping (−d·qvel)

@@ -36,9 +36,17 @@ def set_state(model, data, qpos, qvel, gravity):
 
 
 def full_mass_matrix(mujoco, np, model, data):
-    """Expand full inertia matrix from packed qM."""
+    """Expand full inertia matrix from MuJoCo's packed representation.
+
+    MuJoCo >= 3.11 removed MjData.qM and re-signatured mj_fullM to
+    mj_fullM(model, data, dst); older versions use mj_fullM(model, dst, data.qM).
+    """
     mass = np.zeros((model.nv, model.nv))
-    mujoco.mj_fullM(model, mass, data.qM)
+    qM = getattr(data, "qM", None)
+    if qM is None:
+        mujoco.mj_fullM(model, data, mass)
+    else:
+        mujoco.mj_fullM(model, mass, qM)
     return mass
 
 

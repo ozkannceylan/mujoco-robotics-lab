@@ -98,8 +98,13 @@ def main() -> None:
         q = data.qpos.copy()
         qd = data.qvel.copy()
 
+        # MuJoCo >= 3.11: qM removed, mj_fullM(model, data, dst).
         M = np.zeros((model.nv, model.nv))
-        mujoco.mj_fullM(model, M, data.qM)
+        qM = getattr(data, "qM", None)
+        if qM is None:
+            mujoco.mj_fullM(model, data, M)
+        else:
+            mujoco.mj_fullM(model, M, qM)
         bias = data.qfrc_bias.copy()
         passive = data.qfrc_passive.copy()
 

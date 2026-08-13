@@ -115,6 +115,8 @@ Lab 5 is the first lab that picks something up. A custom MJCF parallel-jaw gripp
 
 **Final demo**: 150 g, 40 mm cube picked from one tabletop location and placed at another with sub-0.1 mm IK accuracy and sub-5 mrad joint tracking.
 
+![Lab 5 — Parallel-Jaw Grasp](lab-5-grasping-manipulation/media/lab5_hero.png)
+
 > Note: the core pick-and-place pipeline is shipped and tested. A pro-demo hardening track (record_pro_demo.py) is still open and is documented in the Lab 5 README.
 
 | Metric | Value |
@@ -181,15 +183,18 @@ mujoco-robotics-lab/
 │   ├── models/                   #   MuJoCo XML models
 │   ├── docs/                     #   English documentation
 │   ├── docs-turkish/             #   Turkish documentation
+│   ├── blog/                     #   Long-form blog post
 │   ├── media/                    #   Videos and GIFs
-│   ├── tests/                    #   Unit tests
+│   ├── ros2_bridge/              #   ROS 2 bridge node
+│   ├── tests/                    #   Pytest suite (26 tests)
 │   └── README.md                 #   Lab overview
 │
 ├── lab-2-Ur5e-robotics-lab/      # Lab 2: UR5e 6-DOF Arm
 │   ├── src/                      #   Source scripts (A1–C3)
-│   ├── models/                   #   URDF, MJCF, Menagerie files
+│   ├── models/                   #   URDF + MJCF (Menagerie clone lands here — see Setup)
 │   ├── docs/                     #   English documentation
 │   ├── docs-turkish/             #   Turkish documentation
+│   ├── blog/                     #   Long-form blog post
 │   ├── media/                    #   Videos and GIFs
 │   ├── tests/                    #   Unit tests
 │   └── README.md                 #   Lab overview
@@ -240,21 +245,50 @@ mujoco-robotics-lab/
 │   ├── media/                    #   Per-milestone videos + plots + validation .txt
 │   └── README.md                 #   Lab overview
 │
+├── plan/                         # Lab briefs (LAB_01–LAB_09) + MASTER_PLAN.md
+├── tasks/                        # Cross-lab todo / lessons / project reviews
+├── tools/                        # setup_env.sh + video_producer.py
+├── third_party/                  # Upstream assets (gitignored — created by setup_env.sh)
+├── attic/                        # Archived / superseded writeups
+│
 ├── CLAUDE.md                     # Project instructions for AI assistant
 └── README.md                     # This file
 ```
 
-Each lab is self-contained with its own source code, models, documentation, tests, and media. New labs follow the same structure.
+Each lab is self-contained with its own source code, models, documentation, and
+media. Test coverage varies by lab: labs 1–5 and 7 ship pytest suites, while lab 6
+is verified through numerical milestone gates (M0–M5) rather than unit tests.
+New labs follow the same structure.
 
 ---
 
 ## Quick Start
 
-### Install dependencies
+### Setup
+
+A bare `git clone` is not enough to run the labs — the MuJoCo Menagerie robot
+models are not vendored into this repository. One script handles everything:
 
 ```bash
-pip install mujoco numpy pinocchio imageio[ffmpeg] matplotlib
+./tools/setup_env.sh
+export MUJOCO_GL=egl   # required for headless rendering (machines with no display)
 ```
+
+`tools/setup_env.sh` installs the Python dependencies, sparse-clones the
+Menagerie models (UR5e, Robotiq 2F-85, Unitree G1) into the two locations the
+labs expect, and installs the EGL runtime for offscreen rendering. It is
+idempotent, so re-running it is safe.
+
+### Install dependencies
+
+If you prefer to install by hand instead of running the setup script:
+
+```bash
+pip install mujoco numpy pin scipy "imageio[ffmpeg]" matplotlib pytest meshcat
+```
+
+> Pinocchio ships on PyPI as **`pin`** (it provides `import pinocchio`). The
+> package literally named `pinocchio` is an unrelated project — don't install it.
 
 ### Run a lab demo
 
@@ -287,16 +321,16 @@ python3 lab-7-locomotion/src/m5_capstone_demo.py
 
 The published labs cover the same fundamental topics at increasing scale and physical realism:
 
-| Topic | Lab 1 (2-DOF) | Lab 2 (6-DOF) | Lab 3 (Force Control) |
-|---|---|---|---|
-| Forward Kinematics | Analytic 2-link FK | DH + Pinocchio + MuJoCo cross-validation | Reused from Lab 2 |
-| Jacobian | 2x2 analytic | Geometric, Pinocchio, numerical + singularity analysis | Pinocchio Jacobians for `τ = Jᵀ·F` |
-| Inverse Kinematics | Analytic + pseudo-inverse + DLS | Pseudo-inverse + adaptive DLS | DLS into contact-aware targets |
-| Dynamics | M, C, g from MuJoCo | Pinocchio RNEA, ABA, CRBA + cross-validation | RNEA/CRBA parity at sub-1e-4 |
-| Trajectory | Cubic, quintic | Cubic, quintic, trapezoidal, min-jerk, multi-segment | Straight-line task-space path under contact |
-| Control | PD + gravity compensation | PD+g, computed torque, task-space impedance, OSC | Gravity comp + Cartesian impedance + hybrid force |
-| Contact | — | — | `mj_contactForce` over full EE contact set, 5 ± 1 N regulation |
-| Integration | Square drawing | Pick-and-place pipeline + 3D cube drawing | Constant-force line trace on a table |
+| Topic | Lab 1 (2-DOF) | Lab 2 (6-DOF) | Lab 3 (Force Control) | Lab 4 (Motion Planning) | Lab 5 (Grasping) | Lab 6 (Dual-Arm) | Lab 7 (Locomotion) |
+|---|---|---|---|---|---|---|---|
+| Forward Kinematics | Analytic 2-link FK | DH + Pinocchio + MuJoCo cross-validation | Reused from Lab 2 | Reused — FK drives Cartesian via-points | Pinocchio FK on UR5e + custom gripper frame | `DualArmModel` FK, 0.000 mm round-trip vs MuJoCo | Floating-base FK on the G1 (`nq ≠ nv`, quaternion) |
+| Jacobian | 2x2 analytic | Geometric, Pinocchio, numerical + singularity analysis | Pinocchio Jacobians for `τ = Jᵀ·F` | Used by seeded IK at each via-point | Frame Jacobian feeding DLS grasp IK | Per-arm Pinocchio Jacobians in `DualArmModel` | `LOCAL_WORLD_ALIGNED`, finite-difference validated (0/36 failures) |
+| Inverse Kinematics | Analytic + pseudo-inverse + DLS | Pseudo-inverse + adaptive DLS | DLS into contact-aware targets | Seeded DLS keeps the elbow on one side across segments | DLS with `pin.log3` SO(3) orientation error, 4 seeded grasp poses | Dual-arm DLS, 300 restarts + collision-checked candidates | Stacked-Jacobian whole-body DLS, 18 task rows |
+| Dynamics | M, C, g from MuJoCo | Pinocchio RNEA, ABA, CRBA + cross-validation | RNEA/CRBA parity at sub-1e-4 | Gravity compensation reused from Lab 3 | Gravity compensation inside Lab 3's impedance torque | Per-arm gravity compensation | CoM dynamics + LIPM (Kajita preview control) |
+| Trajectory | Cubic, quintic | Cubic, quintic, trapezoidal, min-jerk, multi-segment | Straight-line task-space path under contact | RRT/RRT\* path → shortcutting → TOPP-RA (quintic fallback) | Lab 4 plan + smoothing per pick-and-place segment | 2 s smooth-step bimanual interpolation, arms synced to 2 ms | Footstep plan + ZMP reference + cubic/parabolic swing foot |
+| Control | PD + gravity compensation | PD+g, computed torque, task-space impedance, OSC | Gravity comp + Cartesian impedance + hybrid force | Lab 3 joint PD + gravity comp (no new control code) | Lab 3 `compute_impedance_torque` under gravity comp | Joint PD + gravity comp (no Cartesian impedance, by design) | Position-PD with gravity feedforward (ankle torque unavailable) |
+| Contact | — | — | `mj_contactForce` over full EE contact set, 5 ± 1 N regulation | Collision as a planning constraint (HPP-FCL + MuJoCo geometry), 0.034 m clearance | Gripper-pad contact detection confirms the grasp | Weld-constraint grasp + MuJoCo contact check during IK search | Foot-ground contact; feet pinned to < 1.4 mm drift |
+| Integration | Square drawing | Pick-and-place pipeline + 3D cube drawing | Constant-force line trace on a table | RRT\* slalom through 4 tabletop obstacles | 11-state pick-and-place chaining Labs 3 + 4 | 6-state cooperative carry (APPROACH → PLACE) | Standing + 5 cm weight shift + LIPM/ZMP overlay |
 
 ---
 
@@ -326,10 +360,12 @@ This repository also includes third-party robot models and description assets
 that keep their own upstream licenses. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
 for the exact paths and license scope.
 
-Important: a subset of bundled Universal Robots mesh directories in
-`lab-2-Ur5e-robotics-lab/models/Universal_Robots_ROS2_Description/meshes/`
-is redistributable under vendor terms but is not fully OSI-open-source. The
-project's root license does not override those files.
+Important: third-party robot models (MuJoCo Menagerie, Universal Robots
+description assets) are **not committed to this repository** — they are cloned
+into gitignored paths by `tools/setup_env.sh`. Those upstream assets keep their
+own licenses (some Universal Robots meshes are redistributable under vendor
+terms but not fully OSI-open-source); the project's root license does not
+override them.
 
 ## Contributing
 

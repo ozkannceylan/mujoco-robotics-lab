@@ -25,11 +25,40 @@ Build a portfolio-ready robotics lab series using MuJoCo, progressing from simpl
 
 ## Common Commands
 
+### Fresh environment setup
+
+From a fresh clone, run the setup script first — a bare `git clone` is **not**
+enough to run any lab:
+
+```bash
+./tools/setup_env.sh
+export MUJOCO_GL=egl   # required for headless rendering (no display attached)
+```
+
+The script installs the Python deps, sparse-clones the MuJoCo Menagerie models
+into both locations the labs expect, and best-effort installs `libegl1`.
+
+Three things a fresh clone does **not** give you, and the script fixes:
+
+1. **Menagerie models are not in the repo.** Labs 2–6 load them from
+   `lab-2-Ur5e-robotics-lab/models/mujoco_menagerie/` and Lab 7 from
+   `third_party/mujoco_menagerie/unitree_g1/`. Both paths are gitignored and
+   must be populated by the setup script (or cloned manually) before any demo
+   or test will run.
+2. **Headless rendering needs EGL.** Without `MUJOCO_GL=egl` (and the `libegl1`
+   system package) every render/record script fails on a machine with no
+   display.
+3. **The PyPI package `pinocchio` is the wrong package** — see below.
+
 ### Install dependencies
 
 ```bash
-pip install mujoco numpy pinocchio scipy imageio[ffmpeg] matplotlib meshcat
+pip install mujoco numpy pin scipy "imageio[ffmpeg]" matplotlib pytest meshcat
 ```
+
+> The real Pinocchio is `pip install pin`; it provides `import pinocchio`.
+> The PyPI package literally named `pinocchio` is an unrelated project — do not
+> install it.
 
 ### Run tests
 

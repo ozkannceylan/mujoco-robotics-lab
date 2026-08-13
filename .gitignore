@@ -22,3 +22,11 @@ env/
 .DS_Store
 Thumbs.db
 screenshots
+
+# Vendored upstream assets — fetched by tools/setup_env.sh, not tracked here.
+# (These were previously bogus gitlink entries with no .gitmodules, so a fresh
+# clone produced empty directories. See tools/setup_env.sh.)
+lab-2-Ur5e-robotics-lab/models/mujoco_menagerie/
+lab-2-Ur5e-robotics-lab/models/Universal_Robots_ROS2_Description/
+third_party/
+MUJOCO_LOG.TXT
