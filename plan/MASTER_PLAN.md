@@ -32,7 +32,7 @@ _Status refreshed 2026-08-13 (project review). This table is the single source o
 | 2 | 6-DOF Robot Arm (DH & Pinocchio) | Draw a cube in 3D space | ✅ Complete (34 tests) |
 | 3 | Dynamics & Force Control | Constant-force surface contact | ✅ Complete (34 tests; blog post never written) |
 | 4 | Motion Planning & Collision Avoidance | Slalom through 4 obstacles (RRT* + TOPP-RA) | ✅ Complete (45 tests; blog post never written) |
-| 5 | Grasping & Manipulation | Pick and place an object | ✅ Complete — one open item: re-record pro demo (Step 5.4) |
+| 5 | Grasping & Manipulation | Pick and place an object | ✅ Complete — Phase 5 closed 2026-08-13 (5.4 re-recorded, 0 self-collisions); follow-up 6.1 open (capstone box-transport tuning) |
 | 6 | Dual-Arm Coordination | Two arms cooperatively carry an object (weld-constraint) | ✅ Complete (milestone-gated M0–M5; unit tests intentionally removed) |
 | 7 | Locomotion Fundamentals | Standing balance + quasi-static weight shift (M0–M3d); ZMP walking documented as structurally infeasible with position actuators | ✅ Complete at M3d scope (34 tests; M4 blocked by design) |
 | 8 | Whole-Body Loco-Manipulation | Walk while carrying an object | 📋 Planned — see dependency note below |
@@ -176,7 +176,7 @@ Every blog post:
 |-------|------|--------|-------|
 | Foundations | 1–2 | ✅ Complete (2026-03) | |
 | Control & Planning | 3–4 | ✅ Complete (2026-03, published 2026-05) | |
-| Manipulation | 5–6 | ✅ Complete (2026-03/05) | Lab 5 Step 5.4 re-record still open |
+| Manipulation | 5–6 | ✅ Complete (2026-03/05; Lab 5 Phase 5 closed 2026-08) | Lab 5 follow-up 6.1 (capstone tuning) open |
 | Locomotion | 7 | ✅ Complete at M3d scope (2026-05) | M4 ZMP walking blocked → moved to Lab 8 |
 | Whole-Body | 8 | 📋 Not started | Must own gait generation via torque control |
 | VLA | 9 | 📋 Not started | Builds on humanoid_vla; needs Lab 8 controllers for demo data |

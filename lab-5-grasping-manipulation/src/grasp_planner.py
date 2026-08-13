@@ -109,6 +109,54 @@ def compute_ik(
 
 
 # ---------------------------------------------------------------------------
+# Joint-branch normalisation
+# ---------------------------------------------------------------------------
+
+def nearest_joint_branch(
+    q: np.ndarray,
+    q_ref: np.ndarray,
+    lower: np.ndarray | None = None,
+    upper: np.ndarray | None = None,
+) -> np.ndarray:
+    """Shift each revolute joint by multiples of 2π to sit closest to `q_ref`.
+
+    All six UR5e joints are revolute with a ±2π range, so ``q_j`` and
+    ``q_j ± 2π`` are kinematically identical yet several radians apart in joint
+    space. DLS IK returns whichever branch its seed happened to fall into. When
+    two configurations end up on *different* branches, a joint-space planner has
+    to sweep the long way round — for the pick-and-place cycle that is a 5.2 rad
+    shoulder_pan sweep instead of 1.0 rad, which RRT* cannot bridge inside its
+    sampling bounds and iteration budget.
+
+    For every joint independently this picks the kinematically-equivalent value
+    that lies inside the joint limits and is closest to the reference.
+
+    Args:
+        q: Configuration to normalise (6,).
+        q_ref: Reference configuration to stay close to (6,).
+        lower: Lower joint limits. Defaults to `JOINT_LOWER`.
+        upper: Upper joint limits. Defaults to `JOINT_UPPER`.
+
+    Returns:
+        Kinematically-identical configuration (6,) nearest to `q_ref`.
+    """
+    lo = JOINT_LOWER if lower is None else lower
+    hi = JOINT_UPPER if upper is None else upper
+    out = np.asarray(q, dtype=float).copy()
+    ref = np.asarray(q_ref, dtype=float)
+    for j in range(out.size):
+        best = out[j]
+        for k in (-1, 1):
+            cand = out[j] + 2.0 * np.pi * k
+            if cand < lo[j] - 1e-9 or cand > hi[j] + 1e-9:
+                continue
+            if abs(cand - ref[j]) < abs(best - ref[j]):
+                best = cand
+        out[j] = best
+    return out
+
+
+# ---------------------------------------------------------------------------
 # Grasp configuration dataclass
 # ---------------------------------------------------------------------------
 
@@ -208,11 +256,19 @@ def compute_grasp_configs(
     configs["pregrasp"] = _solve("pregrasp", _pregrasp_target(box_a_pos), Q_HOME)
     configs["grasp"]    = _solve("grasp",    _tool0_target(box_a_pos),    Q_HOME)
 
-    # Seed preplace/place from pregrasp with shoulder_pan mirrored (joint 0)
+    # Seed preplace/place from pregrasp with shoulder_pan mirrored (joint 0).
+    # The mirrored seed converges reliably but lands on the +2π shoulder_pan
+    # branch, 5.2 rad away from pregrasp; `nearest_joint_branch` rewinds it onto
+    # the branch adjacent to pregrasp (same pose, 1.0 rad away) so RRT* can
+    # actually connect the two.  Without this the transport plan fails outright.
     q_hint_b = configs["pregrasp"].copy()
     q_hint_b[0] = -q_hint_b[0]
-    configs["preplace"] = _solve("preplace", _pregrasp_target(box_b_pos), q_hint_b)
-    configs["place"]    = _solve("place",    _tool0_target(box_b_pos),    q_hint_b)
+    configs["preplace"] = nearest_joint_branch(
+        _solve("preplace", _pregrasp_target(box_b_pos), q_hint_b), configs["pregrasp"]
+    )
+    configs["place"] = nearest_joint_branch(
+        _solve("place", _tool0_target(box_b_pos), q_hint_b), configs["preplace"]
+    )
 
     return GraspConfigs(
         q_home=Q_HOME.copy(),

@@ -24,7 +24,7 @@ An open curriculum for rebuilding robotics fundamentals in **MuJoCo**, with **Pi
 
 Only labs marked **Complete** have published writeups and metrics in this README. Planned labs may have in-progress code on disk but are not yet portfolio-ready.
 
-\* **Lab 5** ships its core pick-and-place pipeline complete and tested; a separate *pro demo hardening* track (record_pro_demo.py + RRT\* integration) is still open and is called out in the Lab 5 README.
+\* **Lab 5**'s pro-demo hardening track closed 2026-08-13: SO(3)-log IK + RRT\* integration shipped, and the pro demo was re-recorded with a per-step self-collision monitor (11,050 steps, 0 self-collisions). One follow-up remains open (capstone `pick_place_demo.py` box-transport tuning, Step 6.1 in the Lab 5 TODO).
 
 \*\* **Lab 7** is signed off at M3d scope: static balance, push recovery, FK/IK validation, and quasi-static weight shifting all pass their gates. Dynamic ZMP walking (M4) was identified as structurally infeasible with the Menagerie G1's position actuators — the lab's M5 documentation and blog post explain the diagnostic work in full rather than papering over the limit.
 
@@ -117,7 +117,7 @@ Lab 5 is the first lab that picks something up. A custom MJCF parallel-jaw gripp
 
 ![Lab 5 — Parallel-Jaw Grasp](lab-5-grasping-manipulation/media/lab5_hero.png)
 
-> Note: the core pick-and-place pipeline is shipped and tested. A pro-demo hardening track (record_pro_demo.py) is still open and is documented in the Lab 5 README.
+> Note: the pro demo (record_pro_demo.py) plans all long transfers with Lab 4's RRT\* and verifies zero self-collision across every simulation step of the recording. One open follow-up (capstone demo box-transport tuning) is tracked in the Lab 5 TODO.
 
 | Metric | Value |
 |---|---|

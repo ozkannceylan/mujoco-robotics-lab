@@ -8,7 +8,7 @@ A pick-and-place pipeline for the **UR5e + custom parallel-jaw gripper** in MuJo
 
 > The capstone runs the full pick-and-place cycle on a 150 g, 40 mm cube. DLS IK computes 4 grasp configurations (pregrasp, grasp, preplace, place), the state machine drives the gripper open/close + contact detection through 11 states, and Lab 3's `compute_impedance_torque` executes each segment under gravity compensation.
 
-> **Status note**: The core pick-and-place pipeline is **complete and tested** (Phases 1-4). A *pro demo hardening* phase remains open — see [Pending Work](#pending-work) below.
+> **Status note**: Complete. The core pick-and-place pipeline (Phases 1-4) and the pro-demo hardening track (Phase 5) are both finished and tested — see [Pending Work](#pending-work) below for the Phase 5 close-out and the self-collision verification numbers.
 
 ## Key Results
 
@@ -141,13 +141,52 @@ Blog post: [`blog/lab5_blog_post.md`](blog/lab5_blog_post.md).
 
 ## Pending Work
 
-The core pick-and-place pipeline is complete and shipped above. A separate **Phase 5 — Pro Demo Hardening** track remains open in [`tasks/TODO.md`](tasks/TODO.md):
+**Phase 5 — Pro Demo Hardening is complete** (2026-08-13). All four items landed:
 
-- **5.1** — fix the IK orientation error formula in `record_pro_demo.py` (currently uses an older form, not the SO(3) `log3` formulation already adopted in `grasp_planner.py`)
-- **5.2** — integrate Lab 4's RRT\* path through `record_pro_demo.py` for collision-free pro-demo planning
-- **5.4** — re-record `pick_place_pro.mp4` once 5.1 + 5.2 land
+- **5.1** — SO(3) `log3` orientation error in `record_pro_demo.py` (`_so3_log`, no 180° singularity)
+- **5.2** — Lab 4 RRT\* + shortcutting drives all four long-distance transitions
+- **5.3** — matplotlib 3D import guarded in Lab 4's `rrt_planner.py`
+- **5.4** — `pick_place_pro.mp4` re-recorded (1280×720, 60 fps, 23.1 s) and verified self-collision-free
 
-These items do not affect the capstone `pick_place_demo.py`, the test suite, or any of the metrics in the table above. They harden the pro-demo recorder specifically.
+### Self-collision verification
+
+`record_pro_demo.py` carries a `SelfCollisionMonitor` that inspects every contact after **every**
+simulation step (not every rendered frame — at 60 fps only 1 step in 8 is drawn, so a brief
+interpenetration could otherwise slip between frames). Geoms are grouped by parent body into
+`arm`, `grip` and `env`; an `arm↔arm` or `arm↔grip` contact is a self-collision, while the
+2F-85's own linkage contacts are tallied separately. The recording run reports:
+
+| Metric | Value |
+|---|---|
+| Simulation steps checked | 11050 |
+| Steps with self-collision | **0** |
+| Max penetration depth | 0.000 mm |
+| Robot↔table contact pairs | 0 |
+
+The script exits non-zero if this check ever fails, so the guarantee is re-checked on every
+re-record rather than asserted once.
+
+### Open issue — `pick_place_demo.py` does not transport the box
+
+Found 2026-08-13 while regenerating the plots below. The **pro demo (`record_pro_demo.py`)
+completes the full cycle correctly** — the recorded video ends with the cube on the target pad.
+The **capstone (`pick_place_demo.py`) does not**:
+
+| Symptom | Evidence |
+|---|---|
+| Box never moves | `Box final pos: [0.350, 0.200, 0.335]` = Box **A**; lateral error **400.0 mm** |
+| EE under-shoots both targets | `media/ee_trajectory_3d.png` — EE stops ~70 mm short of Box A and ~90 mm short of Box B |
+| Gripper closes on air | `media/gripper_vs_time.png` — fingers reach 0 mm (nothing between them) |
+
+The IK configurations themselves are correct (`preplace` FK = `[0.350, -0.200, 0.590]` as
+intended), so this is a **tracking/controller convergence problem in `GraspStateMachine`**, not a
+planning or IK problem — the Cartesian impedance gains do not drive the EE onto the commanded
+pose before the gripper is told to close. The state machine still runs to `DONE` because nothing
+verifies the box actually moved.
+
+This does **not** affect the Phase 5 pro-demo result above. It does mean the "Pick success on the
+fixed scene: Reliable" row in [Key Results](#key-results) currently overstates the capstone, and a
+post-condition assertion on final box position should be added so a silent miss cannot pass again.
 
 ---
 

@@ -68,6 +68,13 @@ from collision_checker import CollisionChecker  # noqa: E402 (after sys.path ins
 from rrt_planner import RRTStarPlanner          # noqa: E402
 from trajectory_smoother import shortcut_path   # noqa: E402
 
+# Shared joint-branch normalisation (this file's own directory is on sys.path
+# when run as a script; reuse rather than duplicate the helper).
+_LAB5_SRC = Path(__file__).resolve().parent
+if str(_LAB5_SRC) not in sys.path:
+    sys.path.insert(0, str(_LAB5_SRC))
+from grasp_planner import nearest_joint_branch  # noqa: E402
+
 # Collision checker: arm self-collision + table only.
 # obstacle_specs=() disables the Lab 4 scene obstacles (obs1-obs4) which do not
 # exist in the pro-demo scene; include_table=True adds the table separately.
@@ -288,6 +295,151 @@ def build_scene() -> mujoco.MjSpec:
 
 
 # ---------------------------------------------------------------------------
+# Self-collision monitoring (Step 5.4 verification)
+# ---------------------------------------------------------------------------
+
+# Body-name prefixes/exact names that make up the robot.
+_ARM_BODIES = frozenset({
+    "base", "shoulder_link", "upper_arm_link", "forearm_link",
+    "wrist_1_link", "wrist_2_link", "wrist_3_link",
+})
+_GRIPPER_PREFIX = "2f85_"
+
+
+class SelfCollisionMonitor:
+    """Scans every MuJoCo contact for robot-vs-robot (self) collisions.
+
+    Geoms are classified by their parent body into three groups:
+
+    ``arm``
+        The six UR5e links plus the fixed base.
+    ``grip``
+        Every Robotiq 2F-85 body (prefix ``2f85_``).
+    ``env``
+        Floor, table, box, target marker.
+
+    A **self-collision** is any contact whose two geoms are both on the robot
+    and are not both inside the gripper — i.e. ``arm↔arm`` or ``arm↔grip``.
+    ``grip↔grip`` contacts are the 2F-85's own designed linkage/pad contacts
+    and are counted separately, never as a failure.  Robot↔table contacts are
+    also tallied separately: not self-collisions, but the RRT* checker claims
+    they cannot happen, so they are worth reporting as planner evidence.
+
+    MuJoCo's default parent filtering already suppresses contacts between
+    bodies joined by a joint, so any pair reaching this monitor is a genuine
+    non-adjacent overlap.
+    """
+
+    def __init__(self, m: mujoco.MjModel) -> None:
+        """Build the geom → group lookup table.
+
+        Args:
+            m: Compiled MuJoCo model.
+        """
+        self.group: list[str] = []
+        for g in range(m.ngeom):
+            body_name = mujoco.mj_id2name(
+                m, mujoco.mjtObj.mjOBJ_BODY, int(m.geom_bodyid[g])
+            ) or ""
+            if body_name in _ARM_BODIES:
+                self.group.append("arm")
+            elif body_name.startswith(_GRIPPER_PREFIX):
+                self.group.append("grip")
+            else:
+                self.group.append("env")
+
+        self.steps_checked = 0
+        self.self_collision_steps = 0
+        self.self_collision_pairs: dict[tuple[str, str], int] = {}
+        self.violations: list[tuple[str, float, str, str, float]] = []
+        self.grip_internal_pairs: dict[tuple[str, str], int] = {}
+        self.robot_table_pairs: dict[tuple[str, str], int] = {}
+        self.max_penetration = 0.0
+        self.phase = "init"
+
+    def set_phase(self, label: str) -> None:
+        """Tag subsequent checks with a human-readable phase name."""
+        self.phase = label
+
+    @staticmethod
+    def _geom_label(m: mujoco.MjModel, gid: int) -> str:
+        """Return ``geom_name`` or, for unnamed geoms, ``body_name#geom_id``."""
+        name = mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_GEOM, int(gid))
+        if name:
+            return name
+        body = mujoco.mj_id2name(
+            m, mujoco.mjtObj.mjOBJ_BODY, int(m.geom_bodyid[gid])
+        ) or "?"
+        return f"{body}#{int(gid)}"
+
+    def check(self, m: mujoco.MjModel, d: mujoco.MjData) -> None:
+        """Scan all active contacts for this simulation step."""
+        self.steps_checked += 1
+        flagged = False
+        for c in range(d.ncon):
+            con = d.contact[c]
+            g1, g2 = int(con.geom1), int(con.geom2)
+            a, b = self.group[g1], self.group[g2]
+            n1, n2 = self._geom_label(m, g1), self._geom_label(m, g2)
+            key = (n1, n2) if n1 <= n2 else (n2, n1)
+
+            if a == "grip" and b == "grip":
+                self.grip_internal_pairs[key] = self.grip_internal_pairs.get(key, 0) + 1
+                continue
+
+            if a in ("arm", "grip") and b in ("arm", "grip"):
+                # arm↔arm or arm↔grip → genuine self-collision
+                flagged = True
+                self.self_collision_pairs[key] = self.self_collision_pairs.get(key, 0) + 1
+                self.max_penetration = max(self.max_penetration, -float(con.dist))
+                if len(self.violations) < 20:
+                    self.violations.append(
+                        (self.phase, float(d.time), n1, n2, float(con.dist))
+                    )
+            elif ("arm" in (a, b) or "grip" in (a, b)) and "table" in (n1 + n2):
+                self.robot_table_pairs[key] = self.robot_table_pairs.get(key, 0) + 1
+
+        if flagged:
+            self.self_collision_steps += 1
+
+    def report(self) -> bool:
+        """Print the verification table.
+
+        Returns:
+            True if zero self-collisions were observed.
+        """
+        ok = self.self_collision_steps == 0
+        print("\n" + "=" * 60)
+        print("SELF-COLLISION VERIFICATION (Step 5.4)")
+        print("=" * 60)
+        print(f"  Simulation steps checked      : {self.steps_checked}")
+        print(f"  Steps with self-collision     : {self.self_collision_steps}")
+        print(f"  Distinct self-collision pairs : {len(self.self_collision_pairs)}")
+        print(f"  Max penetration depth         : {self.max_penetration * 1000:.3f} mm")
+        print(f"  Gripper-internal contact pairs: {len(self.grip_internal_pairs)} "
+              f"(expected — 2F-85 linkage/pads, not a failure)")
+        print(f"  Robot↔table contact pairs     : {len(self.robot_table_pairs)}")
+        if self.grip_internal_pairs:
+            for (n1, n2), cnt in sorted(self.grip_internal_pairs.items()):
+                print(f"      grip-internal: {n1} ↔ {n2}  ({cnt} steps)")
+        if self.robot_table_pairs:
+            for (n1, n2), cnt in sorted(self.robot_table_pairs.items()):
+                print(f"      robot-table : {n1} ↔ {n2}  ({cnt} steps)")
+        if self.violations:
+            print("\n  First violations:")
+            for phase, t, n1, n2, dist in self.violations:
+                print(f"      [{phase}] t={t:7.3f}s  {n1} ↔ {n2}  dist={dist * 1000:.3f} mm")
+        verdict = "PASS — no self-collision in any frame" if ok else "FAIL — self-collision detected"
+        print(f"\n  RESULT: {verdict}")
+        print("=" * 60)
+        return ok
+
+
+# Module-level monitor, wired up in main() once the model is compiled.
+_MONITOR: SelfCollisionMonitor | None = None
+
+
+# ---------------------------------------------------------------------------
 # SO(3) utilities
 # ---------------------------------------------------------------------------
 
@@ -434,6 +586,8 @@ def run_phase(
         d.ctrl[6] = gripper_val
 
         mujoco.mj_step(m, d)
+        if _MONITOR is not None:
+            _MONITOR.check(m, d)
 
         # Record every N sim steps to match target fps
         if i % frames_per_step == 0:
@@ -459,6 +613,8 @@ def hold_phase(
         d.ctrl[:6] = q_hold + grav_comp
         d.ctrl[6] = gripper_val
         mujoco.mj_step(m, d)
+        if _MONITOR is not None:
+            _MONITOR.check(m, d)
         if i % frames_per_step == 0:
             frame = render_frame(renderer, m, d, cam, opt)
             writer.append_data(frame)
@@ -521,7 +677,13 @@ def run_phase_planned(
 # Main
 # ---------------------------------------------------------------------------
 
-def main() -> None:
+def main() -> int:
+    """Record the pro demo and verify no self-collision occurs.
+
+    Returns:
+        0 if the recording completed with zero self-collisions, 1 otherwise.
+    """
+    global _MONITOR
     print("=" * 60)
     print("Lab 5 — Professional Pick-and-Place Demo")
     print("=" * 60)
@@ -534,6 +696,12 @@ def main() -> None:
     m = spec.compile()
     d = mujoco.MjData(m)
     print(f"      Compiled: nq={m.nq}, nv={m.nv}, nu={m.nu}, nbody={m.nbody}")
+
+    # Self-collision monitor — checks every contact of every sim step (Step 5.4)
+    _MONITOR = SelfCollisionMonitor(m)
+    n_arm = sum(1 for g in _MONITOR.group if g == "arm")
+    n_grip = sum(1 for g in _MONITOR.group if g == "grip")
+    print(f"      Self-collision monitor: {n_arm} arm geoms, {n_grip} gripper geoms")
 
     # Identify key IDs
     attach_id = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_SITE, "attachment_site")
@@ -559,13 +727,54 @@ def main() -> None:
     R_down = d.site_xmat[attach_id].reshape(3, 3).copy()
     print(f"      Rotation at Q_HOME:\n{R_down}")
 
-    def ik_at(pos: np.ndarray, q_init: np.ndarray, label: str) -> np.ndarray:
+    def ik_at(
+        pos: np.ndarray,
+        q_init: np.ndarray,
+        label: str,
+        q_branch_ref: np.ndarray | None = None,
+        must_be_free: bool = False,
+    ) -> np.ndarray:
+        """Solve IK for `pos`, normalise its joint branch, and validate it.
+
+        Args:
+            pos: Target attachment_site position (3,).
+            q_init: DLS seed configuration (6,).
+            label: Name used in the printed report.
+            q_branch_ref: If given, rewind each joint onto the 2π branch nearest
+                to this reference so consecutive configs stay close in joint
+                space (see `nearest_joint_branch`).
+            must_be_free: Require the solution to be collision-free. Set for
+                configurations RRT* has to plan to — a colliding goal makes the
+                planner fail outright.
+
+        Returns:
+            Validated joint configuration (6,).
+
+        Raises:
+            RuntimeError: If IK did not converge to < 2 mm, or if
+                `must_be_free` is set and the solution collides.
+        """
         q = compute_ik(m, d, attach_id, pos, R_down, q_init)
+        if q_branch_ref is not None:
+            q = nearest_joint_branch(q, q_branch_ref)
         d.qpos[:6] = q
         mujoco.mj_forward(m, d)
-        achieved = d.site_xpos[attach_id]
+        achieved = d.site_xpos[attach_id].copy()
         err = np.linalg.norm(pos - achieved)
-        print(f"      {label}: target={pos}, achieved={achieved}, err={err:.4f} m")
+        free = _cc.is_collision_free(q)
+        print(f"      {label}: target={np.round(pos, 4)}, achieved={np.round(achieved, 4)}, "
+              f"err={err * 1000:.3f} mm, collision-free={free}")
+        if err > 2e-3:
+            raise RuntimeError(
+                f"IK for {label.strip()} did not converge: position error "
+                f"{err * 1000:.1f} mm > 2 mm (target={pos}, achieved={achieved}). "
+                "Recording aborted — a video from a non-converged IK would be wrong."
+            )
+        if must_be_free and not free:
+            raise RuntimeError(
+                f"IK solution for {label.strip()} is in collision: "
+                f"q={np.round(q, 3)}. RRT* cannot plan to a colliding goal."
+            )
         return q
 
     # attachment_site must be at BOX_POS + [0,0, GRIPPER_TIP_OFFSET] to have pinch at box
@@ -575,18 +784,20 @@ def main() -> None:
     preplace_pos = BOX_B_POS + np.array([0, 0, GRIPPER_TIP_OFFSET + HOVER_HEIGHT])
     place_pos    = BOX_B_POS + np.array([0, 0, GRIPPER_TIP_OFFSET])
 
-    q_pregrasp = ik_at(pregrasp_pos, Q_HOME,    "q_pregrasp")
-    q_grasp    = ik_at(grasp_pos,    q_pregrasp, "q_grasp   ")
-    # Seed preplace from Q_HOME: the Menagerie UR5e reaches Y=-0.20 via a small
-    # shoulder_pan rotation from Q_HOME (-π/2 → less negative), not a mirrored
-    # version of pregrasp (which produces a behind-the-arm config at +130° that
-    # the collision checker rejects).
-    q_preplace = ik_at(preplace_pos, Q_HOME,     "q_preplace")
-    q_place    = ik_at(place_pos,    q_preplace,  "q_place   ")
+    q_pregrasp = ik_at(pregrasp_pos, Q_HOME, "q_pregrasp", must_be_free=True)
+    q_grasp    = ik_at(grasp_pos, q_pregrasp, "q_grasp   ", q_branch_ref=q_pregrasp)
+    # Seed preplace from the pregrasp solution, not from Q_HOME.  Seeded from
+    # Q_HOME the DLS iteration walks shoulder_pan into the -2π clip and stalls
+    # 127 mm short of the target; seeded from pregrasp it converges to < 0.1 mm.
+    # `nearest_joint_branch` then keeps shoulder_pan on the branch adjacent to
+    # pregrasp (-4.00 rad rather than the equivalent +2.28 rad) so the RRT*
+    # transport leg is a 1.0 rad sweep instead of an unplannable 5.2 rad one.
+    q_preplace = ik_at(preplace_pos, q_pregrasp, "q_preplace",
+                       q_branch_ref=q_pregrasp, must_be_free=True)
+    q_place    = ik_at(place_pos, q_preplace, "q_place   ", q_branch_ref=q_preplace)
 
     print(f"      q_pregrasp joints: {np.round(q_pregrasp, 3)}")
     print(f"      q_preplace joints: {np.round(q_preplace, 3)}")
-    print(f"      CC q_preplace collision-free: {_cc.is_collision_free(q_preplace)}")
     print(f"      CC Q_HOME collision-free: {_cc.is_collision_free(Q_HOME)}")
 
     # ------------------------------------------------------------------
@@ -645,69 +856,75 @@ def main() -> None:
     GRIPPER_OPEN   = 0.0
     GRIPPER_CLOSED = 200.0
 
+    def begin(label: str) -> None:
+        """Announce a phase and tag the self-collision monitor with it."""
+        print(f"      \u2192 {label} ...")
+        if _MONITOR is not None:
+            _MONITOR.set_phase(label)
+
     def log(label: str) -> None:
         ee = d.site_xpos[attach_id]
         print(f"      → {label:30s}  EE={np.round(ee, 4)}")
 
     # --- HOME (hold to settle) ---
-    print("      → HOME hold ...")
+    begin("HOME hold")
     hold_phase(m, d, Q_HOME, GRIPPER_OPEN, STEPS_HOLD, renderer, cam, opt, writer, SIM_STEPS_PER_FRAME)
     log("HOME settled")
 
     # --- HOME → PREGRASP (collision-free long move) ---
-    print("      → HOME → PREGRASP ...")
+    begin("HOME → PREGRASP")
     run_phase_planned(m, d, q_pregrasp, GRIPPER_OPEN, STEPS_MOVE, renderer, cam, opt, writer, SIM_STEPS_PER_FRAME, "HOME→PREGRASP")
     hold_phase(m, d, q_pregrasp, GRIPPER_OPEN, STEPS_HOLD, renderer, cam, opt, writer, SIM_STEPS_PER_FRAME)
     log("PREGRASP settled")
 
     # --- PREGRASP → GRASP (short vertical descent — direct interp is safe) ---
-    print("      → PREGRASP → GRASP ...")
+    begin("PREGRASP → GRASP")
     run_phase(m, d, q_pregrasp, q_grasp, GRIPPER_OPEN, STEPS_FAST, renderer, cam, opt, writer, DT_SIM, FPS, SIM_STEPS_PER_FRAME)
     hold_phase(m, d, q_grasp, GRIPPER_OPEN, STEPS_HOLD, renderer, cam, opt, writer, SIM_STEPS_PER_FRAME)
     log("GRASP settled")
 
     # --- CLOSE GRIPPER ---
-    print("      → CLOSE GRIPPER ...")
+    begin("CLOSE GRIPPER")
     hold_phase(m, d, q_grasp, GRIPPER_CLOSED, STEPS_SETTLE, renderer, cam, opt, writer, SIM_STEPS_PER_FRAME)
     log("GRIPPER CLOSED")
 
     # --- LIFT: GRASP → PREGRASP (short vertical lift — direct interp is safe) ---
-    print("      → LIFT (GRASP → PREGRASP) ...")
+    begin("LIFT (GRASP → PREGRASP)")
     run_phase(m, d, q_grasp, q_pregrasp, GRIPPER_CLOSED, STEPS_FAST, renderer, cam, opt, writer, DT_SIM, FPS, SIM_STEPS_PER_FRAME)
     hold_phase(m, d, q_pregrasp, GRIPPER_CLOSED, STEPS_HOLD, renderer, cam, opt, writer, SIM_STEPS_PER_FRAME)
     log("LIFTED to PREGRASP")
 
     # --- PREGRASP → HOME (collision-free long move) ---
-    print("      → PREGRASP → HOME ...")
+    begin("PREGRASP → HOME")
     run_phase_planned(m, d, Q_HOME, GRIPPER_CLOSED, STEPS_MOVE, renderer, cam, opt, writer, SIM_STEPS_PER_FRAME, "PREGRASP→HOME")
     hold_phase(m, d, Q_HOME, GRIPPER_CLOSED, STEPS_HOLD // 2, renderer, cam, opt, writer, SIM_STEPS_PER_FRAME)
     log("HOME (carrying box)")
 
     # --- HOME → PREPLACE (collision-free long move — shoulder sweeps ~π) ---
-    print("      → HOME → PREPLACE ...")
+    begin("HOME → PREPLACE")
     run_phase_planned(m, d, q_preplace, GRIPPER_CLOSED, STEPS_MOVE, renderer, cam, opt, writer, SIM_STEPS_PER_FRAME, "HOME→PREPLACE")
     hold_phase(m, d, q_preplace, GRIPPER_CLOSED, STEPS_HOLD, renderer, cam, opt, writer, SIM_STEPS_PER_FRAME)
     log("PREPLACE settled")
 
     # --- PREPLACE → PLACE (short vertical descent — direct interp is safe) ---
-    print("      → PREPLACE → PLACE ...")
+    begin("PREPLACE → PLACE")
     run_phase(m, d, q_preplace, q_place, GRIPPER_CLOSED, STEPS_FAST, renderer, cam, opt, writer, DT_SIM, FPS, SIM_STEPS_PER_FRAME)
     hold_phase(m, d, q_place, GRIPPER_CLOSED, STEPS_HOLD, renderer, cam, opt, writer, SIM_STEPS_PER_FRAME)
     log("PLACE settled")
 
     # --- OPEN GRIPPER (release) ---
-    print("      → OPEN GRIPPER (release) ...")
+    begin("OPEN GRIPPER (release)")
     hold_phase(m, d, q_place, GRIPPER_OPEN, STEPS_SETTLE, renderer, cam, opt, writer, SIM_STEPS_PER_FRAME)
     log("GRIPPER OPENED")
 
     # --- PLACE → PREPLACE (short vertical retract — direct interp is safe) ---
-    print("      → PLACE → PREPLACE (retract) ...")
+    begin("PLACE → PREPLACE (retract)")
     run_phase(m, d, q_place, q_preplace, GRIPPER_OPEN, STEPS_FAST, renderer, cam, opt, writer, DT_SIM, FPS, SIM_STEPS_PER_FRAME)
     hold_phase(m, d, q_preplace, GRIPPER_OPEN, STEPS_HOLD, renderer, cam, opt, writer, SIM_STEPS_PER_FRAME)
     log("PREPLACE settled (retracted)")
 
     # --- PREPLACE → HOME (collision-free long move) ---
-    print("      → PREPLACE → HOME ...")
+    begin("PREPLACE → HOME")
     run_phase_planned(m, d, Q_HOME, GRIPPER_OPEN, STEPS_MOVE, renderer, cam, opt, writer, SIM_STEPS_PER_FRAME, "PREPLACE→HOME")
     hold_phase(m, d, Q_HOME, GRIPPER_OPEN, STEPS_HOLD, renderer, cam, opt, writer, SIM_STEPS_PER_FRAME)
     log("HOME (final)")
@@ -720,8 +937,11 @@ def main() -> None:
     print(f"\n[6/6] Video saved to: {OUTPUT_VIDEO}")
     size_mb = OUTPUT_VIDEO.stat().st_size / 1e6
     print(f"      File size: {size_mb:.1f} MB")
+
+    ok = _MONITOR.report()
     print("\nDone!")
+    return 0 if ok else 1
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

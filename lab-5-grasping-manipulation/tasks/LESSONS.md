@@ -68,6 +68,41 @@
 **Fix:** Changed to full joint impedance during close: `tau = Kp*(q_hold - q) + Kd*(0 - qd) + g`. Also changed contact check to record `True` if contact occurred at ANY point during settle (not just the final state after hold).
 **Takeaway:** Always hold arm with joint impedance (not just gravity comp) during gripper close. Gravity comp alone cannot resist contact reaction forces.
 
+### 2026-08-13 — Step 5.4: preplace IK seeded from Q_HOME stalls in the joint-limit clip
+**Symptom:** `record_pro_demo.py` could not finish a run. `q_preplace` reported `err=0.1272 m` and `CC q_preplace collision-free: False`; the `HOME→PREPLACE` RRT* leg then had a colliding, unreachable goal and `plan_collision_free` raised `RuntimeError`. The pre-existing `media/pick_place_pro.mp4` therefore could not have come from the current 5.1+5.2 code.
+**Root cause:** Two compounding issues. (1) The seed. `q_preplace = ik_at(preplace_pos, Q_HOME, ...)` — from Q_HOME the DLS iteration drives `shoulder_pan` the wrong way round, hits the `np.clip(q, -2π, 2π)` boundary at exactly -6.283 rad and stalls there; the returned `best_q` is 127 mm from target. The code comment asserting Q_HOME was the *right* seed was simply wrong. (2) Even when IK converges, the branch matters: all six UR5e joints are revolute over ±2π, so `q` and `q ± 2π` are the same pose but several radians apart in joint space.
+**Fix:** Seed preplace from `q_pregrasp` (converges to 0.081 mm), then normalise with the new `nearest_joint_branch()` helper in `grasp_planner.py`. `ik_at()` now also *validates*: it raises if position error > 2 mm, and raises if a config that RRT* must plan to is in collision. A silently-wrong IK can no longer produce a video.
+**Takeaway:** Seed DLS IK from the nearest already-solved configuration, never from a distant home pose — and always assert convergence *and* collision-freedom on IK output before feeding it to a planner. A solver that returns `best_q` after `max_iter` never fails loudly on its own.
+
+### 2026-08-13 — Same 2π-branch bug failed `test_plan_transport_finds_path`
+**Symptom:** `pytest lab-5-grasping-manipulation/tests/` → 32 passed, 1 failed. `RuntimeError: RRT* failed to find path from [-2.961 ...] to [2.284 ...]` in `grasp_state_machine.py:316`. (README claimed 33 passed, so this had regressed silently.)
+**Root cause:** Identical root cause to the entry above, in the *other* IK path. `grasp_planner.compute_grasp_configs` seeds preplace with `q_hint_b[0] = -q_pregrasp[0]` (mirrored shoulder_pan). That seed converges, but lands on the +2π branch: pan = +2.284 rad while pregrasp is at -2.961 rad. RRT* was therefore asked to sweep 5.245 rad on joint 0 — outside what its sampling bounds and iteration budget can bridge — even though the kinematically identical -4.000 rad solution is only 1.038 rad away.
+**Fix:** Applied `nearest_joint_branch(q_solution, q_reference)` to preplace (ref = pregrasp) and place (ref = preplace). Pan sweep dropped 5.245 → 1.038 rad; full joint-space distance 1.468 rad. `test_state_machine.py` now 8/8 passed.
+**Takeaway:** After IK, always rewind revolute joints onto the 2π branch nearest the previous waypoint. A planner failure between two *individually valid* configurations is the signature of a branch mismatch, not of a genuinely blocked path.
+
+### 2026-08-13 — Step 5.4 self-collision verification (result)
+**What was added:** `SelfCollisionMonitor` in `record_pro_demo.py`. It classifies every geom by parent body into `arm` (6 UR5e links + base, 29 geoms), `grip` (`2f85_*`, 28 geoms) and `env` (floor/table/box/target), then scans `d.contact[:d.ncon]` after **every** `mj_step` — not every rendered frame. A self-collision is `arm↔arm` or `arm↔grip`; `grip↔grip` (the 2F-85's own linkage and pads) is tallied separately and never counted as failure. MuJoCo's default parent filtering already suppresses joint-adjacent bodies, so anything reaching the monitor is a genuine non-adjacent overlap.
+**Result:** 11050 sim steps checked, **0** steps with self-collision, 0 distinct pairs, 0.000 mm max penetration, 0 robot↔table contacts. `main()` now returns a non-zero exit code if the check ever fails.
+**Takeaway:** Verify "no self-collision" on the contact list at simulation rate, not by eyeballing rendered frames — at 60 fps with a 2 ms timestep only 1 step in 8 is ever drawn, so a brief interpenetration is very likely to fall between frames.
+
+### 2026-08-13 — `pathlib.write_text()` silently converted a CRLF file to LF
+**Symptom:** After a scripted bulk edit, `git diff --numstat` reported 947 insertions / 727 deletions on `record_pro_demo.py` — the entire file — for what should have been a ~200-line change.
+**Root cause:** The file is stored with CRLF endings. Python text mode reads with universal newlines (`\r\n` → `\n`) and `write_text()` writes plain `\n`, so every line changed.
+**Fix:** Re-wrote the file with `read_bytes()` / `b.replace(b'\n', b'\r\n')` / `write_bytes()`. Diff dropped to +245/-25.
+**Takeaway:** For scripted edits to repo files, use `read_bytes`/`write_bytes`, or pass `newline=''` — and check `git diff --numstat` afterwards. A whole-file diff on a small edit means line endings changed, and it buries the real change in review.
+
+### 2026-08-13 — Capstone reaches DONE without ever moving the box (found, not yet fixed)
+**Symptom:** `pick_place_demo.py` runs all 11 states through to `DONE` and prints "✓ Pick-and-place cycle complete", but `Box final pos: [0.350, 0.200, 0.335]` — still Box A. Lateral error 400.0 mm, i.e. the entire A→B distance.
+**Root cause (partial):** Not IK — the config summary prints `preplace = [0.350, -0.200, 0.590]`, exactly the intended target. The regenerated `media/ee_trajectory_3d.png` shows the EE stopping ~70 mm short of Box A and ~90 mm short of Box B, and `media/gripper_vs_time.png` shows the fingers closing to 0 mm (nothing between them). So the Cartesian impedance controller in `GraspStateMachine` never converges onto the commanded pose before the gripper is commanded to close.
+**Fix:** Not fixed — logged as TODO Step 6.1. Out of scope for Step 5.4, which covers `record_pro_demo.py` (that script *does* complete the cycle; its recorded video ends with the cube on the target pad).
+**Takeaway:** A state machine that advances purely on timers/settling heuristics will happily report success on a total miss. Every manipulation demo needs a post-condition assert on the *object* pose, not just on controller state — this defect survived a 33-test suite because no test checks that the box moved.
+
+### 2026-08-13 — Docs listed four plot files the code never writes
+**Symptom:** `docs/04_pick_place_results.md` referenced `ee_trajectory.png`, `joint_tracking.png`, `gripper_contact.png`, `state_timeline.png`; `media/` contained only mp4s, and running `pick_place_demo.py` produced three *differently named* files.
+**Root cause:** `plot_results()` writes `ee_trajectory_3d.png`, `ee_position_vs_time.png`, `gripper_vs_time.png`. The docs were written from the plan, not from the code, and no one had run the script to disk since.
+**Fix:** Corrected the doc list to the three filenames actually produced, and generated them.
+**Takeaway:** Documented artefact names must be verified by running the producer, not copied from the design doc. If `media/` is missing files the docs promise, the docs are the thing that is wrong.
+
 ## Debug Strategies
 
 ### Verify gripper geometry with MuJoCo viewer

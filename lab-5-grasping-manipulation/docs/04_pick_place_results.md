@@ -92,7 +92,14 @@ Contact force during lift (approximate): F = m_box × g = 0.15 × 9.81 ≈ 1.5 N
 
 Plots are saved to `media/` by `pick_place_demo.py`:
 
-- `media/ee_trajectory.png` — EE 3D trajectory (approach + transport arcs)
-- `media/joint_tracking.png` — 6 joint tracking errors vs time
-- `media/gripper_contact.png` — gripper position + contact boolean vs time
-- `media/state_timeline.png` — state transitions annotated on a timeline
+- `media/ee_trajectory_3d.png` — EE trajectory, top-down X-Y view, coloured by time
+- `media/ee_position_vs_time.png` — EE X/Y/Z vs time with Box A / Box B reference lines
+- `media/gripper_vs_time.png` — gripper finger position vs time
+
+Both of the latter two are overlaid with shaded state spans, so the state timeline is read
+off the plots rather than drawn separately.
+
+> **Caveat (2026-08-13):** the regenerated plots show the capstone does *not* currently
+> complete a pick — the EE stops ~70 mm short of Box A and the box never leaves position A
+> (lateral error 400 mm). See the "Open issue" section of the lab README. The pro demo
+> (`record_pro_demo.py`) is unaffected and completes the full cycle.
