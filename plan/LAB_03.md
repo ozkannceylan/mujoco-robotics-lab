@@ -106,7 +106,7 @@ Task Spec (desired pose + desired force)
 - [ ] End-effector makes stable contact with surface at commanded force (±1N)
 - [ ] Capstone demo: constant-force line tracing on table surface
 - [ ] LAB_03.md complete with theory + architecture + results
-- [ ] Blog post published
+- [x] Blog post published (2026-08-13, blog/lab3_blog_post.md)
 
 ---
 

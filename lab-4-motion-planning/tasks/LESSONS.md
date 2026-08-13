@@ -44,9 +44,33 @@
 **Fix:** Removed the entire matplotlib pipeline and rewrote the recorder to strictly use the native headless renderer, exactly matching the proven pipelines from Lab 1 and Lab 2.
 **Takeaway:** Never build a complex secondary visualization stack if the native simulator can already record itself. Rely on the simplest native path.
 
+### 2026-08-13 — A deleted script left behind a metrics file that outlived its own truth
+**Symptom:** `media/slalom_metrics.json` described a 17-waypoint "round trip" run lasting 29.73 s with `minimum_obstacle_clearance_m: 0.0`, while `tasks/PLAN.md` recorded the validated run as 24 path waypoints, 15.22 s, and 0.034 m minimum clearance. The file also disagreed with itself: a top-level clearance of 0.0 sat above a per-waypoint clearance array whose minimum was 0.0336.
+**Root cause:** The JSON was emitted by `slalom_demo.py` / `generate_lab4_demo.py`, both deleted in Step S5 when the capstone absorbed them. The surviving pipeline (`capstone_demo.py`, `record_lab4_demo.py`) writes no JSON at all — the key `minimum_obstacle_clearance` no longer appears in any `.py` file in the lab. The artifact was never regenerated, so it froze a pre-redesign scenario in place.
+**Fix:** Deleted the file as unreproducible, removed the README reference to it, and recorded the reasoning in `tasks/PLAN.md` and `tasks/TODO.md`.
+**Takeaway:** When a script is deleted, its output artifacts become orphans that no longer have a producer to correct them. Grep the committed media directory for files no surviving script writes, and either re-home the generator or delete the artifact — a stale metrics file is worse than no metrics file, because it reads as authoritative.
+
+### 2026-08-13 — "44 passed, 1 skipped" was an environment fact, not a suite fact
+**Symptom:** README, PLAN and LESSONS all reported the suite as `44 passed, 1 skipped`, but a clean run reports `45 passed`.
+**Root cause:** `tests/test_planner.py::TestVisualization` is guarded by `pytest.mark.skipif(not _3D_AVAILABLE)`. On the sign-off machine `mpl_toolkits.mplot3d` was shadowed by a system/pip matplotlib version conflict; on a healthy install the test runs.
+**Fix:** Reported the suite as `45 passed` and noted the conditional skip explicitly wherever the count appears.
+**Takeaway:** Never quote a skip count as a property of the test suite. A skip is a statement about the machine that ran it, so record the condition alongside the number or the next reader will treat a broken environment as the expected baseline.
+
 ## Final Validation Snapshot
 
-- Full Lab 4 test suite: `44 passed, 1 skipped`
+### Slalom capstone (current, 2026-03-24)
+
+- Full Lab 4 test suite: `45 passed` (`44 passed, 1 skipped` when `mpl_toolkits.mplot3d` is unavailable)
+- Slalom Cartesian waypoints: `9`
+- Path waypoints after shortcutting: `24`
+- Planning time across 8 RRT* segments: `~168 s`
+- Trajectory duration: `15.22 s`
+- RMS tracking error: `0.0027 rad`
+- Final position error: `0.0018 rad`
+- Min waypoint obstacle clearance: `0.034 m`
+
+### Blocked-path validation scene (historical, 2026-03-17)
+
 - Blocked-path scene start free: `True`
 - Blocked-path scene goal free: `True`
 - Blocked-path scene direct path free: `False`

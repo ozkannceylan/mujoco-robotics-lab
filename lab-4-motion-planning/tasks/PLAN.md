@@ -41,6 +41,8 @@ Lab 4 is completed on:
 ## Final Validation (2026-03-24)
 
 - Full test suite: `44 passed, 1 skipped`
+  (re-run 2026-08-13: `45 passed` — the single skip is `TestVisualization`,
+  which is skipped only when `mpl_toolkits.mplot3d` is unavailable)
 - Slalom waypoints: 9
 - Path waypoints: 24
 - Planning time: ~168 s (8 segments)
@@ -52,9 +54,22 @@ Lab 4 is completed on:
 ## Sign-Off Artifacts
 
 - README: `lab-4-motion-planning/README.md`
+- Blog post: `lab-4-motion-planning/blog/lab4_blog_post.md`
 - Capstone demo: `lab-4-motion-planning/src/capstone_demo.py`
 - Demo video recorder: `lab-4-motion-planning/src/record_lab4_demo.py`
+  → `media/lab4_metrics.mp4`, `media/lab4_simulation.mp4`, `media/lab4_demo.mp4`
 - Validation video recorder: `lab-4-motion-planning/src/record_lab4_validation.py`
+  → `media/lab4_validation_real_stack.mp4`
+
+## Artifact Cleanup (2026-08-13)
+
+`media/slalom_metrics.json` was deleted. It described a "round trip" scenario
+(17 waypoints, 29.73 s, `minimum_obstacle_clearance_m: 0.0`) that contradicts the
+validated numbers above, and no surviving script emits it — the key
+`minimum_obstacle_clearance` appears in no `.py` file in the lab, and neither
+`capstone_demo.py` nor `record_lab4_demo.py` writes JSON. It was an output of
+`slalom_demo.py` / `generate_lab4_demo.py`, deleted in Step S5 of the redesign.
+Removed as unreproducible rather than regenerated.
 
 ## Residual Note
 

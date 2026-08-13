@@ -114,7 +114,7 @@ Goal (start config → target config)
 - [ ] Smoothed trajectories execute on torque-controlled UR5e without jerks
 - [ ] Capstone demo: navigate between obstacles to reach a target pose
 - [ ] LAB_04.md complete
-- [ ] Blog post published
+- [x] Blog post published (2026-08-13, blog/lab4_blog_post.md)
 
 ---
 

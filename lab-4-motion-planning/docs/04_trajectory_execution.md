@@ -41,15 +41,22 @@ executed commands respect the Menagerie actuator model.
 
 ## Final Validation Metrics
 
-Standard capstone scene:
+Slalom capstone (current, post-redesign sign-off of 2026-03-24 — see
+`tasks/PLAN.md` → "Final Validation"):
 
-- RMS tracking error: `0.0125 rad`
-- final position error: `0.0016 rad`
+- trajectory duration: `15.22 s`
+- RMS tracking error: `0.0027 rad`
+- final position error: `0.0018 rad`
+- min waypoint obstacle clearance: `0.034 m`
 
-Blocked-path validation scene:
+The slalom's lower RMS relative to the pre-redesign scene comes from its
+conservative timing scale factors (`VEL_SCALE = 0.18`, `ACC_SCALE = 0.14`),
+not from a change to the control law.
 
-- RMS tracking error: `0.0124 rad`
-- final position error: `0.0041 rad`
-- direct path free: `False`
+Historical (pre-redesign, 2026-03-17) — kept for provenance:
 
-These are within the Lab 4 success thresholds enforced by the test suite.
+- standard capstone scene: RMS `0.0125 rad`, final error `0.0016 rad`
+- blocked-path validation scene: RMS `0.0124 rad`, final error `0.0041 rad`,
+  direct path free `False`
+
+All are within the Lab 4 success thresholds enforced by the test suite.
