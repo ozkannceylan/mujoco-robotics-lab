@@ -16,7 +16,7 @@ Cooperative bimanual manipulation with **two UR5e arms** in MuJoCo. The arms gra
 |---|---|---|
 | M0 | Scene validation: 12 joints + freejoint, EE z-dot=1.0 | passed |
 | M1 | Independent joint PD + gravity comp | Max error **0.000247 rad** / max vel 0.00187 rad/s |
-| M2 | Pinocchio dual-arm FK + DLS IK | FK error **0.000 mm** / IK 20/20 6-DOF + 5/5 pos-only |
+| M2 | Pinocchio dual-arm FK + DLS IK | FK error **0.000 mm** ([log](media/m2_fk_validation.txt)) / IK 20/20 6-DOF + 5/5 pos-only |
 | M3 | Coordinated approach to box | L Cartesian err **0.10 mm**, R **0.09 mm**, arrival sync **2.0 ms** |
 | M4 | Cooperative carry (6-state pipeline) | Lift **15 cm**, carry **22 cm**, place dz **0.0 cm**, rot **4°** |
 | M5 | Capstone demo + 1553-line architecture doc | video + blog post + walkthrough |
@@ -94,6 +94,7 @@ python3 lab-6-dual-arm/src/m0_validate_scene.py
 python3 lab-6-dual-arm/src/m1_independent_motion.py
 python3 lab-6-dual-arm/src/m2_fk_validation.py
 python3 lab-6-dual-arm/src/m2_ik_validation.py
+python3 lab-6-dual-arm/src/m2_ik_visual.py       # renders the four m2_ik_*.png checks
 python3 lab-6-dual-arm/src/m3_coordinated_approach.py
 python3 lab-6-dual-arm/src/m4_cooperative_carry.py
 
@@ -140,7 +141,8 @@ Lab 6 ships **milestone gates rather than a unit-test suite**. Each milestone sc
 
 - M0 scene screenshot: [`media/m0_scene.png`](media/m0_scene.png)
 - M1 independent motion: [`media/m1_independent.mp4`](media/m1_independent.mp4)
-- M2 IK visual checks: `media/m2_ik_{left,right}_{1,2}.png`
+- M2 FK cross-validation log: [`media/m2_fk_validation.txt`](media/m2_fk_validation.txt) — 20 configs, max error 0.000000 mm (2.6e-15 m, machine precision)
+- M2 IK visual checks: `media/m2_ik_{left,right}_{1,2}.png` (rendered by `src/m2_ik_visual.py`)
 - M3 approach: [`media/m3_approach.mp4`](media/m3_approach.mp4), [`media/m3_final.png`](media/m3_final.png)
 - M4 cooperative carry: [`media/m4_carry.mp4`](media/m4_carry.mp4), [`media/m4_box_trajectory.png`](media/m4_box_trajectory.png)
 - M5 capstone: [`media/m5_capstone.mp4`](media/m5_capstone.mp4), [`media/m5_trajectory.png`](media/m5_trajectory.png)

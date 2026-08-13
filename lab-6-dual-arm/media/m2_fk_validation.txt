@@ -1,0 +1,35 @@
+M2 — Dual-Arm FK Cross-Validation (Pinocchio vs MuJoCo)
+Scene: scene_dual.xml   mujoco 3.11.0
+Configs: 5 hand-picked + 15 random (numpy default_rng seed 42) = 20
+Metric: ||p_pinocchio - p_mujoco|| at left_ee_site / right_ee_site
+
+======================================================================
+M2: FK Cross-Validation — Pinocchio vs MuJoCo
+======================================================================
+
+  Config                          ErrL (mm)  ErrR (mm)
+  --------------------------------------------------
+  Home                             0.000000   0.000000
+  Shoulder lift varied             0.000000   0.000000
+  Wrist dominant                   0.000000   0.000000
+  Near home                        0.000000   0.000000
+  Elbow up                         0.000000   0.000000
+  Random #1                        0.000000   0.000000
+  Random #2                        0.000000   0.000000
+  Random #3                        0.000000   0.000000
+  Random #4                        0.000000   0.000000
+  Random #5                        0.000000   0.000000
+  Random #6                        0.000000   0.000000
+  Random #7                        0.000000   0.000000
+  Random #8                        0.000000   0.000000
+  Random #9                        0.000000   0.000000
+  Random #10                       0.000000   0.000000
+  Random #11                       0.000000   0.000000
+  Random #12                       0.000000   0.000000
+  Random #13                       0.000000   0.000000
+  Random #14                       0.000000   0.000000
+  Random #15                       0.000000   0.000000
+
+  Max FK error: 0.000000 mm
+  Gate (<1 mm): PASS
+======================================================================

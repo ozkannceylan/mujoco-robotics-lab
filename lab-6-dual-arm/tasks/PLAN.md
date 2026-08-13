@@ -1,5 +1,17 @@
 # Lab 6 — Dual-Arm Coordination: Milestone Plan
 
+> **SUPERSEDED (2026-08-13):** implementation diverged — see [`TODO.md`](TODO.md) for actual
+> milestone outcomes and [`../docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md) for what was built
+> (weld-constraint carry, no 180° yaw). Preserved as the original plan.
+>
+> Known divergences from the body below:
+> - **M0** specifies the right arm "at x=1.0m with 180° yaw". The yaw mount was removed —
+>   both bases use identical Menagerie orientation and facing is handled by IK targets
+>   (see `LESSONS.md` L1).
+> - **M4** specifies impedance-based internal force control gated on ±5 mm EE separation.
+>   The shipped implementation uses MuJoCo weld constraints with runtime relpose locking,
+>   and the gates actually run were lift / carry / place distances and box rotation error.
+
 ## Milestone-Based Approach
 
 One milestone per session. Each ends with gate criteria + evidence.

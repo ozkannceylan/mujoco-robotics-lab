@@ -1,5 +1,7 @@
 # Lab 6 — Dual-Arm Coordination: Architecture
 
+> **Pre-implementation stub — superseded by [`../docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md) (1553 lines), which is the authoritative architecture document for Lab 6.**
+
 ## Module Map
 
 ```

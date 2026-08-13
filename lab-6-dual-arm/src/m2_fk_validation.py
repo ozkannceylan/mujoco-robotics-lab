@@ -19,12 +19,16 @@ import numpy as np
 from dual_arm_model import DualArmModel
 from lab6_common import (
     LEFT_JOINT_SLICE,
+    MEDIA_DIR,
     Q_HOME_LEFT,
     Q_HOME_RIGHT,
     RIGHT_JOINT_SLICE,
     SCENE_DUAL_PATH,
     get_mj_site_id,
 )
+
+# Archived gate evidence (referenced from README.md)
+LOG_PATH = MEDIA_DIR / "m2_fk_validation.txt"
 
 # Test configs: (label, q_left, q_right)
 TEST_CONFIGS = [
@@ -56,11 +60,25 @@ TEST_CONFIGS = [
 ]
 
 
+_LOG_LINES: list[str] = []
+
+
+def emit(line: str = "") -> None:
+    """Print a line to stdout and record it for the archived validation log.
+
+    Args:
+        line: Text to print and record. Defaults to a blank line.
+    """
+    print(line)
+    _LOG_LINES.append(line)
+
+
 def main() -> None:
-    """Run FK cross-validation."""
-    print("=" * 70)
-    print("M2: FK Cross-Validation — Pinocchio vs MuJoCo")
-    print("=" * 70)
+    """Run FK cross-validation and archive the numeric output to media/."""
+    _LOG_LINES.clear()
+    emit("=" * 70)
+    emit("M2: FK Cross-Validation — Pinocchio vs MuJoCo")
+    emit("=" * 70)
 
     # Load models
     mj_model = mujoco.MjModel.from_xml_path(str(SCENE_DUAL_PATH))
@@ -70,8 +88,8 @@ def main() -> None:
 
     dual = DualArmModel()
 
-    print(f"\n  {'Config':<30s} {'ErrL (mm)':>10s} {'ErrR (mm)':>10s}")
-    print("  " + "-" * 50)
+    emit(f"\n  {'Config':<30s} {'ErrL (mm)':>10s} {'ErrR (mm)':>10s}")
+    emit("  " + "-" * 50)
 
     max_err = 0.0
     results = []
@@ -92,7 +110,7 @@ def main() -> None:
         err_r = np.linalg.norm(pin_right.translation - mj_right_pos)
         max_err = max(max_err, err_l, err_r)
 
-        print(f"  {label:<30s} {err_l * 1000:10.6f} {err_r * 1000:10.6f}")
+        emit(f"  {label:<30s} {err_l * 1000:10.6f} {err_r * 1000:10.6f}")
         results.append((label, err_l, err_r))
 
     # Add 15 random configs
@@ -115,12 +133,24 @@ def main() -> None:
         max_err = max(max_err, err_l, err_r)
 
         label = f"Random #{i + 1}"
-        print(f"  {label:<30s} {err_l * 1000:10.6f} {err_r * 1000:10.6f}")
+        emit(f"  {label:<30s} {err_l * 1000:10.6f} {err_r * 1000:10.6f}")
 
-    print()
-    print(f"  Max FK error: {max_err * 1000:.6f} mm")
-    print(f"  Gate (<1 mm): {'PASS' if max_err * 1000 < 1.0 else 'FAIL'}")
-    print("=" * 70)
+    emit()
+    emit(f"  Max FK error: {max_err * 1000:.6f} mm")
+    emit(f"  Gate (<1 mm): {'PASS' if max_err * 1000 < 1.0 else 'FAIL'}")
+    emit("=" * 70)
+
+    # Archive the numeric gate evidence alongside the other milestone artifacts.
+    MEDIA_DIR.mkdir(parents=True, exist_ok=True)
+    header = [
+        "M2 — Dual-Arm FK Cross-Validation (Pinocchio vs MuJoCo)",
+        f"Scene: {SCENE_DUAL_PATH.name}   mujoco {mujoco.__version__}",
+        "Configs: 5 hand-picked + 15 random (numpy default_rng seed 42) = 20",
+        "Metric: ||p_pinocchio - p_mujoco|| at left_ee_site / right_ee_site",
+        "",
+    ]
+    LOG_PATH.write_text("\n".join(header + _LOG_LINES) + "\n")
+    print(f"\nSaved validation log to {LOG_PATH.relative_to(LOG_PATH.parents[2])}")
 
 
 if __name__ == "__main__":
