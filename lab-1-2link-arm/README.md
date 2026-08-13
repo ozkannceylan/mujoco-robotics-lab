@@ -39,7 +39,9 @@ The goal of Lab 1 is to keep the math visible while still building a complete ma
 
 | Module | Topic | Script |
 |---|---|---|
-| A1 | MuJoCo setup and interactive demo | `src/a1_mujoco_setup.py` |
+| A1 | MuJoCo model loading, stepping, and actuator sanity checks | `src/a1_mujoco_setup.py` |
+| A1 | Interactive viewer demo — joint angles driven directly via `qpos` (no actuators) | `src/a1_interactive_demo.py` |
+| A1 | Torque-actuator demo — motor `ctrl` as direct torque, damping and free-fall behaviour | `src/a1_torque_demo.py` |
 | A2 | Forward kinematics and workspace analysis | `src/a2_forward_kinematics.py` |
 | A3 | Analytic Jacobian and singularity analysis | `src/a3_jacobian.py` |
 | A4 | Inverse kinematics (analytic, pseudo-inverse, DLS) | `src/a4_inverse_kinematics.py` |
@@ -52,12 +54,14 @@ The goal of Lab 1 is to keep the math visible while still building a complete ma
 | B1 | Cubic and quintic trajectory generation | `src/b1_trajectory_generation.py` |
 | B2 | PD control and gravity compensation | `src/b2_pd_controller.py` |
 | B3 | Full pipeline demos (pick-and-place, circle tracking) | `src/b3_full_pipeline.py` |
+| B4 | Optional ROS 2 bridge — `/joint_command`, `/joint_state`, `/ee_pose` node skeletons | `ros2_bridge/mujoco_bridge.py`, `ros2_bridge/commander.py` |
 
 ### C — Integration
 
 | Module | Topic | Script |
 |---|---|---|
 | C1 | Cartesian square drawing with computed torque control | `src/c1_draw_square.py` |
+| C1 | Headless offscreen recording of the square demo to MP4 | `src/c1_record_video.py` |
 
 ---
 
@@ -75,7 +79,16 @@ python3 src/c1_draw_square.py
 
 # Record the demo video (headless)
 python3 src/c1_record_video.py
+
+# Run the unit tests (from the repo root, ~1.5 s)
+python3 -m pytest lab-1-2link-arm/tests/ -q
 ```
+
+`tests/` covers the analytical core only — FK against known configurations, the
+Jacobian against finite differences, IK roundtrips, trajectory boundary conditions,
+and PD/gravity-compensation behaviour. No MuJoCo model loading, no rendering, no
+viewer, so the suite stays fast and headless-safe. The MuJoCo cross-validation
+tables live in the demo scripts themselves (`a2`, `a3`, `a4` print them on run).
 
 ---
 
@@ -100,7 +113,8 @@ lab-1-2link-arm/
 ├── docs-turkish/     Turkish documentation
 ├── blog/             English blog-style writeups for the series
 ├── media/            Recorded videos and GIFs
-├── tests/            Unit tests
+├── tests/            Unit tests (pytest, analytical only — no sim or rendering)
+├── tasks/            Lab tracking board (TODO.md)
 └── ros2_bridge/      ROS 2 bridge node
 ```
 
