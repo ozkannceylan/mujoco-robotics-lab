@@ -4,8 +4,8 @@ Produces an MP4 file without needing a display (headless). Reuses all
 trajectory generation and control logic from c3_draw_cube.py.
 
 Usage:
-    python3 src/lab-2-Ur5e-robotics-lab/c3_record_video.py
-    # → media/lab-2-Ur5e-robotics-lab/c3_draw_cube.mp4
+    python3 lab-2-Ur5e-robotics-lab/src/c3_record_video.py
+    # → lab-2-Ur5e-robotics-lab/media/c3_draw_cube.mp4
 """
 
 from __future__ import annotations
@@ -14,8 +14,9 @@ import math
 import sys
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(PROJECT_ROOT / "src" / "lab-2-Ur5e-robotics-lab"))
+_SRC_DIR = Path(__file__).resolve().parent
+if str(_SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(_SRC_DIR))
 
 import imageio.v3 as iio
 import mujoco

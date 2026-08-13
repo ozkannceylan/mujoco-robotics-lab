@@ -131,9 +131,11 @@ lab-2-Ur5e-robotics-lab/
 ├── docs-turkish/     Turkish study notes
 ├── blog/             Long-form blog-style writeups
 ├── media/            GIFs and recorded videos
-├── tests/            Unittest suite
-└── ros2_bridge/      ROS 2 integration area
+├── tasks/            Lab planning and status notes
+└── tests/            Unittest suite
 ```
+
+The ROS 2 integration for this lab is a single script, [`src/c2_ros2_bridge.py`](src/c2_ros2_bridge.py) — there is no separate `ros2_bridge/` package.
 
 ---
 

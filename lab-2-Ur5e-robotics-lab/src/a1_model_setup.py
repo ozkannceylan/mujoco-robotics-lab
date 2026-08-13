@@ -4,7 +4,7 @@ Verifies that MuJoCo and Pinocchio load the UR5e model correctly,
 cross-validates FK between both engines, and renders the scene.
 
 Run:
-    python3 src/lab-2-Ur5e-robotics-lab/a1_model_setup.py
+    python3 lab-2-Ur5e-robotics-lab/src/a1_model_setup.py
 """
 
 from __future__ import annotations
@@ -14,9 +14,10 @@ from pathlib import Path
 
 import numpy as np
 
-# Ensure project root is on sys.path so imports work from any CWD
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(PROJECT_ROOT / "src" / "lab-2-Ur5e-robotics-lab"))
+# Ensure this lab's src/ is on sys.path so imports work from any CWD
+_SRC_DIR = Path(__file__).resolve().parent
+if str(_SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(_SRC_DIR))
 
 from ur5e_common import (
     MJCF_SCENE_PATH,

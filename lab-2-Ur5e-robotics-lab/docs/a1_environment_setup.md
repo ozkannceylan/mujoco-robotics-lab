@@ -9,7 +9,7 @@ Confirm that the UR5e assets load correctly, that the analytical and simulation 
 - Script: `src/a1_model_setup.py`
 - Shared helpers: `src/ur5e_common.py`
 - MuJoCo wrapper: `src/mujoco_sim.py`
-- MuJoCo scene: `models/mujoco_menagerie/universal_robots_ur5e/lab_scene.xml`
+- MuJoCo scene: `models/lab_scene.xml` (includes the Menagerie `ur5e.xml`)
 - URDF: `models/ur5e.urdf`
 - Output snapshot: `docs/a1_environment_status.csv`
 

@@ -8,7 +8,7 @@ This script implements:
   5. MuJoCo verification: solve IK then set joint angles in the simulator
 
 Run:
-    python3 src/lab-2-Ur5e-robotics-lab/a4_inverse_kinematics.py
+    python3 lab-2-Ur5e-robotics-lab/src/a4_inverse_kinematics.py
 """
 
 from __future__ import annotations
@@ -20,8 +20,9 @@ from pathlib import Path
 
 import numpy as np
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(PROJECT_ROOT / "src" / "lab-2-Ur5e-robotics-lab"))
+_SRC_DIR = Path(__file__).resolve().parent
+if str(_SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(_SRC_DIR))
 
 import pinocchio as pin
 

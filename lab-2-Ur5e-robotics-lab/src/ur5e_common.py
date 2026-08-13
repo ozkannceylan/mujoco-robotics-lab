@@ -32,7 +32,12 @@ MEDIA_DIR = _LAB_DIR / "media"
 # Model file paths
 # ---------------------------------------------------------------------------
 MENAGERIE_DIR = MODELS_DIR / "mujoco_menagerie" / "universal_robots_ur5e"
-MJCF_SCENE_PATH = MENAGERIE_DIR / "lab_scene.xml"
+# The lab scene is kept under models/ (a git-tracked path) rather than inside
+# models/mujoco_menagerie/, whose contents belong to a submodule-style checkout
+# and are therefore invisible to this repository. It <include>s the Menagerie
+# robot with a relative path; models/assets symlinks to the Menagerie assets
+# folder so the included meshdir="assets" resolves from this scene file.
+MJCF_SCENE_PATH = MODELS_DIR / "lab_scene.xml"
 MJCF_ROBOT_PATH = MENAGERIE_DIR / "ur5e.xml"
 URDF_PATH = MODELS_DIR / "ur5e.urdf"
 

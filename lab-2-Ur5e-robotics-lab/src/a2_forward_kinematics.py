@@ -12,7 +12,7 @@ kinematic chain. They produce the same physical motion but use different
 reference frames. The lab uses Pinocchio/MuJoCo as the ground truth.
 
 Run:
-    python3 src/lab-2-Ur5e-robotics-lab/a2_forward_kinematics.py
+    python3 lab-2-Ur5e-robotics-lab/src/a2_forward_kinematics.py
 """
 
 from __future__ import annotations
@@ -22,8 +22,9 @@ from pathlib import Path
 
 import numpy as np
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(PROJECT_ROOT / "src" / "lab-2-Ur5e-robotics-lab"))
+_SRC_DIR = Path(__file__).resolve().parent
+if str(_SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(_SRC_DIR))
 
 from ur5e_common import (
     DH_PARAMS,

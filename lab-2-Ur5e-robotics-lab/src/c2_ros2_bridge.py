@@ -14,7 +14,7 @@ Dependencies (ROS 2 Humble):
   - std_msgs
 
 Run (requires ROS 2 sourced):
-    python3 src/lab-2-Ur5e-robotics-lab/c2_ros2_bridge.py
+    python3 lab-2-Ur5e-robotics-lab/src/c2_ros2_bridge.py
 """
 
 from __future__ import annotations
@@ -25,8 +25,9 @@ from pathlib import Path
 
 import numpy as np
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(PROJECT_ROOT / "src" / "lab-2-Ur5e-robotics-lab"))
+_SRC_DIR = Path(__file__).resolve().parent
+if str(_SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(_SRC_DIR))
 
 from ur5e_common import JOINT_NAMES, NUM_JOINTS, Q_HOME
 from mujoco_sim import UR5eSimulator
@@ -61,7 +62,7 @@ def main() -> None:
         print("\n  This module is a scaffold for ROS 2 integration.")
         print("  To use it, source your ROS 2 Humble workspace first:")
         print("    source /opt/ros/humble/setup.bash")
-        print("    python3 src/lab-2-Ur5e-robotics-lab/c2_ros2_bridge.py")
+        print("    python3 lab-2-Ur5e-robotics-lab/src/c2_ros2_bridge.py")
         print("\n  Bridge design:")
         print("    - Publishes /joint_states (sensor_msgs/JointState)")
         print("    - Publishes /ee_pose (geometry_msgs/Pose)")

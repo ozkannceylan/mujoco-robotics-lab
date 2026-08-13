@@ -18,7 +18,7 @@ Architecture
 4. MuJoCo Viewer     – launch_passive with real-time trail and cube wireframe overlay.
 
 Run:
-    python3 src/lab-2-Ur5e-robotics-lab/c3_draw_cube.py
+    python3 lab-2-Ur5e-robotics-lab/src/c3_draw_cube.py
 """
 
 from __future__ import annotations
@@ -28,8 +28,9 @@ import sys
 import time
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(PROJECT_ROOT / "src" / "lab-2-Ur5e-robotics-lab"))
+_SRC_DIR = Path(__file__).resolve().parent
+if str(_SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(_SRC_DIR))
 
 import mujoco
 import mujoco.viewer

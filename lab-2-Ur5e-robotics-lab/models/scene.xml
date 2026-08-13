@@ -1,44 +1,10 @@
 <mujoco model="ur5e_lab2_scene">
   <!--
-    UR5e Lab Scene: Robot with target objects.
-    Uses the validated MuJoCo Menagerie UR5e model.
-    Note: do NOT set meshdir here — let ur5e.xml resolve its own meshdir.
+    Backwards-compatible alias for the lab scene.
+
+    The scene content now lives in lab_scene.xml (the path referenced by
+    src/ur5e_common.py:MJCF_SCENE_PATH). This wrapper stays so older notes,
+    scripts, and viewer commands that point at models/scene.xml keep working.
   -->
-  <include file="mujoco_menagerie/universal_robots_ur5e/ur5e.xml"/>
-
-  <statistic center="0.3 0 0.5" extent="1.2"/>
-
-  <visual>
-    <headlight diffuse="0.6 0.6 0.6" ambient="0.3 0.3 0.3" specular="0 0 0"/>
-    <rgba haze="0.15 0.25 0.35 1"/>
-    <global azimuth="150" elevation="-25"/>
-  </visual>
-
-  <asset>
-    <texture type="skybox" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0"
-      width="512" height="3072"/>
-    <texture type="2d" name="groundplane" builtin="checker" mark="edge"
-      rgb1="0.2 0.3 0.4" rgb2="0.1 0.2 0.3" markrgb="0.8 0.8 0.8"
-      width="300" height="300"/>
-    <material name="groundplane" texture="groundplane" texuniform="true"
-      texrepeat="5 5" reflectance="0.2"/>
-    <material name="target_red" rgba="0.85 0.18 0.18 1"/>
-    <material name="target_green" rgba="0.18 0.85 0.18 1"/>
-  </asset>
-
-  <worldbody>
-    <light pos="0 0 2.5" dir="0 0 -1" directional="true"/>
-    <light pos="1.5 -1.5 2.0" dir="-0.5 0.5 -1" directional="false"/>
-    <geom name="floor" size="0 0 0.05" type="plane" material="groundplane"/>
-
-    <!-- Target sphere (red) -->
-    <body name="target_red" pos="0.4 0.15 0.44">
-      <geom type="sphere" size="0.025" material="target_red" contype="0" conaffinity="0"/>
-    </body>
-
-    <!-- Target sphere (green) -->
-    <body name="target_green" pos="0.5 -0.15 0.44">
-      <geom type="sphere" size="0.025" material="target_green" contype="0" conaffinity="0"/>
-    </body>
-  </worldbody>
+  <include file="lab_scene.xml"/>
 </mujoco>

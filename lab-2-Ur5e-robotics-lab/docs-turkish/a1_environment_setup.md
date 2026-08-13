@@ -9,7 +9,7 @@ UR5e varliklarinin dogru yuklendigini, analitik model ile simulasyon modelinin i
 - Script: `src/a1_model_setup.py`
 - Ortak yardimcilar: `src/ur5e_common.py`
 - MuJoCo wrapper'i: `src/mujoco_sim.py`
-- MuJoCo sahnesi: `models/mujoco_menagerie/universal_robots_ur5e/lab_scene.xml`
+- MuJoCo sahnesi: `models/lab_scene.xml` (Menagerie `ur5e.xml` dosyasini include eder)
 - URDF: `models/ur5e.urdf`
 - Cikti snapshot'i: `docs-turkish/a1_environment_status.csv`
 

@@ -8,7 +8,7 @@ Implements joint-space and Cartesian-space trajectory generators:
   5. Multi-segment via-point trajectory
 
 Run:
-    python3 src/lab-2-Ur5e-robotics-lab/b1_trajectory_generation.py
+    python3 lab-2-Ur5e-robotics-lab/src/b1_trajectory_generation.py
 """
 
 from __future__ import annotations
@@ -20,8 +20,9 @@ from pathlib import Path
 import numpy as np
 import pinocchio as pin
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(PROJECT_ROOT / "src" / "lab-2-Ur5e-robotics-lab"))
+_SRC_DIR = Path(__file__).resolve().parent
+if str(_SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(_SRC_DIR))
 
 from ur5e_common import (
     NUM_JOINTS,

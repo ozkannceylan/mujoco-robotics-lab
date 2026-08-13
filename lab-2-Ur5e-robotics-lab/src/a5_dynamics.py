@@ -24,8 +24,9 @@ import pinocchio as pin
 # ---------------------------------------------------------------------------
 # Path setup
 # ---------------------------------------------------------------------------
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(PROJECT_ROOT / "src" / "lab-2-Ur5e-robotics-lab"))
+_SRC_DIR = Path(__file__).resolve().parent
+if str(_SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(_SRC_DIR))
 
 from ur5e_common import load_pinocchio_model, load_mujoco_model, Q_HOME, Q_ZEROS, NUM_JOINTS
 from mujoco_sim import UR5eSimulator
