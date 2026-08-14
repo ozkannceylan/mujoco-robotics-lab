@@ -18,7 +18,8 @@ Build a portfolio-ready robotics lab series using MuJoCo, progressing from simpl
 - Lab 5 (Grasping & Manipulation) is complete — custom parallel-jaw gripper, DLS IK, pick-and-place state machine, Lab 3+4 integration
 - Lab 6 (Dual-Arm Coordination) is complete — dual UR5e, weld-constraint cooperative carry, milestone-gated M0–M5
 - Lab 7 (Locomotion) is complete at M3d scope — G1 standing + weight shift; ZMP walking blocked by position actuators, deferred to Lab 8
-- Labs 8–9 are planned — whole-body loco-manipulation (must own gait generation via torque control), VLA
+- Lab 8 (Whole-Body Loco-Manipulation) is in progress — kickoff 2026-08-14, milestone-gated M0–M6; owns gait generation via torque control (Lab 7's actuator finding); next milestone M0 (torque-actuated G1)
+- Lab 9 (VLA) is planned — depends on Lab 8 controllers for demonstration data
 - End goals: strengthen fundamentals for humanoid VLA work, prepare for robotics interviews, build a portfolio demo
 
 ---
@@ -279,11 +280,14 @@ Published (portfolio-ready, documented in main README):
 - [x] Lab 6: Dual-Arm Coordination (two UR5e arms, Pinocchio dual-arm DLS IK, weld-constraint cooperative carry, milestone-gated verification M0-M5)
 - [x] Lab 7: Locomotion Fundamentals (Unitree G1, floating-base Pinocchio, stacked-Jacobian whole-body IK, standing + weight shift on M3d scope; M4 ZMP walking deferred as structural limitation of position actuators)
 
-In progress (folders suffixed `.planned/`, real code on disk but not yet portfolio-ready):
-- (none — all in-progress labs have been promoted)
+In progress (real work on disk, not yet portfolio-ready):
+- [ ] Lab 8: Whole-Body Loco-Manipulation (`lab-8-loco-manipulation/`) — kickoff
+      2026-08-14: PLAN/ARCHITECTURE/TODO/LESSONS written, milestone-gated M0–M6.
+      Owns gait generation via torque control. Resume at tasks/TODO.md "Current
+      Focus" (M0: torque-actuated G1 bring-up). ONE milestone per session;
+      gate + media evidence per milestone (Lab 6/7 rules apply).
 
 Future (no folder yet — planned in main README roadmap only):
-- [ ] Lab 8: Whole-Body Loco-Manipulation
 - [ ] Lab 9: VLA Integration
 
 Platform transitions: Labs 1 uses custom 2-link. Labs 2–6 use UR5e + Robotiq 2F-85. Labs 7+ use Unitree G1 humanoid.

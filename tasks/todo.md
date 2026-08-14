@@ -12,14 +12,13 @@
 - [x] **Lab 5: Grasping & Manipulation** — **Fully complete 2026-08-13**. Phase 5 (pro demo, 0 self-collisions) AND Step 6.1 (capstone transport) closed. 6.1 root cause: gripper friction pads mounted on the OUTSIDE of the fingers (model bug) + 5 controller/planning fixes. Capstone now places box **5.7 mm** from target with a transport post-condition assert; 33/33 tests; both evidence videos re-recorded.
 - [x] **Lab 6: Dual-Arm Coordination** — Complete. M2 FK cross-validation now has an archived artifact (`media/m2_fk_validation.txt`, max err 2.6e-12 mm).
 - [x] **Lab 7: Locomotion (M3d scope)** — Complete. Test suite runs for real now (34/34 — imports were broken by the Menagerie rewrite); misleading M4 leftovers and scratch files deleted; media naming aligned. M4 ZMP walking remains BLOCKED by design → Lab 8.
-- [ ] **Lab 8: Whole-Body Loco-Manipulation** — Not started. Must own gait generation on the torque/RNEA path (see MASTER_PLAN "Lab 8 dependency note").
+- [ ] **Lab 8: Whole-Body Loco-Manipulation** — 🚧 IN PROGRESS (kickoff 2026-08-14). PLAN/ARCHITECTURE/TODO written, milestone-gated M0–M6; the brief's invalid "Lab 7 gait generator" dependency replaced by owning gait on the torque/RNEA path (M2–M3). OSQP 1.1.3 verified. Next session: **M0 — torque-actuated G1 bring-up** (`lab-8-loco-manipulation/tasks/TODO.md`).
 - [ ] **Lab 9: VLA Integration** — Not started. Depends on Lab 8 controllers for demo data.
 
 ## Current Focus
 
-> **Lab 8 kickoff** per CLAUDE.md Per-Lab Workflow (read `plan/LAB_08.md` → PLAN →
-> ARCHITECTURE → TODO → code), honoring the gait-generator dependency note.
-> Labs 1–7 have no open code work items.
+> **Lab 8 · M0 — Torque-Actuated G1 Bring-Up** (kickoff done 2026-08-14; one
+> milestone per session). Labs 1–7 have no open code work items.
 
 ## Blockers
 

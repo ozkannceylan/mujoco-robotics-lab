@@ -1,9 +1,13 @@
 # Lab 8: Whole-Body Loco-Manipulation
 
-> **Status:** Not Started  
+> **Status:** 🚧 In Progress — kickoff 2026-08-14; see `lab-8-loco-manipulation/tasks/TODO.md` (next: M0)
 > **Prerequisites:** Lab 6 (dual-arm coordination), Lab 7 (locomotion)  
 > **Platform:** Unitree G1 on MuJoCo + Pinocchio  
 > **Capstone Demo:** G1 walks to a table, picks up an object, carries it while walking
+> **Scope correction (2026-08-14):** Phase 2 below says "combine Lab 7's gait
+> generator" — Lab 7 shipped **no gait generator** (M4 blocked by position actuators).
+> Lab 8 owns gait generation on the torque/RNEA path as milestones M2–M3; Lab 7's
+> LIPM planner and floating-base stack are reused. See the lab's `tasks/PLAN.md`.
 
 ---
 

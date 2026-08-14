@@ -35,7 +35,7 @@ _Status refreshed 2026-08-13 (project review). This table is the single source o
 | 5 | Grasping & Manipulation | Pick and place an object | ✅ Complete — Phase 5 + Step 6.1 both closed 2026-08-13; capstone places box 5.7 mm from target with transport post-condition |
 | 6 | Dual-Arm Coordination | Two arms cooperatively carry an object (weld-constraint) | ✅ Complete (milestone-gated M0–M5; unit tests intentionally removed) |
 | 7 | Locomotion Fundamentals | Standing balance + quasi-static weight shift (M0–M3d); ZMP walking documented as structurally infeasible with position actuators | ✅ Complete at M3d scope (34 tests; M4 blocked by design) |
-| 8 | Whole-Body Loco-Manipulation | Walk while carrying an object | 📋 Planned — see dependency note below |
+| 8 | Whole-Body Loco-Manipulation | Walk while carrying an object | 🚧 In Progress (kickoff 2026-08-14; M0 torque-G1 bring-up next) |
 | 9 | VLA Integration | "Pick up the red cup" — end-to-end language-to-action | 📋 Planned |
 
 ### Lab 8 dependency note (from Lab 7 outcome)
@@ -178,7 +178,7 @@ Every blog post:
 | Control & Planning | 3–4 | ✅ Complete (2026-03, published 2026-05) | |
 | Manipulation | 5–6 | ✅ Complete (2026-03/05; Lab 5 fully closed 2026-08-13) | |
 | Locomotion | 7 | ✅ Complete at M3d scope (2026-05) | M4 ZMP walking blocked → moved to Lab 8 |
-| Whole-Body | 8 | 📋 Not started | Must own gait generation via torque control |
+| Whole-Body | 8 | 🚧 In progress (2026-08-14) | Owns gait generation via torque control (M2–M3); OSQP verified |
 | VLA | 9 | 📋 Not started | Builds on humanoid_vla; needs Lab 8 controllers for demo data |
 
 ---
