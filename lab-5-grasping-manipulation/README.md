@@ -166,23 +166,33 @@ interpenetration could otherwise slip between frames). Geoms are grouped by pare
 The script exits non-zero if this check ever fails, so the guarantee is re-checked on every
 re-record rather than asserted once.
 
-### Open issue — `pick_place_demo.py` does not transport the box
+### Resolved (2026-08-13, same day) — capstone box transport (Step 6.1)
 
-Found 2026-08-13 while regenerating the plots below. The **pro demo (`record_pro_demo.py`)
-completes the full cycle correctly** — the recorded video ends with the cube on the target pad.
-The **capstone (`pick_place_demo.py`) does not**:
+The capstone `pick_place_demo.py` used to reach `DONE` without moving the box
+(400 mm lateral error, gripper closing on air). Root-causing it uncovered six
+stacked defects — the deepest being a **model bug: the gripper's friction pads
+were mounted on the outside of the fingers** and never touched the object, so
+every grasp ran on the low-friction structural finger geoms and the box crept
+out during transport. Full postmortem: `tasks/LESSONS.md` § "Step 6.1 Session".
 
-| Symptom | Evidence |
+The fixes (pads flipped inward; inertia-scaled joint PD via `pin.crba`;
+scene-matched analytical model — `load_pinocchio_model(match_scene_inertias=True)`;
+unified IK/planner collision truth via `SceneCollisionChecker`; convergence-gated
+state handoffs with absolute 6D Cartesian targets; touchdown-stop on place and
+vertical ascend before retract) close the loop end to end:
+
+| Gate | Result |
 |---|---|
-| Box never moves | `Box final pos: [0.350, 0.200, 0.335]` = Box **A**; lateral error **400.0 mm** |
-| EE under-shoots both targets | `media/ee_trajectory_3d.png` — EE stops ~70 mm short of Box A and ~90 mm short of Box B |
-| Gripper closes on air | `media/gripper_vs_time.png` — fingers reach 0 mm (nothing between them) |
+| Box final position | `[0.350, −0.194, 0.335]` m |
+| **Lateral error to Box B** | **5.7 mm** (tolerance 30 mm) |
+| Joint settle residual (every state) | 10.0 mrad |
+| Descend / lift / place settles | 2.4 / 3.0 / 4.1 mm |
+| Full cycle | 34.7 s, `transport_ok = True`, exit 0 |
+| Test suite | 33/33 passed |
 
-The IK configurations themselves are correct (`preplace` FK = `[0.350, -0.200, 0.590]` as
-intended), so this is a **tracking/controller convergence problem in `GraspStateMachine`**, not a
-planning or IK problem — the Cartesian impedance gains do not drive the EE onto the commanded
-pose before the gripper is told to close. The state machine still runs to `DONE` because nothing
-verifies the box actually moved.
+`GraspStateMachine.run()` now returns `transport_ok` / `box_lateral_error_mm`
+and both demo scripts exit non-zero on a failed transport — the state machine
+can no longer claim success without the box actually arriving.
 
 This does **not** affect the Phase 5 pro-demo result above. It does mean the "Pick success on the
 fixed scene: Reliable" row in [Key Results](#key-results) currently overstates the capstone, and a

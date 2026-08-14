@@ -124,3 +124,104 @@ MuJoCo's `data.contact` list holds geom-geom pairs. For gripper grasping detecti
 
 ### Pinocchio arm-only model (no gripper joints) works for FK/IK
 Lab 5 reuses the Lab 3 UR5e URDF (6 DOF arm only). This is correct: IK computes arm configurations, and the gripper joint is handled separately by MuJoCo. No need to rebuild the Pinocchio model.
+
+---
+
+## Step 6.1 Session — Capstone Box Transport (2026-08-13)
+
+The capstone `pick_place_demo.py` reached DONE without transporting the box
+(400 mm lateral error). Fixing it uncovered six independent defects. Final
+result: box placed **5.7 mm** from target (30 mm tolerance), 33/33 tests.
+
+### L-6.1a: Friction pads were mounted on the OUTSIDE of the fingers
+- **Symptom**: Box crept downward ~4 mm/s in the grip during any arm motion,
+  escaping after ~2 s of transport. Grip survived static holds and slow lifts.
+- **Root cause**: In `ur5e_gripper.xml` the "inner fingertip" friction pads
+  (μ=1.5, condim=4) had their y-offset pointing *away* from the gripper
+  centreline (+0.009 on the +y finger). They could never touch the object.
+  Grasps ran on the low-friction structural finger geoms, gripping the box's
+  top edge asymmetrically (finger qpos 0.009/0.016 — mirror equality yields
+  under load).
+- **Fix**: Flip both pad y-offsets inward. Pad-box contacts went 0 → 8; grip
+  creep 4 mm/s → 0; the whole test suite also got 3× faster (70 s vs 230 s).
+- **Takeaway**: Verify *which geoms actually carry the grasp contacts*
+  (`mj_contactForce` + geom names), not just that "contact: True".
+
+### L-6.1b: Wrist joints chatter under raw diagonal PD at 1 kHz
+- **Symptom**: Constant "61 mrad" settle residual on every state, target-independent.
+- **Root cause**: Not steady-state error — an aliased ±60 mrad torque-saturated
+  limit cycle. Wrist reflected inertia ~0.015 kg·m² makes the discrete damping
+  term unstable (Kd·dt/I = 40·0.001/0.015 > 2).
+- **Fix**: Inertia-scale the gains through the mass matrix:
+  τ = M(q)(Kp·e + Kd·ė) + g(q) with M from `pin.crba` — uniform critically
+  damped error dynamics (ω=20 rad/s, ζ=1) on every joint. Settle residuals
+  became exactly the 10 mrad gate.
+- **Takeaway**: For torque control at fixed dt, per-joint stability depends on
+  reflected inertia; normalise with M(q) instead of hand-tuning six gains.
+
+### L-6.1c: URDF and MJCF described different arms → gravity comp was wrong
+- **Symptom**: Cartesian impedance sagged ~20 mm; joint holds off by up to
+  15 mrad (elbow), matching g_mj − g_pin ≈ 6 Nm.
+- **Root cause**: Lab 3's URDF (wrist_3 carries 1.24 kg) vs this lab's MJCF
+  (wrist_3 0.56 kg + 0.13 kg custom jaw gripper).
+- **Fix**: `load_pinocchio_model(match_scene_inertias=True)` builds the
+  analytical model from `ur5e_gripper.xml` itself via `pin.buildModelFromMJCF`
+  (finger joints locked, EE frame = `tool0`). Verified: max|g_mj−g_pin| =
+  0.00 mNm and FK parity 0.0000 mm at tool0 across random configs.
+- **Takeaway**: The "Pinocchio = analytical brain" rule only works if the
+  brain models the body being simulated. Cross-validate g(q) against
+  `qfrc_bias`, not just FK.
+
+### L-6.1d: IK collision validation must share the planner's collision truth
+- **Symptom**: RRT* "failed to find path" — its goal (q_preplace) was
+  collision-flagged, so `plan()` returned None immediately.
+- **Root cause**: IK is obstacle-blind (known issue) and its solution *family*
+  put the upper arm near the table. Worse, the Lab 4 checker models the
+  Menagerie UR5e whose thicker upper arm collides where this scene's slim
+  box-geom arm does not, forcing a family 5.4 rad away that RRT* could not
+  bridge.
+- **Fix**: `SceneCollisionChecker` built from `scene_grasp.xml` (duck-types
+  the Lab 4 planner interface) is now the single collision truth for both IK
+  validation (`compute_grasp_configs(validate_fn=...)`, with fallback seeds +
+  random restarts) and RRT*. A planner must plan for the robot it drives.
+- **Takeaway**: Validate IK goals with the *same* checker the planner uses,
+  at IK time — never let a colliding config become a planning goal.
+
+### L-6.1e: Convergence gates, not fixed-duration handoffs
+- **Symptom**: States handed off with whatever tracking error remained
+  (~70 mm EE short of the box in the original report); descend "settle"
+  froze the *current* pose, locking the error in.
+- **Fix**: Joint states servo the trajectory endpoint until <10 mrad and
+  <0.05 rad/s (3 s timeout); Cartesian descends drive to the *absolute*
+  FK(q_target) pose (correcting accumulated error) until <3 mm. Cartesian
+  gains extended to 6D so orientation is held during descends.
+- **Takeaway**: A state machine transition is a contract; gate it on
+  measured convergence, and log the residual so a silent miss is impossible.
+
+### L-6.1f: Place-descend must stop at touchdown; retract must ascend first
+- **Symptom A**: After touchdown the convergence gate kept pushing toward an
+  unreachable in-table target, dragging the box (~40 mm error).
+  **Fix**: end DESCEND_PLACE after 30 consecutive box-table contact steps.
+- **Symptom B**: After a perfect 6 mm placement, RETRACT's RRT path swept the
+  open fingers sideways through the box, dragging it 47 mm.
+  **Fix**: ascend vertically (mirror of the approach) before planning home.
+- **Takeaway**: Symmetry matters: descend/ascend legs belong on both sides of
+  contact events; RRT joint-space paths make no promises about the first
+  Cartesian direction of motion.
+
+### Transport timing while carrying
+TOPP-RA at full limits (3.14 rad/s, 8 rad/s²) is far too aggressive for a
+friction pinch carry. `_plan_and_smooth` now takes vel/acc scales; transport
+runs at 0.22/0.15 (cf. Lab 4 capstone's 0.18/0.14). Even with fixed pads,
+gentle carry timing is what a real deployment would use.
+
+### Final gate evidence (2026-08-13)
+| Metric | Value |
+|---|---|
+| Box final position | [0.350, −0.194, 0.335] m |
+| Place target (Box B) | [0.350, −0.200, 0.335] m |
+| **Lateral error** | **5.7 mm** (tolerance 30 mm) |
+| Joint settles | 10.0 mrad (= gate) at every state |
+| Descend/lift settles | 2.4 / 3.0 / 4.1 mm |
+| Grasp contact | True (8 pad-box contacts) |
+| Test suite | 33/33 passed |

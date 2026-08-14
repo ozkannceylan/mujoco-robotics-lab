@@ -35,7 +35,7 @@ from lab5_common import (
     load_pinocchio_model,
 )
 from grasp_planner import compute_grasp_configs, print_config_summary
-from grasp_state_machine import GraspStateMachine
+from grasp_state_machine import GraspStateMachine, make_collision_checker
 
 
 # ---------------------------------------------------------------------------
@@ -145,12 +145,18 @@ def main() -> None:
     # Load models
     print("\n[1/3] Loading models...")
     mj_model, mj_data = load_mujoco_model()
-    pin_model, pin_data, ee_fid = load_pinocchio_model()
+    # match_scene_inertias: analytical model built from the scene MJCF so that
+    # gravity compensation matches the simulated arm exactly (Step 6.1 fix).
+    pin_model, pin_data, ee_fid = load_pinocchio_model(match_scene_inertias=True)
     print(f"  MuJoCo: nq={mj_model.nq}, nu={mj_model.nu}, ngeom={mj_model.ngeom}")
 
     # Compute grasp configurations
     print("\n[2/3] Computing IK grasp configurations...")
-    cfgs = compute_grasp_configs(pin_model, pin_data, ee_fid)
+    cc = make_collision_checker(mj_model)
+    cfgs = compute_grasp_configs(
+        pin_model, pin_data, ee_fid,
+        mj_model=mj_model, validate_fn=cc.is_collision_free,
+    )
     print_config_summary(cfgs, pin_model, pin_data, ee_fid)
 
     # Run state machine
@@ -159,25 +165,29 @@ def main() -> None:
         mj_model, mj_data, pin_model, pin_data, ee_fid, cfgs,
         Kp_joint=400.0, Kd_joint=40.0,
         Kp_cart=600.0, Kd_cart=60.0,
+        collision_checker=cc,
     )
     log = sm.run()
 
     # Results summary
     t_total = log["time"][-1]
-    ee_final = log["ee_pos"][-1]
-    box_bid = mujoco.mj_name2id(mj_model, mujoco.mjtObj.mjOBJ_BODY, "grasp_box")
-    box_final = mj_data.xpos[box_bid].copy()
+    box_final = log["box_final_pos"]
+    dist = log["box_lateral_error_mm"]
 
     print(f"\n{'='*65}")
     print(f"  Total time:       {t_total:.1f} s")
     print(f"  Box final pos:    [{box_final[0]:.3f}, {box_final[1]:.3f}, {box_final[2]:.3f}] m")
     print(f"  Target (Box B):   [{BOX_B_POS[0]:.3f}, {BOX_B_POS[1]:.3f}, {BOX_B_POS[2]:.3f}] m")
-    dist = np.linalg.norm(box_final[:2] - BOX_B_POS[:2]) * 1000
     print(f"  Lateral error:    {dist:.1f} mm")
+    print(f"  Transport:        {'SUCCESS' if log['transport_ok'] else 'FAILURE'}")
     print(f"{'='*65}\n")
 
     # Plot
     plot_results(log, MEDIA_DIR)
+
+    # Post-condition: fail loudly if the box was not transported.
+    if not log["transport_ok"]:
+        sys.exit(1)
 
 
 if __name__ == "__main__":

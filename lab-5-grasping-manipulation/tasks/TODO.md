@@ -70,7 +70,23 @@
 
 ## Newly Discovered (2026-08-13) — NOT part of Step 5.4
 
-- [ ] Step 6.1: `pick_place_demo.py` runs to DONE but never transports the box
+- [x] Step 6.1: `pick_place_demo.py` runs to DONE but never transports the box — **DONE (2026-08-13, same day)**
+  - **RESOLVED**: box now placed **5.7 mm** from target (30 mm tolerance), full cycle
+    34.7 s, every settle gate within tolerance, 33/33 tests green. Six root causes
+    found and fixed (full postmortem in LESSONS.md "Step 6.1 Session"):
+    1. `ur5e_gripper.xml`: friction pads were mounted on the *outside* of the
+       fingers — flipped inward (the grip itself was broken; box crept out).
+    2. Wrist chatter (±60 mrad limit cycle) — joint PD now inertia-scaled through
+       M(q) from `pin.crba` (uniform ω=20 rad/s, ζ=1 error dynamics).
+    3. Gravity model mismatch — `load_pinocchio_model(match_scene_inertias=True)`
+       builds the analytical model from the scene MJCF (g parity 0.00 mNm).
+    4. IK/planner collision truth unified — `SceneCollisionChecker` + validated,
+       multi-seed `compute_grasp_configs`.
+    5. Convergence-gated state handoffs; absolute 6D Cartesian descend targets.
+    6. DESCEND_PLACE stops at box touchdown; RETRACT ascends before planning home.
+  - Post-condition assert added as planned: `run()` returns `transport_ok` /
+    `box_lateral_error_mm`; both demo scripts exit non-zero on failure.
+  - Original findings kept below for the record:
   - Found while regenerating the `media/` plots (previously missing — only mp4s were on disk).
   - `Box final pos: [0.350, 0.200, 0.335]` = still Box **A**. Lateral error **400.0 mm**.
   - `media/ee_trajectory_3d.png`: EE stops ~70 mm short of Box A and ~90 mm short of Box B.
@@ -90,7 +106,9 @@
       are still wanted.
 
 ## Current Focus
-> Phase 5 is closed. Next open item is Step 6.1 (capstone box transport failure).
+> Lab 5 complete. Phase 5 closed 2026-08-13 (morning); Step 6.1 capstone transport
+> fixed and verified same day (box 5.7 mm from target, 33/33 tests, evidence video
+> re-recorded). Only Step 6.2 (minor doc decision on two dropped plots) remains.
 
 ## Blockers
 > None

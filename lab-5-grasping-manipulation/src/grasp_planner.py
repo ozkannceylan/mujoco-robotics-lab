@@ -182,12 +182,56 @@ class GraspConfigs:
     R_topdown: np.ndarray
 
 
+# Posture prior for the A-side pregrasp solve. This is the solution family the
+# collision-validated pro demo (Step 5.4) uses: elbow high over the table, and
+# — critically — its base-swing image over box B is ALSO collision-free against
+# the Lab 4 real-geometry checker. Seeding from Q_HOME can converge to a
+# different family whose B-side swing dips the upper arm into the table.
+Q_PREGRASP_SEED = np.array([-2.96, -1.80, 1.50, -1.28, -1.57, -1.39])
+
+
+def _is_scene_collision_free(mj_model, q: np.ndarray) -> bool:
+    """Check an arm configuration against the MuJoCo scene (arm vs table/floor).
+
+    IK solvers know nothing about obstacles (CLAUDE.md known issue) and DLS
+    can converge onto a solution *branch* whose elbow or upper arm dips into
+    the table even though the EE pose is perfect — exactly what broke the
+    Step 6.1 transport plan. Contacts involving the grasp box are ignored:
+    the box legitimately rests on the table and may sit between the fingers.
+
+    Args:
+        mj_model: MuJoCo model of the lab scene.
+        q: Arm configuration (6,).
+
+    Returns:
+        True if no arm/gripper geom touches the table or floor at q.
+    """
+    import mujoco
+
+    data = mujoco.MjData(mj_model)
+    data.qpos[:NUM_JOINTS] = q
+    mujoco.mj_forward(mj_model, data)
+
+    box_bid = mujoco.mj_name2id(mj_model, mujoco.mjtObj.mjOBJ_BODY, "grasp_box")
+    for cid in range(data.ncon):
+        c = data.contact[cid]
+        b1 = mj_model.geom_bodyid[c.geom1]
+        b2 = mj_model.geom_bodyid[c.geom2]
+        if box_bid in (b1, b2):
+            continue
+        if c.dist < -1e-6:
+            return False
+    return True
+
+
 def compute_grasp_configs(
     pin_model,
     pin_data,
     ee_fid: int,
     box_a_pos: np.ndarray | None = None,
     box_b_pos: np.ndarray | None = None,
+    mj_model=None,
+    validate_fn=None,
 ) -> GraspConfigs:
     """Compute IK joint configurations for the full pick-and-place sequence.
 
@@ -205,12 +249,22 @@ def compute_grasp_configs(
         ee_fid: EE frame ID.
         box_a_pos: Box pick position in world frame. Defaults to BOX_A_POS.
         box_b_pos: Box place position in world frame. Defaults to BOX_B_POS.
+        mj_model: Optional MuJoCo scene model. When given, every IK solution
+            is additionally validated collision-free against the scene, and
+            alternative seeds are tried if a solution branch collides.
+        validate_fn: Optional callable q -> bool giving an external collision
+            verdict (e.g. the Lab 4 CollisionChecker the RRT* planner uses).
+            Pass the *planner's own* checker so that no accepted config can
+            later become an unreachable planning goal. Note the two checks
+            are not redundant: the lab MJCF may omit arm-link collision geoms
+            that the Lab 4 real-geometry model does have.
 
     Returns:
         GraspConfigs with all five joint configurations.
 
     Raises:
-        RuntimeError: If IK fails for any configuration.
+        RuntimeError: If IK fails (or only colliding branches are found) for
+            any configuration.
     """
     if box_a_pos is None:
         box_a_pos = BOX_A_POS
@@ -235,39 +289,85 @@ def compute_grasp_configs(
 
     configs: dict[str, np.ndarray] = {}
 
-    def _solve(name: str, x_tgt: np.ndarray, q_hint: np.ndarray) -> np.ndarray:
-        q_sol = compute_ik(pin_model, pin_data, ee_fid, x_tgt, R_topdown, q_hint)
-        if q_sol is None:
-            raise RuntimeError(
-                f"IK failed for '{name}' target at {x_tgt}. "
-                "Check target reachability and joint limits."
-            )
-        pin.forwardKinematics(pin_model, pin_data, q_sol)
-        pin.updateFramePlacements(pin_model, pin_data)
-        achieved = pin_data.oMf[ee_fid].translation
-        err_m = np.linalg.norm(x_tgt - achieved)
-        if err_m > 5e-3:
-            raise RuntimeError(
-                f"IK for '{name}' converged but position error {err_m*1000:.1f} mm "
-                f"exceeds 5 mm. Target: {x_tgt}, Achieved: {achieved}"
-            )
-        return q_sol
+    def _solve(
+        name: str,
+        x_tgt: np.ndarray,
+        q_hints: list[np.ndarray],
+        branch_ref: np.ndarray | None = None,
+    ) -> np.ndarray:
+        """Solve IK trying seeds in order; validate accuracy and (optionally)
+        scene collisions. Different seeds converge to different solution
+        *families* (elbow-up vs elbow-down), so when a family collides with
+        the table the next seed is tried rather than giving up.
+        """
+        last_reason = "no seed converged"
+        rng = np.random.default_rng(0)
+        random_restarts = [rng.uniform(-np.pi, np.pi, NUM_JOINTS) for _ in range(40)]
+        for q_hint in [*q_hints, *random_restarts]:
+            q_sol = compute_ik(pin_model, pin_data, ee_fid, x_tgt, R_topdown, q_hint)
+            if q_sol is None:
+                last_reason = "IK did not converge"
+                continue
+            pin.forwardKinematics(pin_model, pin_data, q_sol)
+            pin.updateFramePlacements(pin_model, pin_data)
+            achieved = pin_data.oMf[ee_fid].translation
+            err_m = np.linalg.norm(x_tgt - achieved)
+            if err_m > 5e-3:
+                last_reason = f"position error {err_m*1000:.1f} mm > 5 mm"
+                continue
+            if branch_ref is not None:
+                q_sol = nearest_joint_branch(q_sol, branch_ref)
+            if mj_model is not None and not _is_scene_collision_free(mj_model, q_sol):
+                last_reason = "solution branch collides with scene"
+                continue
+            if validate_fn is not None and not validate_fn(q_sol):
+                last_reason = "solution branch rejected by validate_fn (planner collision truth)"
+                continue
+            return q_sol
+        raise RuntimeError(
+            f"IK failed for '{name}' target at {x_tgt}: {last_reason}. "
+            "Check target reachability, joint limits, and seed list."
+        )
 
-    configs["pregrasp"] = _solve("pregrasp", _pregrasp_target(box_a_pos), Q_HOME)
-    configs["grasp"]    = _solve("grasp",    _tool0_target(box_a_pos),    Q_HOME)
-
-    # Seed preplace/place from pregrasp with shoulder_pan mirrored (joint 0).
-    # The mirrored seed converges reliably but lands on the +2π shoulder_pan
-    # branch, 5.2 rad away from pregrasp; `nearest_joint_branch` rewinds it onto
-    # the branch adjacent to pregrasp (same pose, 1.0 rad away) so RRT* can
-    # actually connect the two.  Without this the transport plan fails outright.
-    q_hint_b = configs["pregrasp"].copy()
-    q_hint_b[0] = -q_hint_b[0]
-    configs["preplace"] = nearest_joint_branch(
-        _solve("preplace", _pregrasp_target(box_b_pos), q_hint_b), configs["pregrasp"]
+    configs["pregrasp"] = _solve(
+        "pregrasp", _pregrasp_target(box_a_pos), [Q_PREGRASP_SEED, Q_HOME]
     )
-    configs["place"] = nearest_joint_branch(
-        _solve("place", _tool0_target(box_b_pos), q_hint_b), configs["preplace"]
+    configs["grasp"] = _solve(
+        "grasp", _tool0_target(box_a_pos), [configs["pregrasp"], Q_HOME]
+    )
+
+    # Seeds for the B-side (preplace/place). The primary seed is a *base
+    # swing*: rotate shoulder_pan by the world-z angle from box A to box B and
+    # counter-rotate wrist_3 to keep the top-down orientation world-fixed.
+    # This preserves the pregrasp solution's arm shape (elbow/shoulder
+    # family), so the seed is already near the correct, collision-free branch.
+    # The old mirrored-pan seed (q[0] → −q[0]) is kept as a fallback, but with
+    # the MJCF-built model it converges to a family whose upper arm dips into
+    # the table — which is why it is no longer first choice.
+    delta_pan = float(
+        np.arctan2(box_b_pos[1], box_b_pos[0]) - np.arctan2(box_a_pos[1], box_a_pos[0])
+    )
+    swing_plus = configs["pregrasp"].copy()
+    swing_plus[0] += delta_pan
+    swing_plus[5] += delta_pan
+    swing_minus = configs["pregrasp"].copy()
+    swing_minus[0] += delta_pan
+    swing_minus[5] -= delta_pan
+
+    q_mirror = configs["pregrasp"].copy()
+    q_mirror[0] = -q_mirror[0]
+
+    configs["preplace"] = _solve(
+        "preplace",
+        _pregrasp_target(box_b_pos),
+        [swing_plus, swing_minus, q_mirror, configs["pregrasp"], Q_HOME],
+        branch_ref=configs["pregrasp"],
+    )
+    configs["place"] = _solve(
+        "place",
+        _tool0_target(box_b_pos),
+        [configs["preplace"], swing_plus, swing_minus, q_mirror],
+        branch_ref=configs["preplace"],
     )
 
     return GraspConfigs(

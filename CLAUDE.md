@@ -275,7 +275,7 @@ Published (portfolio-ready, documented in main README):
 - [x] Lab 2: UR5e 6-DOF Arm (cube drawing demo)
 - [x] Lab 3: Dynamics & Force Control (gravity comp, Cartesian impedance, hybrid force control on a real table-contact scene)
 - [x] Lab 4: Motion Planning & Collision Avoidance (from-scratch RRT/RRT*, real-geometry collision truth, shortcutting + TOPP-RA, slalom capstone)
-- [x] Lab 5: Grasping & Manipulation (custom MJCF jaw gripper, DLS IK, 11-state pick-and-place, Lab 3+4 integration). Phase 5 hardening closed 2026-08-13 (SO3-log IK, RRT* integration, pro demo re-recorded with 0 self-collisions across 11,050 sim steps). Open follow-up: Step 6.1 — capstone pick_place_demo.py reaches DONE without transporting the box (impedance tracking hands off to gripper too early).
+- [x] Lab 5: Grasping & Manipulation (custom MJCF jaw gripper, DLS IK, 11-state pick-and-place, Lab 3+4 integration). Phase 5 hardening closed 2026-08-13 (SO3-log IK, RRT* integration, pro demo re-recorded with 0 self-collisions). Step 6.1 capstone transport fixed same day: gripper friction pads were mounted on the OUTSIDE of the fingers (model bug) + 5 controller/planning fixes (inertia-scaled PD via crba, MJCF-built pin model, scene-derived collision truth, convergence-gated handoffs, touchdown-stop + ascend-before-retract). Capstone places box 5.7 mm from target with a transport post-condition assert.
 - [x] Lab 6: Dual-Arm Coordination (two UR5e arms, Pinocchio dual-arm DLS IK, weld-constraint cooperative carry, milestone-gated verification M0-M5)
 - [x] Lab 7: Locomotion Fundamentals (Unitree G1, floating-base Pinocchio, stacked-Jacobian whole-body IK, standing + weight shift on M3d scope; M4 ZMP walking deferred as structural limitation of position actuators)
 

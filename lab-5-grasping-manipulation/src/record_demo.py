@@ -28,7 +28,7 @@ from lab5_common import (
     load_pinocchio_model,
 )
 from grasp_planner import compute_grasp_configs
-from grasp_state_machine import GraspStateMachine
+from grasp_state_machine import GraspStateMachine, make_collision_checker
 
 # ---------------------------------------------------------------------------
 # Video parameters
@@ -52,11 +52,16 @@ def main() -> None:
     # Load models
     print("\n[1/3] Loading models...")
     mj_model, mj_data = load_mujoco_model()
-    pin_model, pin_data, ee_fid = load_pinocchio_model()
+    # match_scene_inertias: same analytical model as pick_place_demo (Step 6.1)
+    pin_model, pin_data, ee_fid = load_pinocchio_model(match_scene_inertias=True)
 
     # Compute grasp configurations
     print("[2/3] Computing IK grasp configurations...")
-    cfgs = compute_grasp_configs(pin_model, pin_data, ee_fid)
+    cc = make_collision_checker(mj_model)
+    cfgs = compute_grasp_configs(
+        pin_model, pin_data, ee_fid,
+        mj_model=mj_model, validate_fn=cc.is_collision_free,
+    )
 
     # Set up offscreen renderer
     renderer = mujoco.Renderer(mj_model, height=VIDEO_HEIGHT, width=VIDEO_WIDTH)
@@ -90,10 +95,14 @@ def main() -> None:
             mj_model, mj_data, pin_model, pin_data, ee_fid, cfgs,
             Kp_joint=400.0, Kd_joint=40.0,
             Kp_cart=600.0, Kd_cart=60.0,
+            collision_checker=cc,
         )
-        sm.run()
+        log = sm.run()
     finally:
         mujoco.mj_step = original_mj_step  # always restore
+
+    print(f"  Transport verdict: {'SUCCESS' if log['transport_ok'] else 'FAILURE'} "
+          f"(box lateral error {log['box_lateral_error_mm']:.1f} mm)")
 
     elapsed = time.time() - t0
     n_steps = step_count_box[0]
@@ -116,6 +125,11 @@ def main() -> None:
     size_mb = OUTPUT_PATH.stat().st_size / 1e6
     print(f"  Video saved: {OUTPUT_PATH} ({size_mb:.1f} MB)")
     print("\nDone.")
+
+    # The video is written either way (a failure recording is useful for
+    # debugging), but the exit code must reflect the transport verdict.
+    if not log["transport_ok"]:
+        sys.exit(1)
 
 
 if __name__ == "__main__":

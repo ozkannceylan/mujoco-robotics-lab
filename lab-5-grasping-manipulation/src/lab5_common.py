@@ -87,15 +87,46 @@ def load_mujoco_model(scene_path: Path | None = None) -> tuple:
     return mj_model, mj_data
 
 
-def load_pinocchio_model(urdf_path: Path | None = None) -> tuple:
-    """Load Pinocchio arm model (no gripper) and return (model, data, ee_fid).
+def load_pinocchio_model(
+    urdf_path: Path | None = None,
+    match_scene_inertias: bool = False,
+) -> tuple:
+    """Load Pinocchio arm model and return (model, data, ee_fid).
 
     Args:
-        urdf_path: Path to arm URDF. Defaults to Lab 3 URDF.
+        urdf_path: Path to arm URDF. Defaults to Lab 3 URDF. Ignored when
+            match_scene_inertias is True.
+        match_scene_inertias: If True, build the model from the lab's own
+            MJCF (ur5e_gripper.xml) instead of the Lab 3 URDF, with the two
+            finger joints locked. The URDF and the MJCF describe *different
+            arms* (URDF wrist_3 carries 1.24 kg where the MJCF wrist carries
+            0.56 kg + a 0.13 kg jaw gripper), so gravity compensation computed
+            from the URDF is systematically wrong in this scene (~6 Nm at the
+            elbow → ~20 mm EE droop under Cartesian impedance — the Step 6.1
+            transport failure). Building from the MJCF makes g(q), M(q) and
+            the tool0 frame match the simulated scene exactly.
 
     Returns:
-        Tuple of (pin_model, pin_data, ee_frame_id).
+        Tuple of (pin_model, pin_data, ee_frame_id). The EE frame is 'ee_link'
+        for the URDF path and 'tool0' for the MJCF path — both are the flange
+        frame that GRIPPER_TIP_OFFSET is measured from.
     """
+    if match_scene_inertias:
+        gripper_xml = MODELS_DIR / "ur5e_gripper.xml"
+        built = pin.buildModelFromMJCF(str(gripper_xml))
+        # Pinocchio 4.x may return (model, constraint_models)
+        full_model = built[0] if isinstance(built, tuple) else built
+        finger_jids = [
+            full_model.getJointId(n)
+            for n in ("left_finger_joint", "right_finger_joint")
+            if full_model.existJointName(n)
+        ]
+        q_ref = pin.neutral(full_model)
+        model = pin.buildReducedModel(full_model, finger_jids, q_ref)
+        data = model.createData()
+        ee_fid = model.getFrameId("tool0")
+        return model, data, ee_fid
+
     path = urdf_path or URDF_PATH
     model = pin.buildModelFromUrdf(str(path))
     model.armature[:] = 0.01   # match MuJoCo joint armature

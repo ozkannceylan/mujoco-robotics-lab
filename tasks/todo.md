@@ -9,7 +9,7 @@
 - [x] **Lab 2: UR5e 6-DOF Arm** — Complete. Cube capstone; 34/34 tests green again (lost `lab_scene.xml` recreated as a tracked file); wrong-robot `ros2_bridge/` deleted; stale paths fixed; GIF 39→6.4 MB.
 - [x] **Lab 3: Dynamics & Force Control** — Complete. 34/34 tests (MuJoCo 3.11 `qM` compat fixed). Blog post written.
 - [x] **Lab 4: Motion Planning** — Complete. 45/45 tests. README metrics now the validated slalom numbers; unreproducible `slalom_metrics.json` deleted. Blog post written.
-- [x] **Lab 5: Grasping & Manipulation** — Complete. **Phase 5 closed 2026-08-13**: 5.4 pro demo re-recorded (23.1 s, 720p60) with per-step self-collision monitor — 11,050 steps, **0 self-collisions**; a real IK branch-selection bug (`nearest_joint_branch`) was found and fixed on the way; 33/33 tests. ⚠️ New follow-up: **Step 6.1** below.
+- [x] **Lab 5: Grasping & Manipulation** — **Fully complete 2026-08-13**. Phase 5 (pro demo, 0 self-collisions) AND Step 6.1 (capstone transport) closed. 6.1 root cause: gripper friction pads mounted on the OUTSIDE of the fingers (model bug) + 5 controller/planning fixes. Capstone now places box **5.7 mm** from target with a transport post-condition assert; 33/33 tests; both evidence videos re-recorded.
 - [x] **Lab 6: Dual-Arm Coordination** — Complete. M2 FK cross-validation now has an archived artifact (`media/m2_fk_validation.txt`, max err 2.6e-12 mm).
 - [x] **Lab 7: Locomotion (M3d scope)** — Complete. Test suite runs for real now (34/34 — imports were broken by the Menagerie rewrite); misleading M4 leftovers and scratch files deleted; media naming aligned. M4 ZMP walking remains BLOCKED by design → Lab 8.
 - [ ] **Lab 8: Whole-Body Loco-Manipulation** — Not started. Must own gait generation on the torque/RNEA path (see MASTER_PLAN "Lab 8 dependency note").
@@ -17,13 +17,9 @@
 
 ## Current Focus
 
-> 1. **Lab 5 Step 6.1** — `pick_place_demo.py` (capstone, NOT the pro demo) reaches DONE without
->    moving the box: impedance tracking hands off to the gripper ~70–90 mm short of target,
->    fingers close on air, box never transported (400 mm lateral error). Needs
->    DESCEND/DESCEND_PLACE convergence gating + a final box-position assert. Details in
->    `lab-5-grasping-manipulation/tasks/TODO.md`.
-> 2. **Lab 8 kickoff** per CLAUDE.md Per-Lab Workflow (read `plan/LAB_08.md` → PLAN →
->    ARCHITECTURE → TODO → code), honoring the gait-generator dependency note.
+> **Lab 8 kickoff** per CLAUDE.md Per-Lab Workflow (read `plan/LAB_08.md` → PLAN →
+> ARCHITECTURE → TODO → code), honoring the gait-generator dependency note.
+> Labs 1–7 have no open code work items.
 
 ## Blockers
 
@@ -31,6 +27,7 @@
 
 ## Open Items (small)
 
+- [x] Lab 5 Step 6.1 — capstone transport — DONE 2026-08-13 (see Lab 5 TODO/LESSONS; 5.7 mm placement, post-condition assert added).
 - [ ] Lab 5 Step 6.2 — decide whether the two dropped capstone plots (joint tracking, state timeline) should be reinstated.
 - [ ] Lab 2 — `c1_multi_waypoint_log.csv`, `c1_singularity_log.csv`, `c1_metrics_dashboard.csv` are archived outputs with no current producer script (noted in `media/README.md`); regenerate producers or accept as archived.
 - [ ] `THIRD_PARTY_NOTICES.md` — verify its path list still matches reality now that model assets are gitignored clones (root README license note already updated).
