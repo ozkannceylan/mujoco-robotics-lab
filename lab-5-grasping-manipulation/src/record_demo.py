@@ -73,23 +73,33 @@ def main() -> None:
     camera.azimuth = 160.0
     camera.elevation = -22.0
 
-    # Intercept mujoco.mj_step to capture frames while the state machine runs
-    frames: list[np.ndarray] = []
+    # Intercept mujoco.mj_step to capture frames while the state machine runs.
+    # Frames are STREAMED straight to the encoder: buffering them in memory
+    # needs ~2.8 MB x 60 fps x cycle length (tens of GB) and gets the process
+    # OOM-killed on modest machines.
+    print(f"[3/3] Running simulation + rendering (streaming to {OUTPUT_PATH.name})...")
+    writer = imageio.get_writer(
+        str(OUTPUT_PATH),
+        fps=VIDEO_FPS,
+        codec="libx264",
+        quality=8,
+        macro_block_size=1,
+    )
+    frame_count_box = [0]
     step_count_box = [0]  # use list so closure can mutate
     original_mj_step = mujoco.mj_step
 
     def recording_mj_step(m, d):
-        """Wrapper: step + optionally render a frame."""
+        """Wrapper: step + optionally render/encode a frame."""
         original_mj_step(m, d)
         step_count_box[0] += 1
         if step_count_box[0] % RENDER_EVERY == 0:
             renderer.update_scene(d, camera=camera)
-            frames.append(renderer.render().copy())
+            writer.append_data(renderer.render())
+            frame_count_box[0] += 1
 
-    # Run state machine with recording hook
-    print("[3/3] Running simulation + rendering...")
-    mujoco.mj_step = recording_mj_step
     t0 = time.time()
+    mujoco.mj_step = recording_mj_step
     try:
         sm = GraspStateMachine(
             mj_model, mj_data, pin_model, pin_data, ee_fid, cfgs,
@@ -100,6 +110,7 @@ def main() -> None:
         log = sm.run()
     finally:
         mujoco.mj_step = original_mj_step  # always restore
+        writer.close()
 
     print(f"  Transport verdict: {'SUCCESS' if log['transport_ok'] else 'FAILURE'} "
           f"(box lateral error {log['box_lateral_error_mm']:.1f} mm)")
@@ -107,20 +118,7 @@ def main() -> None:
     elapsed = time.time() - t0
     n_steps = step_count_box[0]
     print(f"\n  Simulation: {n_steps} steps, {n_steps * 0.001:.1f}s sim time, "
-          f"{len(frames)} frames, {elapsed:.0f}s wall time")
-
-    # Write video
-    print(f"\n  Writing video to {OUTPUT_PATH} ...")
-    writer = imageio.get_writer(
-        str(OUTPUT_PATH),
-        fps=VIDEO_FPS,
-        codec="libx264",
-        quality=8,
-        macro_block_size=1,
-    )
-    for frame in frames:
-        writer.append_data(frame)
-    writer.close()
+          f"{frame_count_box[0]} frames, {elapsed:.0f}s wall time")
 
     size_mb = OUTPUT_PATH.stat().st_size / 1e6
     print(f"  Video saved: {OUTPUT_PATH} ({size_mb:.1f} MB)")
