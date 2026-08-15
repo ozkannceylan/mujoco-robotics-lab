@@ -73,7 +73,7 @@ pytest lab-4-motion-planning/tests/test_collision.py
 # Single test method
 pytest lab-5-grasping-manipulation/tests/test_gripper.py::TestGripperContact::test_contact_detection -v
 
-# All tests across the project (224 as of 2026-08-15)
+# All tests across the project (268 as of 2026-08-15)
 pytest lab-*/tests/
 ```
 
