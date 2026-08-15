@@ -89,10 +89,36 @@
 - [x] Lessons: L-M1-a (kinematic QP cannot balance — the milestone's core finding),
       L-M1-b (feedforward cut hand RMS 18.63 → 7.08 mm)
 
-## M2 — Torque-Level Stepping
-- [ ] LIPM refs (adapt Lab 7 planner) + contact schedule + swing-foot task
-- [ ] Gate: 4 in-place steps, ZMP inside support polygon > 95% of stance
-- [ ] Evidence: `media/m2_stepping.mp4` + ZMP plot
+## M2 — Torque-Level Stepping — ✅ DONE (2026-08-15), GATE PASSED 3/3
+- [x] Step 2.1: `gait_planner.py` — `GaitSchedule` produces the phase timeline,
+      contact sets, swing-foot references (position + velocity + acceleration
+      feedforward) and the CoM weight-shift target. Reuses Lab 7's swing-arc idea
+      but generates the CoM reference directly rather than through the LIPM preview
+      controller — the QP already enforces balance via contact wrenches and CoP, so
+      a second planner would only add a way for the two to disagree on phase timing.
+- [x] Step 2.2: contact scheduling — `WholeBodyIDQP.set_contacts()` resizes the
+      problem per phase; `SteppingController` intersects the scheduled stance with
+      **measured** contact (L-M2-a) and ramps the swing task in at lift-off.
+- [x] Step 2.3: `m2_stepping.py` — settle → 4 alternating in-place steps.
+- [x] New task type: `FrameOrientationTask` (pelvis/torso), plus `measured_zmp()`
+      and `point_in_support_polygon()` in `lab8_common`.
+- [x] Tests: `tests/test_gait.py` — 20 tests (phase sequencing, contact sets never
+      empty, swing continuity/clearance/zero-touchdown-velocity, feedforward vs
+      finite differences, CoM shift direction and continuity, ZMP measurement,
+      contact-set resizing). Lab 8 total **62 passed**.
+- [x] Gate — all criteria PASS:
+
+      | criterion | result | measured |
+      |---|---|---|
+      | 4 steps without falling | PASS | **4/4** |
+      | ZMP inside support polygon > 95 % | PASS | **98.7 %** |
+      | Torques within limits | PASS | 49.6 N·m peak (limit 139) |
+
+- [x] Evidence: `media/m2_stepping.mp4` + `media/m2_stepping_metrics.png`
+- [x] Lessons: L-M2-a (contact set must match measured contact), **L-M2-b (commanding
+      CoM *height* saturated the waist actuators — the decisive fix, 3/4 → 4/4)**,
+      L-M2-c (two plausible improvements that made it worse), L-M2-d (settle before
+      measuring home poses).
 
 ## M3 — Forward Walking (retires Lab 7's deferred capstone)
 - [ ] Gate: ≥ 10 steps, ≥ 1.0 m, no fall
@@ -114,18 +140,19 @@
 - [ ] Root README / MASTER_PLAN / status board / plan/LAB_08.md updates
 
 ## Current Focus
-> **M2 — Torque-Level Stepping.** M1 delivered the whole-body ID QP that M2 builds
-> on: the contact set is already a first-class concept (`ContactSpec` list), so
-> stepping means (a) switching contacts on a schedule, (b) adding a swing-foot
-> task, (c) feeding CoM/ZMP references from Lab 7's LIPM planner.
+> **M3 — Forward Walking** (≥ 10 steps, ≥ 1.0 m). `GaitSchedule` already takes a
+> `step_length`, and a forward stride is covered by a test, so M3 is mostly about
+> compressing the timeline: M2's 2.0 s double support / 0.5 s swing is quasi-static.
 >
-> What M1 established that M2 depends on:
-> - Balance must be expressed through contact forces, not joint velocity (L-M1-a).
->   The single-support phase is where this stops being a subtlety.
-> - Feedforward matters on moving references (L-M1-b) — the swing-foot trajectory
->   should supply ẋ_ref/ẍ_ref from the start.
-> - QP headroom: 0.11 ms at 1 kHz with 47 variables. A swing foot removes 6
->   contact variables and adds a 6-row task, so the budget is comfortable.
+> What M2 leaves for M3 to solve:
+> - The weight-shift strategy (move the CoM over the stance foot, *then* swing) has
+>   a deadline problem as timing tightens — over-damping already failed for exactly
+>   this reason (L-M2-c). Capture-point / DCM tracking is the expected replacement.
+> - Torque headroom is now large (49.6 of 139 N·m), so the budget for faster motion
+>   exists — provided no task re-introduces an over-specified demand (L-M2-b).
+> - Contact switching is measured-contact driven and stable across 16 switches;
+>   forward stepping adds touchdown at a *new* location, so landing detection will
+>   matter more than it did stepping in place.
 
 ## Blockers
 > None. OSQP verified (1.1.3). G1 menagerie assets present under

@@ -37,6 +37,7 @@ __all__ = [
     "Task",
     "FramePositionTask",
     "FramePoseTask",
+    "FrameOrientationTask",
     "CoMTask",
     "PostureTask",
     "TaskStack",
@@ -258,6 +259,61 @@ class FramePoseTask(Task):
             model, data, self.frame_id, pin.ReferenceFrame.LOCAL_WORLD_ALIGNED
         )
         return np.concatenate([acc.linear, acc.angular])
+
+
+class FrameOrientationTask(Task):
+    """Hold a frame's orientation — typically the pelvis/torso.
+
+    Separate from `FramePoseTask` because for a torso only the rotation should
+    be commanded: its position is already governed by the CoM task, and
+    controlling both over-determines the base.
+
+    Angular momentum is what this buys. A CoM task alone leaves the robot free
+    to rotate about its contact points while the CoM sits still, which during
+    single support is precisely how a step turns into a fall. Keeping the torso
+    upright is the cheap, standard proxy for centroidal angular-momentum
+    regulation.
+    """
+
+    def __init__(
+        self,
+        frame_name: str,
+        model: pin.Model,
+        target_rotation: np.ndarray | None = None,
+        weight: float = 1e3,
+        gain: float = 50.0,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name or f"ori:{frame_name}", weight, gain)
+        if not model.existFrame(frame_name):
+            raise ValueError(f"unknown frame '{frame_name}'")
+        self.frame_id = model.getFrameId(frame_name)
+        self.frame_name = frame_name
+        self.target_rotation = (
+            np.eye(3) if target_rotation is None else np.asarray(target_rotation, float).copy()
+        )
+
+    def dimension(self) -> int:
+        return 3
+
+    def capture_current(self, data: pin.Data) -> None:
+        """Freeze the target at the frame's present orientation."""
+        self.target_rotation = data.oMf[self.frame_id].rotation.copy()
+
+    def jacobian(self, model, data, q):
+        del q
+        return pin.getFrameJacobian(
+            model, data, self.frame_id, pin.ReferenceFrame.LOCAL_WORLD_ALIGNED
+        )[3:, :]
+
+    def error(self, model, data, q):
+        del model, q
+        return pin.log3(self.target_rotation @ data.oMf[self.frame_id].rotation.T)
+
+    def drift(self, model, data):
+        return pin.getFrameClassicalAcceleration(
+            model, data, self.frame_id, pin.ReferenceFrame.LOCAL_WORLD_ALIGNED
+        ).angular
 
 
 class CoMTask(Task):

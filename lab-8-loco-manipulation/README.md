@@ -1,6 +1,6 @@
 # Lab 8 — Whole-Body Loco-Manipulation
 
-> **Status:** 🚧 In progress — **M0 + M1 complete** (2026-08-15), M2 next.
+> **Status:** 🚧 In progress — **M0 + M1 + M2 complete** (2026-08-15), M3 next.
 > **Platform:** Unitree G1 (MuJoCo Menagerie, 29 DOF) under **torque** control + Pinocchio
 > **Goal:** A humanoid that walks and uses its hands at the same time — the operating
 > mode Lab 9's VLA policy will have to produce.
@@ -20,8 +20,8 @@ dynamics → joint torques, owning gait generation rather than inheriting it.
 |---|---|---|---|
 | M0 | Torque-actuated G1 bring-up | 10 s stand, CoM drift < 30 mm, model parity < 1e-6 | ✅ **PASS** |
 | M1 | Whole-body QP (standing reach) | hand RMS < 20 mm, CoM inside support polygon | ✅ **PASS** |
-| M2 | Torque-level stepping | 4 in-place steps, ZMP inside polygon > 95% stance | ⏳ next |
-| M3 | Forward walking | ≥ 10 steps, ≥ 1.0 m, no fall | — |
+| M2 | Torque-level stepping | 4 in-place steps, ZMP inside polygon > 95% stance | ✅ **PASS** |
+| M3 | Forward walking | ≥ 10 steps, ≥ 1.0 m, no fall | ⏳ next |
 | M4 | Walk + arm task | M3 gate holds, hand error < 50 mm while walking | — |
 | M5 | Loco-manipulation capstone | walk → grasp → carry → place, object within 50 mm | — |
 | M6 | Documentation & blog | docs EN/TR + blog post | — |
@@ -38,7 +38,7 @@ the simulator.
 
 ```bash
 MUJOCO_GL=egl python3 lab-8-loco-manipulation/src/m0_torque_standing.py
-pytest lab-8-loco-manipulation/tests/          # 18 tests
+pytest lab-8-loco-manipulation/tests/          # 62 tests (M0 + M1 + M2)
 ```
 
 ### Gate results
@@ -141,19 +141,86 @@ been almost entirely tracking lag.
 
 ---
 
+## M2 — Torque-Level Stepping ✅
+
+Four alternating in-place steps under torque control. The gait schedule decides
+phases and swing references; the QP's contact set follows what the ground
+actually confirms.
+
+```bash
+MUJOCO_GL=egl python3 lab-8-loco-manipulation/src/m2_stepping.py
+```
+
+| Criterion | Result | Measured |
+|---|---|---|
+| 4 steps without falling | PASS | **4/4** |
+| ZMP inside support polygon > 95 % | PASS | **98.7 %** of loaded ticks |
+| Torques within limits | PASS | 49.6 N·m peak (limit 139) |
+
+![M2 stepping metrics](media/m2_stepping_metrics.png)
+
+Video: [`media/m2_stepping.mp4`](media/m2_stepping.mp4)
+
+### The finding: commanding CoM *height* is what saturated the actuators
+
+The first working version reached 3 of 4 steps and fell during the fourth
+weight transfer, with peak torque pinned at exactly the 139 N·m limit.
+Instrumenting per-joint saturation named the culprit, and it was not a leg:
+**waist roll** (50 N·m) saturated first and for the most ticks, followed by
+waist pitch and the 25 N·m shoulders.
+
+The cause was a task nobody had asked for. Controlling the CoM in all three
+axes means holding the pelvis at a constant *height* while it translates
+laterally over the stance foot — so the QP spends torque suppressing the
+robot's natural dip, and the torso pays for it. Dropping to horizontal CoM
+control (`axes=(0, 1)`) and relaxing the pelvis orientation task gives:
+
+| | 3-axis CoM | horizontal CoM |
+|---|---|---|
+| Steps completed | 3 / 4 | **4 / 4** |
+| Peak torque | 139.0 N·m (saturated) | **49.6 N·m** |
+| Saturated ticks | 583 | **0** |
+
+Two other defects had to be fixed first, both worth knowing:
+
+- **The QP's contact set must be what the ground confirms, not what the
+  schedule intends.** Taking stance straight from the timeline meant the
+  solver planned against a foot that was still 60 mm in the air — it
+  distributed wrenches through empty space and launched the robot (foot
+  0.66 m up, fall at 4.0 s). The stance set is now the intersection of
+  scheduled intent and *measured* contact.
+- **Home poses must be measured on a settled robot.** Read at t=0 they sit
+  ~10 mm below where the robot rests, so every touchdown fought a swing
+  target buried in the floor.
+
+Two plausible-sounding improvements were tried and measured to be **worse**,
+recorded in [`tasks/LESSONS.md`](tasks/LESSONS.md) so nobody re-derives them:
+a swing-foot orientation task (over-determines the swing leg) and heavier CoM
+damping (the weight transfer has a deadline).
+
+Timing is deliberately quasi-static — 2.0 s double support, 0.5 s swing, 15 mm
+clearance. M3 has to compress that, and the honest expectation is that the
+"shift weight, then swing" strategy runs out of road and gets replaced by
+capture-point / DCM tracking.
+
+---
+
 ## Architecture
 
 ```
 gait refs (M2+)   hand target (M1+)
         │               │
         ▼               ▼
-   task stack: CoM · feet · hand · posture      (Pinocchio, LOCAL_WORLD_ALIGNED)
+   task stack: CoM · feet · hand · posture   (Pinocchio, LOCAL_WORLD_ALIGNED,
+        │                                     with J̇q̇ drift + feedforward)
+        ▼
+   whole-body inverse-dynamics QP (OSQP)
+   variables: joint accelerations q̈  +  contact wrenches f
+   constraints: unactuated base dynamics · stance contacts ·
+                friction / CoP / unilateral · torque limits
         │
         ▼
-   whole-body QP  (OSQP)  → q̇_desired
-        │
-        ▼
-   inverse dynamics (Pinocchio RNEA) → τ
+   τ read out of the actuated rows
         │
         ▼
    MuJoCo, torque actuators, 1 kHz
@@ -175,7 +242,10 @@ Milestone plan and gates: [`tasks/PLAN.md`](tasks/PLAN.md).
 | `src/wb_id_qp.py` | M1: acceleration-level inverse-dynamics QP with contact wrenches (the control path) |
 | `src/wb_qp.py` | M1: velocity-level QP — kinematic sub-problems only, **not** balance |
 | `src/m1_standing_reach.py` | M1 gate: hand-circle reach with both feet planted |
-| `tests/` | 42 tests: actuator semantics, model parity, FD-validated task Jacobians, QP force balance / friction / CoP / torque limits |
+| `src/gait_planner.py` | M2: phase timeline, contact sets, swing references with feedforward, CoM weight shift |
+| `src/locomotion_controller.py` | M2: gait → QP wiring; measured-contact stance set, swing task ramp-in, ZMP telemetry |
+| `src/m2_stepping.py` | M2 gate: four in-place steps |
+| `tests/` | 62 tests: actuator semantics, model parity, FD-validated task Jacobians, QP force balance / friction / CoP / torque limits, gait timeline + swing continuity + ZMP measurement |
 
 The torque model is **generated at runtime, not committed** — Menagerie stays
 the single source of truth. Rationale in `tasks/ARCHITECTURE.md` § Model Files.

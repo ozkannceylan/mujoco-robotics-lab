@@ -111,12 +111,29 @@ class WholeBodyIDQP:
         self.acc_reg = float(acc_regularisation)
         self.force_reg = float(force_regularisation)
 
-        self.contact_ids = [model.getFrameId(c.frame_name) for c in self.contacts]
+        self._solver: osqp.OSQP | None = None
+        self.set_contacts(self.contacts)
+
+    def set_contacts(self, contacts: list[ContactSpec]) -> None:
+        """Replace the stance set — how a gait switches support phases.
+
+        The problem *size* changes with the number of contacts (6 decision
+        variables each), so the OSQP instance is discarded rather than hot
+        updated: its factorisation is built for a fixed dimension. At ~0.1 ms
+        per solve a rebuild on the two phase transitions per step is
+        negligible, and correctness beats reusing a stale factorisation.
+        """
+        self.contacts = list(contacts)
+        self.contact_ids = [self.model.getFrameId(c.frame_name) for c in self.contacts]
         self.n_forces = _CONTACT_DIM * len(self.contacts)
         self.n_vars = NV + self.n_forces
-
-        self._solver: osqp.OSQP | None = None
         self._triu_rows, self._triu_cols = np.triu_indices(self.n_vars)
+        self._solver = None
+
+    @property
+    def contact_frames(self) -> list[str]:
+        """Names of the frames currently in contact."""
+        return [c.frame_name for c in self.contacts]
 
     # -- model terms -------------------------------------------------------
 

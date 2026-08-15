@@ -187,3 +187,72 @@ Four findings, two of which contradict what this lab inherited.
 - QP cost: 47 variables (35 accelerations + 12 contact-wrench components),
   ~0.11 ms mean solve — 1 kHz control is comfortable, so the rate reduction
   contemplated in ARCHITECTURE's open questions is not needed yet.
+
+---
+
+### M2 — Torque-Level Stepping (2026-08-15) — GATE PASSED
+
+4/4 in-place steps, ZMP inside the support polygon 98.7 % of loaded ticks,
+peak torque 49.6 N·m against a 139 N·m limit. Getting there took four
+distinct fixes; the first three were mine to make, the last was the one that
+actually mattered.
+
+#### L-M2-a: The QP's contact set must be what the ground confirms, not what the schedule intends
+- **Symptom**: The robot launched itself — swing foot 0.66 m in the air,
+  torques saturated, fall at 4.0 s.
+- **Root cause**: The stance set came straight from the gait timeline. At the
+  scheduled end of a swing the schedule declared double support while the
+  landing foot was still ~60 mm up. The QP's contact constraint then asserted
+  `J_c q̈ + J̇_c q̇ = 0` at a frame touching nothing and happily distributed
+  wrenches through it — planning against an imaginary support polygon with
+  imaginary forces.
+- **Fix**: `SteppingController._effective_stance` intersects the scheduled
+  stance with **measured** contact. Intent still decides which foot is *meant*
+  to swing; reality decides what is load-bearing.
+- **Takeaway**: Every constraint in an inverse-dynamics QP is a claim about
+  the world. A claim the world does not honour is worse than no claim at all,
+  because the solver treats it as free authority.
+
+#### L-M2-b: Commanding CoM height is what saturated the actuators
+*(The decisive fix — 3/4 steps → 4/4.)*
+- **Symptom**: With a 3-axis CoM task the gait reached 3 steps and fell during
+  the fourth transfer, with peak torque pinned at exactly 139.0 N·m.
+- **Diagnosis**: Instrumenting per-joint saturation named the culprit
+  immediately — and it was not a leg: **waist_roll** (50 N·m) saturated first
+  and for the most ticks (417), followed by waist_pitch (290) and the 25 N·m
+  shoulders. The legs were not the bottleneck; the torso was.
+- **Root cause**: Holding the CoM at a constant *height* while it translates
+  laterally over a stance foot forces the pelvis to stay level through the
+  whole transfer. The robot's natural motion is to dip slightly; suppressing
+  that dip is torque spent on nothing the gate asks for, and the waist pays it.
+- **Fix**: Control the horizontal CoM only (`axes=(0, 1)`), and relax the
+  pelvis orientation task (1e3/gain 50 → 1e2/gain 20). Result: **zero**
+  saturated ticks, peak torque 139 → 49.6 N·m, gait completes.
+- **Takeaway**: An over-specified task looks harmless in the cost function and
+  shows up as saturation somewhere unrelated. When actuators saturate, ask
+  which task is asking for something nobody requested — and check the whole
+  body, not the obvious limb.
+
+#### L-M2-c: Two "obvious improvements" that made it worse
+Kept because negative results are results, and both are things a reader would
+otherwise try:
+- **Swing-foot orientation task** (hold the foot level in flight): 3 steps →
+  fell at 5.7 s. Constraining the swing foot's rotation over-determines the
+  swing leg, and the extra rows compete with the CoM task through the same
+  hip/knee DOFs.
+- **Heavier CoM damping** (2–3× critical): 3 steps → fell at 2.7 s. The weight
+  transfer has a deadline set by the gait timeline; over-damping means it is
+  simply not finished when the foot lifts.
+
+#### L-M2-d: Measure the home pose on a *settled* robot
+Foot and CoM homes taken at t=0 sit ~10 mm below where the robot actually
+rests, so every swing reference ended buried in the floor and every touchdown
+fought it. The demo now runs the M0 standing controller for 1 s first, then
+reads the homes.
+
+#### What is deliberately still simple
+Timing is conservative (2.0 s double support, 0.5 s swing, 15 mm clearance) —
+this is quasi-static stepping, not dynamic walking. M3 has to compress the
+timeline and add a stride; the honest expectation is that the weight-transfer
+approach used here (move the CoM over the stance foot, then swing) will run
+out of road, and that capture-point/DCM tracking is what replaces it.

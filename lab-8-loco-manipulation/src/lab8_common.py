@@ -292,6 +292,68 @@ def support_polygon_margin(
     return float(-np.max(margins))
 
 
+def measured_zmp(
+    mj_model: mujoco.MjModel, mj_data: mujoco.MjData
+) -> np.ndarray | None:
+    """Zero-moment point on flat ground from live contact forces [m].
+
+    For point contacts on a horizontal plane the ZMP reduces to the normal
+    -force-weighted mean of the contact positions::
+
+        p_zmp = Σ f_z,i · p_i / Σ f_z,i
+
+    Returns None when no foot contact carries load (flight phase). Uses
+    MuJoCo's own contact forces rather than the QP's predicted wrenches on
+    purpose: the gate must measure what the simulator did, not what the
+    controller intended.
+    """
+    force = np.zeros(6)
+    total = 0.0
+    weighted = np.zeros(2)
+    for cid in range(mj_data.ncon):
+        contact = mj_data.contact[cid]
+        if not _is_foot_contact(mj_model, contact):
+            continue
+        mujoco.mj_contactForce(mj_model, mj_data, cid, force)
+        # contact.frame is the contact frame rotation, row-major; the first row
+        # is the normal in world coordinates.
+        normal = contact.frame[:3]
+        f_z = abs(float(force[0] * normal[2]))
+        if f_z <= 1e-9:
+            continue
+        total += f_z
+        weighted += f_z * contact.pos[:2]
+    if total <= 1e-6:
+        return None
+    return weighted / total
+
+
+def point_in_support_polygon(
+    mj_model: mujoco.MjModel, mj_data: mujoco.MjData, point_xy: np.ndarray
+) -> float:
+    """Signed distance from `point_xy` to the foot support polygon [m].
+
+    Positive inside. Mirrors `support_polygon_margin` but for an arbitrary
+    point (the ZMP), so the gate can score both.
+    """
+    points = [
+        mj_data.contact[cid].pos[:2].copy()
+        for cid in range(mj_data.ncon)
+        if _is_foot_contact(mj_model, mj_data.contact[cid])
+    ]
+    if len(points) < 3:
+        return float("-inf")
+
+    from scipy.spatial import ConvexHull
+
+    try:
+        hull = ConvexHull(np.array(points))
+    except Exception:
+        return float("-inf")
+    margins = hull.equations[:, :2] @ np.asarray(point_xy, dtype=float) + hull.equations[:, 2]
+    return float(-np.max(margins))
+
+
 def _is_foot_contact(mj_model: mujoco.MjModel, contact) -> bool:
     """True if a contact involves an ankle/foot body."""
     for gid in (contact.geom1, contact.geom2):
