@@ -18,7 +18,7 @@ Build a portfolio-ready robotics lab series using MuJoCo, progressing from simpl
 - Lab 5 (Grasping & Manipulation) is complete — custom parallel-jaw gripper, DLS IK, pick-and-place state machine, Lab 3+4 integration
 - Lab 6 (Dual-Arm Coordination) is complete — dual UR5e, weld-constraint cooperative carry, milestone-gated M0–M5
 - Lab 7 (Locomotion) is complete at M3d scope — G1 standing + weight shift; ZMP walking blocked by position actuators, deferred to Lab 8
-- Lab 8 (Whole-Body Loco-Manipulation) is in progress — milestone-gated M0–M6; owns gait generation via torque control (Lab 7's actuator finding). **M0 passed 2026-08-15** (torque-actuated G1, model parity 1e-16, 18 tests); next milestone M1 (whole-body QP, standing reach)
+- Lab 8 (Whole-Body Loco-Manipulation) is in progress — milestone-gated M0–M6; owns gait generation via torque control (Lab 7's actuator finding). **M0 + M1 passed 2026-08-15** (torque-actuated G1 with model parity 1e-16; whole-body inverse-dynamics QP with contact wrenches, 7.08 mm hand tracking; 42 tests); next milestone M2 (torque-level stepping)
 - Lab 9 (VLA) is planned — depends on Lab 8 controllers for demonstration data
 - End goals: strengthen fundamentals for humanoid VLA work, prepare for robotics interviews, build a portfolio demo
 
@@ -260,6 +260,9 @@ Each lab module importing from another lab must add the foreign `src/` to `sys.p
 ### Floating base: do NOT inertia-shape joint PD gains with M(q)
 The Lab 5 fix `τ = M(q)(Kp·e + Kd·ė) + g` is correct for a **fixed-base** arm. On a floating-base humanoid `M(q)[6:,6:]` is not the inertia felt through the closed leg chains, and shaping gains with it saturates actuators and makes the G1 fall at every gain setting. Use raw joint-space gains there (Lab 8 L-M0-b).
 
+### A velocity-level (kinematic) QP cannot balance a floating-base robot
+`min ‖J q̇ − ẋ_d‖²` can satisfy `J_com q̇ = 0` exactly while the robot topples: CoM motion is produced by contact forces, which a kinematic QP does not represent. Tell-tale symptom — strengthening a manipulation task makes the robot fall *sooner*. Solve at the acceleration level with contact wrenches as decision variables (Lab 8 `wb_id_qp.py`, L-M1-a).
+
 ### Gravity compensation alone cannot hold a standing humanoid
 `τ = g(q)` cancels weight but adds no posture stiffness — a standing robot is an inverted pendulum and collapses in ~2 s. Position servos hide this behind their internal PD. When porting position→torque control, enumerate every stabilising term the servo provided and re-supply it. While in contact, prefer contact-consistent gravity (`g(q) − τ_constraint`) over free-space `g(q)`.
 
@@ -295,7 +298,7 @@ Published (portfolio-ready, documented in main README):
 - [x] Lab 7: Locomotion Fundamentals (Unitree G1, floating-base Pinocchio, stacked-Jacobian whole-body IK, standing + weight shift on M3d scope; M4 ZMP walking deferred as structural limitation of position actuators)
 
 In progress (real work on disk, not yet portfolio-ready):
-- [ ] Lab 8: Whole-Body Loco-Manipulation (`lab-8-loco-manipulation/`) — M0 DONE 2026-08-15 (torque-actuated G1, gate 7/7, 18 tests). Kickoff
+- [ ] Lab 8: Whole-Body Loco-Manipulation (`lab-8-loco-manipulation/`) — M0 + M1 DONE 2026-08-15 (torque-actuated G1 gate 7/7; whole-body ID QP gate 5/5; 42 tests). Kickoff
       2026-08-14: PLAN/ARCHITECTURE/TODO/LESSONS written, milestone-gated M0–M6.
       Owns gait generation via torque control. Resume at tasks/TODO.md "Current
       Focus" (M0: torque-actuated G1 bring-up). ONE milestone per session;

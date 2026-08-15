@@ -133,3 +133,57 @@ Four findings, two of which contradict what this lab inherited.
 - **Result**: `pytest lab-*/tests/` → **224 passed** (Labs 1/2/3/4/5/7/8).
 - **Takeaway**: "Every suite passes" is not the same claim as "the suite
   passes". Test the documented command, not just the convenient one.
+
+---
+
+### M1 — Whole-Body QP, Standing Reach (2026-08-15) — GATE PASSED
+
+#### L-M1-a: A kinematic (velocity-level) QP cannot balance a humanoid
+- **Symptom**: The first implementation followed `plan/LAB_08.md`'s cost
+  literally — `min ‖J q̇ − ẋ_d‖²` solved for joint velocity, then tracked with
+  the M0 joint servo. It stood still fine and fell over during every reach.
+  Diagnostic runs showed the QP's predicted base velocity agreeing with the
+  simulation for ~0.3 s and then diverging as the robot toppled.
+- **The signature that named the bug**: making the hand task *stronger* made
+  the robot fall *sooner* (weights 1e2 → 1e3 → 1e4 all fell; only a weak hand
+  task survived, and then tracked with ~50 mm error). A controller that gets
+  worse as you ask it to do its job better is optimising the wrong variable.
+- **Root cause**: CoM motion is not commanded by joint velocity. `J_com q̇ = 0`
+  can hold exactly while the robot rotates about its ankles, because the CoM
+  is accelerated by *contact forces*, which a velocity-level QP does not model.
+  The feet also cannot be "held" kinematically: the QP assumes the floating
+  base will follow its prediction, and nothing makes it.
+- **Fix**: `wb_id_qp.py` — acceleration-level inverse-dynamics QP with the
+  contact wrenches as decision variables:
+  `min Σ w‖J q̈ + J̇q̇ − ẍ_des‖²` subject to the unactuated base dynamics
+  `M[:6] q̈ + h[:6] = J_cᵀ[:6] f`, the stance constraint `J_c q̈ + J̇_c q̇ = 0`,
+  friction/CoP/unilateral limits on `f`, and torque bounds. Torque is read out
+  of the actuated rows. Same tasks, same weights — and now the hand task can be
+  made *stronger* to get **better** tracking, which is the sanity check that
+  the formulation is right.
+- **Takeaway**: For a floating-base robot in contact, "which variables does the
+  optimiser control" is the whole design. Balance is a statement about forces;
+  a solver that cannot represent forces can only pretend to enforce it.
+  `wb_qp.py` is kept for genuinely kinematic sub-problems (swing-foot
+  retargeting in M2), clearly labelled as unsuitable for balance.
+
+#### L-M1-b: Feedforward is most of the tracking error on a moving target
+- **Symptom**: The gate passed at 18.63 mm hand RMS against a 20 mm limit —
+  uncomfortably close, and the error plot was a clean lag, not noise.
+- **Root cause**: `ẍ_des = k_p·e − k_d·ẋ` has no knowledge of the reference's
+  own velocity/acceleration, so a moving target is chased rather than tracked.
+- **Fix**: `ẍ_des = ẍ_ref + k_p·e + k_d·(ẋ_ref − ẋ)`, with the circle's
+  analytic derivatives passed in. RMS 18.63 → **7.08 mm** with no gain change.
+- **Takeaway**: Before tuning gains against a lag error, check whether the
+  trajectory's derivatives are simply missing. Gains trade stability for
+  tracking; feedforward is free.
+
+#### Environment / API notes
+- OSQP requires the **upper triangle** of `P`, and its hot `update()` needs a
+  *fixed* sparsity pattern. Building the CSC matrix from explicit
+  `np.triu_indices` (keeping numerically-zero entries) avoids
+  `ERROR in osqp_update_data_mat: new number of elements out of bounds`.
+- OSQP 1.x renamed the `polish` setting to `polishing`.
+- QP cost: 47 variables (35 accelerations + 12 contact-wrench components),
+  ~0.11 ms mean solve — 1 kHz control is comfortable, so the rate reduction
+  contemplated in ARCHITECTURE's open questions is not needed yet.

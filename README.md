@@ -28,7 +28,7 @@ Only labs marked **Complete** have published writeups and metrics in this README
 
 \*\* **Lab 7** is signed off at M3d scope: static balance, push recovery, FK/IK validation, and quasi-static weight shifting all pass their gates. Dynamic ZMP walking (M4) was identified as structurally infeasible with the Menagerie G1's position actuators — the lab's M5 documentation and blog post explain the diagnostic work in full rather than papering over the limit.
 
-\*\*\* **Lab 8** takes up exactly where Lab 7 stopped, and tests its diagnosis: milestone **M0 (passed 2026-08-15)** re-actuates the G1 with torque motors instead of position servos and re-establishes a 10 s stand from outside the simulator (0.71 mm CoM drift, Pinocchio↔MuJoCo model parity at 1e-16, 18 tests). Walking is now this lab's own deliverable (M2–M3) rather than an import. See [`lab-8-loco-manipulation/`](lab-8-loco-manipulation/).
+\*\*\* **Lab 8** takes up exactly where Lab 7 stopped, and tests its diagnosis: **M0 (2026-08-15)** re-actuates the G1 with torque motors instead of position servos and re-establishes a 10 s stand from outside the simulator (0.71 mm CoM drift, model parity at 1e-16). **M1 (2026-08-15)** adds the whole-body inverse-dynamics QP — joint accelerations *and* contact wrenches as decision variables — so the standing robot tracks a hand circle to 7.08 mm RMS while balance stays a hard constraint. 42 tests. Walking is this lab's own deliverable (M2–M3) rather than an import. See [`lab-8-loco-manipulation/`](lab-8-loco-manipulation/).
 
 ---
 

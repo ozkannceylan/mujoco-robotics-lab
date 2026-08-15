@@ -35,7 +35,7 @@ _Status refreshed 2026-08-13 (project review). This table is the single source o
 | 5 | Grasping & Manipulation | Pick and place an object | ✅ Complete — Phase 5 + Step 6.1 both closed 2026-08-13; capstone places box 5.7 mm from target with transport post-condition |
 | 6 | Dual-Arm Coordination | Two arms cooperatively carry an object (weld-constraint) | ✅ Complete (milestone-gated M0–M5; unit tests intentionally removed) |
 | 7 | Locomotion Fundamentals | Standing balance + quasi-static weight shift (M0–M3d); ZMP walking documented as structurally infeasible with position actuators | ✅ Complete at M3d scope (34 tests; M4 blocked by design) |
-| 8 | Whole-Body Loco-Manipulation | Walk while carrying an object | 🚧 In Progress — M0 PASS (torque-actuated G1, 2026-08-15); M1 whole-body QP next |
+| 8 | Whole-Body Loco-Manipulation | Walk while carrying an object | 🚧 In Progress — M0 + M1 PASS (torque G1; whole-body ID QP, 7.08 mm hand tracking); M2 stepping next |
 | 9 | VLA Integration | "Pick up the red cup" — end-to-end language-to-action | 📋 Planned |
 
 ### Lab 8 dependency note (from Lab 7 outcome)
@@ -123,7 +123,7 @@ mujoco-robotics-lab/
 ├── lab-5-grasping-manipulation/
 ├── lab-6-dual-arm/                # No tests/ — milestone-gated verification instead
 ├── lab-7-locomotion/
-└── lab-8-loco-manipulation/       # In progress (M0 done); torque-actuated G1
+└── lab-8-loco-manipulation/       # In progress (M0+M1 done); torque G1 + whole-body ID QP
 ```
 
 ---
@@ -179,7 +179,7 @@ Every blog post:
 | Control & Planning | 3–4 | ✅ Complete (2026-03, published 2026-05) | |
 | Manipulation | 5–6 | ✅ Complete (2026-03/05; Lab 5 fully closed 2026-08-13) | |
 | Locomotion | 7 | ✅ Complete at M3d scope (2026-05) | M4 ZMP walking blocked → moved to Lab 8 |
-| Whole-Body | 8 | 🚧 In progress — M0 done (2026-08-15) | Owns gait generation via torque control (M2–M3) |
+| Whole-Body | 8 | 🚧 In progress — M0 + M1 done (2026-08-15) | Owns gait generation via torque control (M2–M3) |
 | VLA | 9 | 📋 Not started | Builds on humanoid_vla; needs Lab 8 controllers for demo data |
 
 ---

@@ -197,6 +197,26 @@ def mj_state_to_pin(
     return q, v
 
 
+def pin_point_to_world(point: np.ndarray) -> np.ndarray:
+    """Convert a Pinocchio-frame point to MuJoCo world coordinates.
+
+    `mj_qpos_to_pin` subtracts `PELVIS_MJCF_Z` from the base translation, so
+    Pinocchio's world sits 0.793 m below MuJoCo's. Every position Pinocchio
+    reports (frame placements, CoM) carries that offset; verified to 0.000000
+    mm by the M0 parity tests.
+    """
+    out = np.asarray(point, dtype=float).copy()
+    out[2] += PELVIS_MJCF_Z
+    return out
+
+
+def world_point_to_pin(point: np.ndarray) -> np.ndarray:
+    """Inverse of `pin_point_to_world`."""
+    out = np.asarray(point, dtype=float).copy()
+    out[2] -= PELVIS_MJCF_Z
+    return out
+
+
 def joint_torques_to_ctrl(tau_full: np.ndarray) -> np.ndarray:
     """Extract the 29 actuated-joint torques from an nv=35 generalized force."""
     tau_full = np.asarray(tau_full, dtype=float)

@@ -1,6 +1,6 @@
 # Lab 8 — Whole-Body Loco-Manipulation
 
-> **Status:** 🚧 In progress — **M0 complete** (2026-08-15), M1 next.
+> **Status:** 🚧 In progress — **M0 + M1 complete** (2026-08-15), M2 next.
 > **Platform:** Unitree G1 (MuJoCo Menagerie, 29 DOF) under **torque** control + Pinocchio
 > **Goal:** A humanoid that walks and uses its hands at the same time — the operating
 > mode Lab 9's VLA policy will have to produce.
@@ -19,8 +19,8 @@ dynamics → joint torques, owning gait generation rather than inheriting it.
 | # | Milestone | Gate | Status |
 |---|---|---|---|
 | M0 | Torque-actuated G1 bring-up | 10 s stand, CoM drift < 30 mm, model parity < 1e-6 | ✅ **PASS** |
-| M1 | Whole-body QP (standing reach) | hand RMS < 20 mm, CoM inside support polygon | ⏳ next |
-| M2 | Torque-level stepping | 4 in-place steps, ZMP inside polygon > 95% stance | — |
+| M1 | Whole-body QP (standing reach) | hand RMS < 20 mm, CoM inside support polygon | ✅ **PASS** |
+| M2 | Torque-level stepping | 4 in-place steps, ZMP inside polygon > 95% stance | ⏳ next |
 | M3 | Forward walking | ≥ 10 steps, ≥ 1.0 m, no fall | — |
 | M4 | Walk + arm task | M3 gate holds, hand error < 50 mm while walking | — |
 | M5 | Loco-manipulation capstone | walk → grasp → carry → place, object within 50 mm | — |
@@ -85,6 +85,62 @@ Two findings worth carrying forward (full write-ups in
 
 ---
 
+## M1 — Whole-Body QP, Standing Reach ✅
+
+The G1 stands on both feet under torque control while its right hand traces two
+laps of a 10 cm circle. Balance, stance feet, hand and posture are resolved by a
+single inverse-dynamics QP per tick.
+
+```bash
+MUJOCO_GL=egl python3 lab-8-loco-manipulation/src/m1_standing_reach.py
+```
+
+| Criterion | Result | Measured |
+|---|---|---|
+| No fall | PASS | stood 11 s |
+| Hand tracking RMS < 20 mm | PASS | **7.08 mm** |
+| CoM margin ≥ 20 mm inside support polygon | PASS | 51.7 mm min |
+| Stance feet move < 5 mm | PASS | 2.19 mm |
+| Torques within limits | PASS | 12.0 N·m peak (limit 139) |
+
+![M1 reach metrics](media/m1_reach_metrics.png)
+
+Video: [`media/m1_standing_reach.mp4`](media/m1_standing_reach.mp4)
+
+### The finding: a kinematic QP cannot balance
+
+`plan/LAB_08.md` specifies the QP as `min ‖J q̇ − ẋ_d‖²` — velocity level. That
+version was built first, and it fell over during every reach. The diagnostic that
+named the bug: **making the hand task stronger made the robot fall sooner**
+(weights 1e2 → 1e4 all fell; only a weak, badly-tracking hand task survived). A
+controller that degrades as you ask it to do its job is optimising the wrong
+variable.
+
+The reason is physical, not numerical. A velocity-level QP can hold
+`J_com q̇ = 0` exactly while the robot rotates about its ankles, because CoM
+motion is produced by **contact forces**, which that formulation does not
+represent. So M1 solves at the acceleration level with the contact wrenches as
+decision variables:
+
+```
+min_{q̈,f}  Σ w‖J q̈ + J̇q̇ − ẍ_des‖² + λ_a‖q̈‖² + λ_f‖f‖²
+s.t.  M[:6] q̈ + h[:6] = J_cᵀ[:6] f     (unactuated floating base)
+      J_c q̈ + J̇_c q̇ = 0               (stance feet don't accelerate)
+      friction pyramid · CoP inside foot · f_z ≥ f_min · |τ| ≤ τ_max
+τ  =  M[6:] q̈ + h[6:] − J_cᵀ[6:] f
+```
+
+47 variables, **0.11 ms** mean solve — 1 kHz control with room to spare. Now
+strengthening the hand task *improves* tracking, which is the sanity check that
+the formulation is right. `wb_qp.py` (velocity level) is kept for genuinely
+kinematic sub-problems and labelled as unsuitable for balance.
+
+A second, cheaper win: adding the trajectory's own ẋ_ref/ẍ_ref as feedforward
+cut hand RMS from 18.63 mm to 7.08 mm with no gain change — the residual had
+been almost entirely tracking lag.
+
+---
+
 ## Architecture
 
 ```
@@ -107,7 +163,7 @@ Full module map, data flow and interface contracts:
 [`tasks/ARCHITECTURE.md`](tasks/ARCHITECTURE.md).
 Milestone plan and gates: [`tasks/PLAN.md`](tasks/PLAN.md).
 
-### Modules (M0)
+### Modules
 
 | File | Role |
 |---|---|
@@ -115,7 +171,11 @@ Milestone plan and gates: [`tasks/PLAN.md`](tasks/PLAN.md).
 | `src/lab8_common.py` | Paths, constants, model loaders, MuJoCo↔Pinocchio state conversion, CoM / contact / support-polygon helpers |
 | `src/standing_controller.py` | Joint PD + selectable gravity mode (`none` / `free_space` / `contact_consistent`) |
 | `src/m0_torque_standing.py` | M0 gate: cross-validation, ablation, recorded 10 s hold |
-| `tests/test_torque_model.py` | 18 tests: actuator semantics, torque limits, model parity, frame conventions |
+| `src/wb_tasks.py` | M1: CoM / frame-position / frame-pose / posture tasks — Jacobians, `J̇q̇` drift, feedforward |
+| `src/wb_id_qp.py` | M1: acceleration-level inverse-dynamics QP with contact wrenches (the control path) |
+| `src/wb_qp.py` | M1: velocity-level QP — kinematic sub-problems only, **not** balance |
+| `src/m1_standing_reach.py` | M1 gate: hand-circle reach with both feet planted |
+| `tests/` | 42 tests: actuator semantics, model parity, FD-validated task Jacobians, QP force balance / friction / CoP / torque limits |
 
 The torque model is **generated at runtime, not committed** — Menagerie stays
 the single source of truth. Rationale in `tasks/ARCHITECTURE.md` § Model Files.

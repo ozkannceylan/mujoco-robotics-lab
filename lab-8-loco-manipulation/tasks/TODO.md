@@ -56,14 +56,38 @@
 - [x] Lessons logged: L-M0-a … L-M0-d in LESSONS.md — notably **inherited lesson I-3
       (inertia-shaped PD) is invalid on a floating base** and was overturned by measurement.
 
-## M1 — Whole-Body QP, Standing
-- [ ] Step 1.1: `wb_tasks.py` (CoM / foot / hand / posture; FD-validated Jacobians + tests)
-- [ ] Step 1.2: `wb_qp.py` (OSQP, weighted lexicographic stack, limit constraints)
-- [ ] Step 1.3: `inverse_dynamics.py` (RNEA + **raw** joint-space PD — M0's L-M0-b
-      showed M(q)-shaped gains destabilise a floating base)
-- [ ] Step 1.4: standing reach demo
-- [ ] Gate: hand RMS < 20 mm; CoM ≥ 20 mm inside support polygon; feet < 5 mm motion
-- [ ] Evidence: `media/m1_standing_reach.mp4` + plots
+## M1 — Whole-Body QP, Standing — ✅ DONE (2026-08-15), GATE PASSED 5/5
+- [x] Step 1.1: `wb_tasks.py` — CoM / frame-position / frame-pose / posture tasks with
+      LOCAL_WORLD_ALIGNED Jacobians, `J̇q̇` drift terms, and feedforward (ẋ_ref/ẍ_ref).
+      All four Jacobians finite-difference validated in tests.
+- [x] Step 1.2: **`wb_id_qp.py`** — acceleration-level inverse-dynamics QP in OSQP with
+      contact wrenches as decision variables (47 vars: 35 q̈ + 12 wrench), unactuated
+      base dynamics + stance constraint as equalities, friction pyramid / CoP /
+      unilateral / torque limits as inequalities. Mean solve **0.11 ms**.
+      **Major deviation**: the planned velocity-level `wb_qp.py` was written first and
+      measured to be structurally unable to balance (L-M1-a) — it is kept for kinematic
+      sub-problems only. This is the single most important result of M1.
+- [x] Step 1.3: torque comes straight out of the ID QP's actuated rows, so the separate
+      `inverse_dynamics.py` servo is no longer on the control path (it remains as the
+      M0-style tracker, useful if a future milestone needs velocity-command tracking).
+- [x] Step 1.4: `m1_standing_reach.py` — 11 s demo: settle → reach → 2 laps of a 10 cm
+      hand circle, both feet planted.
+- [x] Tests: `tests/test_wb_tasks.py` — 24 tests (FD Jacobians, drift, feedforward,
+      frame conventions, stack assembly, QP force balance / friction / CoP / torque
+      limits / contact constraint). Lab 8 total **42 passed**.
+- [x] Gate — all criteria PASS:
+
+      | criterion | result | measured |
+      |---|---|---|
+      | No fall | PASS | stood 11 s |
+      | Hand tracking RMS < 20 mm | PASS | **7.08 mm** |
+      | CoM margin ≥ 20 mm | PASS | 51.7 mm min |
+      | Stance feet move < 5 mm | PASS | 2.19 mm |
+      | Torques within limits | PASS | 12.0 N·m peak (limit 139) |
+
+- [x] Evidence: `media/m1_standing_reach.mp4` + `media/m1_reach_metrics.png`
+- [x] Lessons: L-M1-a (kinematic QP cannot balance — the milestone's core finding),
+      L-M1-b (feedforward cut hand RMS 18.63 → 7.08 mm)
 
 ## M2 — Torque-Level Stepping
 - [ ] LIPM refs (adapt Lab 7 planner) + contact schedule + swing-foot task
@@ -90,16 +114,18 @@
 - [ ] Root README / MASTER_PLAN / status board / plan/LAB_08.md updates
 
 ## Current Focus
-> **M1 — Whole-Body QP, Standing.** M0 is closed: torque authority is established
-> and the analytical model is verified against the simulated body. Next session
-> starts at Step 1.1 (`wb_tasks.py` — task residuals + finite-difference-validated
-> Jacobians), then `wb_qp.py` (OSQP) and `inverse_dynamics.py`.
+> **M2 — Torque-Level Stepping.** M1 delivered the whole-body ID QP that M2 builds
+> on: the contact set is already a first-class concept (`ContactSpec` list), so
+> stepping means (a) switching contacts on a schedule, (b) adding a swing-foot
+> task, (c) feeding CoM/ZMP references from Lab 7's LIPM planner.
 >
-> Two M0 results carry directly into M1:
-> - Use **raw** joint-space gains, not M(q)-shaped ones (L-M0-b).
-> - M1's inverse dynamics must be **contact-consistent**; M0's mode of the same
->   name reads constraint forces from the simulator, whereas M1 should obtain
->   them from the QP's own contact-wrench variables.
+> What M1 established that M2 depends on:
+> - Balance must be expressed through contact forces, not joint velocity (L-M1-a).
+>   The single-support phase is where this stops being a subtlety.
+> - Feedforward matters on moving references (L-M1-b) — the swing-foot trajectory
+>   should supply ẋ_ref/ẍ_ref from the start.
+> - QP headroom: 0.11 ms at 1 kHz with 47 variables. A swing foot removes 6
+>   contact variables and adds a 6-row task, so the budget is comfortable.
 
 ## Blockers
 > None. OSQP verified (1.1.3). G1 menagerie assets present under

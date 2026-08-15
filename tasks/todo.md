@@ -12,12 +12,12 @@
 - [x] **Lab 5: Grasping & Manipulation** — **Fully complete 2026-08-13**. Phase 5 (pro demo, 0 self-collisions) AND Step 6.1 (capstone transport) closed. 6.1 root cause: gripper friction pads mounted on the OUTSIDE of the fingers (model bug) + 5 controller/planning fixes. Capstone now places box **5.7 mm** from target with a transport post-condition assert; 33/33 tests; both evidence videos re-recorded.
 - [x] **Lab 6: Dual-Arm Coordination** — Complete. M2 FK cross-validation now has an archived artifact (`media/m2_fk_validation.txt`, max err 2.6e-12 mm).
 - [x] **Lab 7: Locomotion (M3d scope)** — Complete. Test suite runs for real now (34/34 — imports were broken by the Menagerie rewrite); misleading M4 leftovers and scratch files deleted; media naming aligned. M4 ZMP walking remains BLOCKED by design → Lab 8.
-- [ ] **Lab 8: Whole-Body Loco-Manipulation** — 🚧 IN PROGRESS. **M0 PASSED 2026-08-15**: torque-actuated G1 (Menagerie position servos → `<motor>`), 10 s stand with 0.71 mm CoM drift, Pinocchio↔MuJoCo parity 1e-16, 18 tests. Gait generation owned here (M2–M3). Next: **M1 — whole-body QP, standing reach**.
+- [ ] **Lab 8: Whole-Body Loco-Manipulation** — 🚧 IN PROGRESS. **M0 + M1 PASSED 2026-08-15**: torque-actuated G1 (position servos → `<motor>`, parity 1e-16, 0.71 mm CoM drift) and the whole-body inverse-dynamics QP (contact wrenches as decision variables; hand-circle tracking 7.08 mm RMS, feet 2.2 mm, 0.11 ms solve). 42 tests. Gait generation owned here (M2–M3). Next: **M2 — torque-level stepping**.
 - [ ] **Lab 9: VLA Integration** — Not started. Depends on Lab 8 controllers for demo data.
 
 ## Current Focus
 
-> **Lab 8 · M1 — Whole-Body QP, standing reach** (M0 passed 2026-08-15; one
+> **Lab 8 · M2 — Torque-level stepping** (M0 + M1 passed 2026-08-15; one
 > milestone per session). Labs 1–7 have no open code work items.
 
 ## Blockers

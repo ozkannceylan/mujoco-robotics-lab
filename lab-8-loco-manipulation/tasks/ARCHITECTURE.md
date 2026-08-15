@@ -13,9 +13,10 @@ lab-8-loco-manipulation/
 │   ├── lab8_common.py           # paths, constants, loaders, joint map, quat helpers
 │   ├── g1_torque_model.py       # M0: MjSpec builder — position servos → <motor>
 │   ├── standing_controller.py   # M0: joint PD + selectable gravity mode
-│   ├── wb_tasks.py              # M1: task residuals + Jacobians (CoM, foot, hand, posture)
-│   ├── wb_qp.py                 # M1: OSQP velocity-level solve over the task stack
-│   ├── inverse_dynamics.py      # M1: q̇_des → τ (pin.rnea + inertia-shaped PD)
+│   ├── wb_tasks.py              # M1: task residuals, Jacobians, J̇q̇ drift, feedforward
+│   ├── wb_id_qp.py              # M1: OSQP acceleration-level ID QP  ← the control path
+│   ├── wb_qp.py                 # M1: velocity-level QP — kinematic sub-problems ONLY
+│   ├── inverse_dynamics.py      # M0-style velocity tracker (off the M1 control path)
 │   ├── gait_planner.py          # M2: LIPM refs + contact schedule (adapts Lab 7 lipm_planner)
 │   ├── locomotion_controller.py # M2–M3: stepping/walking loop tying gait → QP → τ
 │   ├── loco_manip_fsm.py        # M5: WALK→STOP→REACH→GRASP→CARRY→PLACE sequencer
@@ -28,33 +29,47 @@ lab-8-loco-manipulation/
 ## Data Flow (one control tick)
 
 ```
-sensors (mj_data: qpos, qvel, contact forces)
+sensors (mj_data: qpos, qvel)
    │
    ▼
-state estimator (direct state readout in sim; pelvis pose from freejoint)
+state: mj_state_to_pin  (pelvis z-offset, quaternion order, base twist world→body)
    │
    ▼
 references: gait_planner (CoM/footsteps, contact schedule)   hand target (fixed or FSM)
    │                                          │
    ▼                                          ▼
-wb_tasks — residuals e_i, Jacobians J_i (pin, LOCAL_WORLD_ALIGNED)
+wb_tasks — e_i, J_i, J̇_i q̇, and feedforward ẋ_ref/ẍ_ref  (LOCAL_WORLD_ALIGNED)
    │
    ▼
-wb_qp (OSQP):  min Σ w_i ‖J_i q̇ − ẋ_i‖²  s.t. q̇/q limits, support-foot constraint
-   │  q̇_des (nv)
+wb_id_qp (OSQP), variables [q̈ (35); contact wrenches f (6 per stance foot)]:
+     min Σ w_i ‖J_i q̈ + J̇_i q̇ − ẍ_i‖² + λ_a‖q̈‖² + λ_f‖f‖²
+     s.t.  M[:6] q̈ + h[:6] = J_cᵀ[:6] f          (unactuated base)
+           J_c q̈ + J̇_c q̇ = 0                    (stance feet)
+           friction pyramid, CoP in foot, f_z ≥ f_min, |τ| ≤ τ_max
+   │  τ = M[6:] q̈ + h[6:] − J_cᵀ[6:] f   (read out of the actuated rows)
    ▼
-inverse_dynamics:  q_des = pin.integrate(q, q̇_des·dt);  τ = rnea(q, q̇_d, q̈_d) + M(q)(Kp e + Kd ė)
-   │  τ (29)
-   ▼
-mj_data.ctrl[:29] → mj_step (1 kHz; QP possibly at 100–200 Hz with τ interpolation)
+mj_data.ctrl[:29] → mj_step   (1 kHz; measured 0.11 ms mean solve, no rate reduction needed)
 ```
+
+**Why acceleration level (M1 finding).** The velocity-level formulation in
+`plan/LAB_08.md` was implemented first and measured to be structurally unable to
+balance: a kinematic QP can satisfy `J_com q̇ = 0` exactly while the robot topples,
+because CoM motion is produced by contact forces it does not model. Strengthening
+the hand task made the fall *faster*. Full write-up: LESSONS L-M1-a.
 
 ## Key Interfaces
 
-- `wb_tasks.Task`: `residual(q, v) -> np.ndarray`, `jacobian(q) -> np.ndarray`,
-  `weight: float`, `name: str`. Every Jacobian ships with a finite-difference test.
-- `wb_qp.solve(tasks, q, v, limits) -> qdot_des | raises QPInfeasible` — infeasibility
-  is an exception with the failing constraint set logged, never a silent clamp.
+- `wb_tasks.Task`: `error(model, data, q)`, `jacobian(model, data, q)`,
+  `drift(model, data)` (`J̇q̇`), `desired_acceleration(...)` (PD + feedforward),
+  plus `weight` / `gain` / `name`. Every Jacobian ships with a finite-difference test.
+- `wb_tasks.TaskStack.update_dynamics(q, v)` evaluates FK, frame placements,
+  Jacobians and CoM **once** per tick with zero acceleration, so every task's
+  reported acceleration *is* its drift term.
+- `wb_id_qp.WholeBodyIDQP.solve(stack, q, v) -> IDQPResult(tau, qddot, forces, …)`
+  — raises `QPInfeasible` rather than clamping; a silently zeroed solution looks
+  like a working controller while the robot falls.
+- `wb_id_qp.ContactSpec(frame_name, friction, half_length, half_width, …)` — the
+  stance set. Changing this list per phase is how M2 will schedule contacts.
 - `gait_planner.references(t) -> GaitRefs(com, zmp, foot_targets, contact_state)`.
 - `loco_manip_fsm` mirrors Lab 5's `GraspStateMachine` contract: milestone-gated
   transitions, convergence-gated handoffs, and a **post-condition on the object pose**
@@ -96,11 +111,21 @@ at runtime depends on it.
 - Cross-validate g(q)/M(q) against `qfrc_bias`/`mj_fullM` at M0 gate time.
   (MuJoCo ≥ 3.11: `mj_fullM(model, data, dst)` — qM attribute is gone.)
 
-## Open Questions (resolve during M0/M1, log answers in LESSONS.md)
+## Open Questions
 
-1. QP rate: 1 kHz直 or 100–200 Hz with interpolation? (profile first)
-2. Weighted lexicographic vs strict HQP — start weighted, escalate on evidence.
-3. Contact modeling in the QP: frozen-foot equality task vs full contact-wrench
-   constraints — start frozen-foot (M1–M2), add wrench cone only if ZMP gate fails.
+Resolved during M0/M1:
+
+1. ~~QP rate: 1 kHz or 100–200 Hz with interpolation?~~ **1 kHz.** Measured 0.11 ms
+   mean solve for 47 variables; no interpolation needed.
+2. ~~Weighted vs strict HQP?~~ **Weighted**, ladder CoM 1e4 → hand 1e3 → posture 1.
+   Per-task errors are logged so leakage would show in the gate tables; escalate to
+   hierarchical QP (Escande et al.) only on evidence. None so far.
+3. ~~Frozen-foot task vs contact-wrench constraints?~~ **Contact wrenches**, and not
+   as an optimisation — it is what makes balance representable at all (L-M1-a).
+
+Still open:
+
 4. Whether Lab 7's `whole_body_ik.py` stacked-Jacobian solver is worth reusing for
-   QP warm starts.
+   QP warm starts (not needed yet at current solve times).
+5. M2: contact-switch handling — instantaneous set change vs force ramping through
+   double support. Expect the naive switch to spike torques; measure before choosing.
