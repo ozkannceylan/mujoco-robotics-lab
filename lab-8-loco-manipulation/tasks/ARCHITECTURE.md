@@ -7,12 +7,12 @@
 
 ```
 lab-8-loco-manipulation/
-├── models/
-│   └── g1_torque.xml            # M0: Menagerie G1 with <motor> torque actuators
-│                                #     (meshes referenced from third_party/mujoco_menagerie/unitree_g1/)
+├── models/                      # (empty at M0 — see "Model Files" below;
+│                                #  the torque G1 is built programmatically)
 ├── src/
 │   ├── lab8_common.py           # paths, constants, loaders, joint map, quat helpers
-│   ├── g1_torque_model.py       # M0: build/patch + validate the torque-actuator MJCF
+│   ├── g1_torque_model.py       # M0: MjSpec builder — position servos → <motor>
+│   ├── standing_controller.py   # M0: joint PD + selectable gravity mode
 │   ├── wb_tasks.py              # M1: task residuals + Jacobians (CoM, foot, hand, posture)
 │   ├── wb_qp.py                 # M1: OSQP velocity-level solve over the task stack
 │   ├── inverse_dynamics.py      # M1: q̇_des → τ (pin.rnea + inertia-shaped PD)
@@ -64,9 +64,18 @@ mj_data.ctrl[:29] → mj_step (1 kHz; QP possibly at 100–200 Hz with τ interp
 
 | File | Source | Notes |
 |---|---|---|
-| `third_party/mujoco_menagerie/unitree_g1/g1.xml` | upstream (gitignored, setup_env.sh) | position actuators — reference only |
-| `models/g1_torque.xml` | this lab (tracked) | same kinematics, `<motor>` actuators; torque limits documented per joint |
+| `third_party/mujoco_menagerie/unitree_g1/g1.xml` | upstream (gitignored, setup_env.sh) | the single source of truth for kinematics, inertias, meshes |
+| torque-actuated G1 | **built at runtime** by `src/g1_torque_model.py` | `MjSpec.set_to_motor()` on all 29 actuators; ctrlrange from each joint's `actuatorfrcrange`; floor + light added; keyframe ctrl zeroed |
 | capstone scene (M5) | this lab (tracked) | table + payload; sizes reuse Lab 5 conventions |
+
+**M0 decision — the torque model is generated, not committed.** PLAN.md originally
+called for a tracked `models/g1_torque.xml`. Building it from `MjSpec` instead
+(a) keeps Menagerie authoritative so upstream fixes flow through rather than
+diverging from a stale fork, (b) avoids the `meshdir`-resolution shim a relocated
+copy needs (Lab 2 required a tracked `models/assets` symlink for exactly this),
+and (c) matches the `build_mujoco_scene_spec` convention Labs 3–4 already use.
+`g1_torque_model.export_xml()` writes an inspection snapshot on demand; nothing
+at runtime depends on it.
 
 ## Cross-Lab Dependencies
 

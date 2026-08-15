@@ -57,8 +57,11 @@ torque command authority.
         limits, (later) contact.  Start with weighted lexicographic (weights 1e6 /
         1e4 / 1e2 / 1), document the choice; revisit strict HQP only if weights fail.
   - 1.3 `src/inverse_dynamics.py`: q̇_des → q_des (pin.integrate) → τ via RNEA with
-        contact-consistent gravity terms + joint-space PD on the tracking error
-        (τ = RNEA(q, q̇_d, q̈_d) + Kp·e + Kd·ė, inertia-shaped like Lab 5's fix).
+        contact-consistent terms + joint-space PD on the tracking error
+        (τ = RNEA(q, q̇_d, q̈_d) + Kp·e + Kd·ė).
+        **Amended after M0**: gains stay *raw*. The original plan said to
+        inertia-shape them like Lab 5; M0 measured that doing so makes the
+        floating-base G1 fall at every gain setting (LESSONS L-M0-b).
   - 1.4 Standing reach demo: right hand tracks a 20 cm box trajectory while both feet
         stay planted and CoM stays inside the support polygon.
 - Gate: hand tracking RMS < 20 mm over the trajectory; CoM stays ≥ 20 mm inside
@@ -108,7 +111,7 @@ torque command authority.
 
 | Risk | Mitigation |
 |---|---|
-| Torque-model G1 unstable at 1 kHz (wrist-class small-inertia joints chatter, cf. Lab 5 L-6.1b) | Inertia-shaped PD via M(q); per-joint damping from Menagerie values; dt sensitivity check in M0 |
+| ~~Torque-model G1 unstable at 1 kHz (small-inertia joints chatter, cf. Lab 5 L-6.1b)~~ | **Retired at M0**: no chatter observed at 1 kHz with raw gains (Kp 500 / Kd 50, \|τ\|max 3.9 N·m). The mitigation originally proposed here — inertia-shaped PD — turned out to be the *cause* of instability on a floating base (L-M0-b). |
 | QP infeasible during contact switches | Slack on lower-priority tasks; contact schedule hysteresis; log infeasibilities, never silently clamp |
 | Weighted hierarchy leaks balance error | Weight gap ≥ 1e3 between levels; monitor per-task residuals; escalate to strict HQP only on evidence |
 | Grasp sophistication creep | Weld-on-contact grasp; Lab 5 owns real grasping — out of scope here |

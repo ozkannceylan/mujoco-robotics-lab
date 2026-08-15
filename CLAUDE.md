@@ -18,7 +18,7 @@ Build a portfolio-ready robotics lab series using MuJoCo, progressing from simpl
 - Lab 5 (Grasping & Manipulation) is complete — custom parallel-jaw gripper, DLS IK, pick-and-place state machine, Lab 3+4 integration
 - Lab 6 (Dual-Arm Coordination) is complete — dual UR5e, weld-constraint cooperative carry, milestone-gated M0–M5
 - Lab 7 (Locomotion) is complete at M3d scope — G1 standing + weight shift; ZMP walking blocked by position actuators, deferred to Lab 8
-- Lab 8 (Whole-Body Loco-Manipulation) is in progress — kickoff 2026-08-14, milestone-gated M0–M6; owns gait generation via torque control (Lab 7's actuator finding); next milestone M0 (torque-actuated G1)
+- Lab 8 (Whole-Body Loco-Manipulation) is in progress — milestone-gated M0–M6; owns gait generation via torque control (Lab 7's actuator finding). **M0 passed 2026-08-15** (torque-actuated G1, model parity 1e-16, 18 tests); next milestone M1 (whole-body QP, standing reach)
 - Lab 9 (VLA) is planned — depends on Lab 8 controllers for demonstration data
 - End goals: strengthen fundamentals for humanoid VLA work, prepare for robotics interviews, build a portfolio demo
 
@@ -73,9 +73,14 @@ pytest lab-4-motion-planning/tests/test_collision.py
 # Single test method
 pytest lab-5-grasping-manipulation/tests/test_gripper.py::TestGripperContact::test_contact_detection -v
 
-# All tests across the project
+# All tests across the project (224 as of 2026-08-15)
 pytest lab-*/tests/
 ```
+
+> Cross-lab runs work only because the repo-root `conftest.py` isolates
+> same-named modules per lab (Labs 1 and 2 both define `a4_inverse_kinematics`,
+> Labs 7 and 8 both define `standing_controller`). Without it the second lab
+> collected imports the first lab's file. Don't delete it.
 
 No pytest config files — uses defaults. Tests use both `unittest.TestCase` and pure pytest fixtures.
 
@@ -122,16 +127,19 @@ Every lab has a `src/lab<N>_common.py` that is the central configuration hub:
 Later labs import from earlier labs via `sys.path` manipulation. The UR5e URDF from Lab 3 is reused by all subsequent labs.
 
 ```python
-# In lab4_common.py — importing from Lab 3
-_LAB3_SRC_DIR = PROJECT_ROOT / "lab-3-dynamics-force-control" / "src"
-if str(_LAB3_SRC_DIR) not in sys.path:
-    sys.path.insert(0, str(_LAB3_SRC_DIR))
+# In lab8_common.py — importing from Lab 7.
+# APPEND the foreign lab and keep this lab's own src/ at position 0, or a
+# shared module name (standing_controller, record_demo, …) resolves to the
+# wrong lab. See Known Issues.
+_LAB7_SRC_DIR = PROJECT_ROOT / "lab-7-locomotion" / "src"
+if str(_LAB7_SRC_DIR) not in sys.path:
+    sys.path.append(str(_LAB7_SRC_DIR))
 
-from lab3_common import (
-    DT, NUM_JOINTS, Q_HOME,
-    load_pinocchio_model as load_lab3_pinocchio_model,
-)
+from lab7_common import NQ, NV, PELVIS_MJCF_Z, mj_qpos_to_pin
 ```
+
+Older labs (3–5) still use `sys.path.insert(0, ...)` for this; it works there
+only because no module name collides yet.
 
 Tests do the same to reach their lab's `src/`:
 ```python
@@ -246,8 +254,14 @@ Skip collision pairs where parent joint indices differ by ≤1 (`adjacency_gap=1
 ### TOPP-RA crashes on near-duplicate waypoints
 Filter consecutive waypoints within `1e-8` before constructing arc-length spline. `scipy.interpolate.CubicSpline` requires strictly increasing values.
 
-### Cross-lab imports need sys.path
-Each lab module importing from another lab must add the foreign `src/` to `sys.path` using `Path(__file__).resolve()` and conditional `sys.path.insert(0, ...)`.
+### Cross-lab imports need sys.path — but APPEND the foreign lab, never insert(0)
+Each lab module importing from another lab must add the foreign `src/` to `sys.path` using `Path(__file__).resolve()`. Use `sys.path.append(...)` for the foreign lab and keep your own `src/` at position 0. Labs share module names (`standing_controller`, `grasp_planner`, `record_demo`), so `insert(0, foreign_src)` silently shadows the local module with another lab's implementation — Lab 8 hit this as `ImportError: cannot import name 'GravityMode' from 'standing_controller'` pointing at Lab 7's file.
+
+### Floating base: do NOT inertia-shape joint PD gains with M(q)
+The Lab 5 fix `τ = M(q)(Kp·e + Kd·ė) + g` is correct for a **fixed-base** arm. On a floating-base humanoid `M(q)[6:,6:]` is not the inertia felt through the closed leg chains, and shaping gains with it saturates actuators and makes the G1 fall at every gain setting. Use raw joint-space gains there (Lab 8 L-M0-b).
+
+### Gravity compensation alone cannot hold a standing humanoid
+`τ = g(q)` cancels weight but adds no posture stiffness — a standing robot is an inverted pendulum and collapses in ~2 s. Position servos hide this behind their internal PD. When porting position→torque control, enumerate every stabilising term the servo provided and re-supply it. While in contact, prefer contact-consistent gravity (`g(q) − τ_constraint`) over free-space `g(q)`.
 
 ### MuJoCo freejoint body qpos layout
 After arm joints (6) and gripper joints (2 with equality → 2 in qpos), freejoint occupies qpos[8:15] (3 pos + 4 quat). Equality constraint does NOT reduce qpos size. Verify with `mj_model.nq`.
@@ -281,7 +295,7 @@ Published (portfolio-ready, documented in main README):
 - [x] Lab 7: Locomotion Fundamentals (Unitree G1, floating-base Pinocchio, stacked-Jacobian whole-body IK, standing + weight shift on M3d scope; M4 ZMP walking deferred as structural limitation of position actuators)
 
 In progress (real work on disk, not yet portfolio-ready):
-- [ ] Lab 8: Whole-Body Loco-Manipulation (`lab-8-loco-manipulation/`) — kickoff
+- [ ] Lab 8: Whole-Body Loco-Manipulation (`lab-8-loco-manipulation/`) — M0 DONE 2026-08-15 (torque-actuated G1, gate 7/7, 18 tests). Kickoff
       2026-08-14: PLAN/ARCHITECTURE/TODO/LESSONS written, milestone-gated M0–M6.
       Owns gait generation via torque control. Resume at tasks/TODO.md "Current
       Focus" (M0: torque-actuated G1 bring-up). ONE milestone per session;

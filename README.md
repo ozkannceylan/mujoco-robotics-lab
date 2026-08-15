@@ -19,7 +19,7 @@ An open curriculum for rebuilding robotics fundamentals in **MuJoCo**, with **Pi
 | 5   | Grasping & manipulation | Complete\* |
 | 6   | Dual-arm coordination | Complete |
 | 7   | Locomotion fundamentals | Complete\*\* |
-| 8   | Whole-body loco-manipulation | Planned |
+| 8   | Whole-body loco-manipulation | In progress\*\*\* |
 | 9   | VLA integration | Planned |
 
 Only labs marked **Complete** have published writeups and metrics in this README. Planned labs may have in-progress code on disk but are not yet portfolio-ready.
@@ -27,6 +27,8 @@ Only labs marked **Complete** have published writeups and metrics in this README
 \* **Lab 5** fully closed 2026-08-13: the pro-demo hardening track shipped (SO(3)-log IK, RRT\* integration, per-step self-collision monitor — 0 collisions), and the capstone box-transport defect (Step 6.1) was root-caused to an outside-mounted friction pad in the gripper model plus five controller/planning issues — all fixed. The capstone now places the box **5.7 mm** from target (30 mm tolerance) with a post-condition assert so a missed transport can never again read as success.
 
 \*\* **Lab 7** is signed off at M3d scope: static balance, push recovery, FK/IK validation, and quasi-static weight shifting all pass their gates. Dynamic ZMP walking (M4) was identified as structurally infeasible with the Menagerie G1's position actuators — the lab's M5 documentation and blog post explain the diagnostic work in full rather than papering over the limit.
+
+\*\*\* **Lab 8** takes up exactly where Lab 7 stopped, and tests its diagnosis: milestone **M0 (passed 2026-08-15)** re-actuates the G1 with torque motors instead of position servos and re-establishes a 10 s stand from outside the simulator (0.71 mm CoM drift, Pinocchio↔MuJoCo model parity at 1e-16, 18 tests). Walking is now this lab's own deliverable (M2–M3) rather than an import. See [`lab-8-loco-manipulation/`](lab-8-loco-manipulation/).
 
 ---
 
