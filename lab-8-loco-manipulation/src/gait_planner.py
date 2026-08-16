@@ -93,9 +93,12 @@ class GaitSchedule:
         t_single: Single-support (swing) duration [s].
         step_length: Forward stride [m]. Zero → stepping in place (M2).
         step_height: Peak swing clearance [m].
-        com_shift_ratio: How far toward the stance foot the CoM target moves,
-            as a fraction of the distance from the midpoint. 1.0 puts it
-            directly over the stance foot.
+        com_shift_ratio: How far toward the stance foot the CoM target moves
+            **laterally**, as a fraction of the distance from the foot
+            midpoint. 1.0 puts it directly over the stance foot.
+        com_forward_shift_ratio: The same bias along the walking direction.
+            Defaults to 0 — the CoM tracks the midpoint forward and only
+            leans sideways. See `_com_over` for why the two axes differ.
     """
 
     def __init__(
@@ -112,6 +115,7 @@ class GaitSchedule:
         step_length: float = 0.0,
         step_height: float = 0.04,
         com_shift_ratio: float = 1.0,
+        com_forward_shift_ratio: float = 0.0,
     ) -> None:
         self.left_frame = left_foot_frame
         self.right_frame = right_foot_frame
@@ -127,40 +131,72 @@ class GaitSchedule:
         self.step_length = float(step_length)
         self.step_height = float(step_height)
         self.com_shift_ratio = float(com_shift_ratio)
+        self.com_forward_shift_ratio = float(com_forward_shift_ratio)
 
-        self._foot_position = {k: v.copy() for k, v in self.foot_home.items()}
+        self._home_midpoint = 0.5 * (
+            self.foot_home[left_foot_frame] + self.foot_home[right_foot_frame]
+        )
         self._phases: list[GaitPhase] = []
         self._swing_of_phase: dict[int, tuple[str, np.ndarray, np.ndarray]] = {}
+        # Foot positions in force during each phase — the CoM reference has to
+        # follow the feet as they advance, not the t=0 home poses.
+        self._foot_state: dict[int, dict[str, np.ndarray]] = {}
         self._build_timeline()
 
     # -- timeline ----------------------------------------------------------
 
     def _build_timeline(self) -> None:
-        """Lay out DS → SS → DS → SS … and the landing target of each swing."""
+        """Lay out DS → SS → DS → SS …, the landing of each swing, and the
+        foot positions in force during every phase.
+
+        Footstep placement puts the swing foot `step_length` **ahead of the
+        stance foot**, not ahead of its own previous position. The difference
+        matters: stepping ahead of your own footprint advances the body by
+        `step_length/2` per step (the feet never pass each other), which is a
+        shuffle. Passing the stance foot advances it by a full `step_length`,
+        which is a walk — and is what Lab 7's `generate_footsteps` does too.
+        """
         t = 0.0
+        positions = {k: v.copy() for k, v in self.foot_home.items()}
+
         self._phases.append(GaitPhase(Phase.DOUBLE, t, t + self.t_initial))
+        self._foot_state[0] = {k: v.copy() for k, v in positions.items()}
         t += self.t_initial
 
-        positions = {k: v.copy() for k, v in self.foot_home.items()}
         for step in range(self.n_steps):
             swing = self.left_frame if step % 2 == 0 else self.right_frame
+            stance = self.right_frame if swing == self.left_frame else self.left_frame
             start = positions[swing].copy()
             landing = start.copy()
-            landing[0] += self.step_length
+            landing[0] = positions[stance][0] + self.step_length
 
             phase = Phase.SINGLE_LEFT if swing == self.left_frame else Phase.SINGLE_RIGHT
             self._phases.append(GaitPhase(phase, t, t + self.t_single))
-            self._swing_of_phase[len(self._phases) - 1] = (swing, start, landing)
+            index = len(self._phases) - 1
+            self._swing_of_phase[index] = (swing, start, landing)
+            # During the swing the stance foot is the only support, and the
+            # swing foot is in flight; record where it *will* land so the CoM
+            # reference for the following double support is already correct.
+            self._foot_state[index] = {k: v.copy() for k, v in positions.items()}
             t += self.t_single
             positions[swing] = landing
 
             # Double support after each swing: transfer weight to the foot that
             # will become stance for the *next* swing.
             self._phases.append(GaitPhase(Phase.DOUBLE, t, t + self.t_double))
+            self._foot_state[len(self._phases) - 1] = {
+                k: v.copy() for k, v in positions.items()
+            }
             t += self.t_double
 
         self._phases.append(GaitPhase(Phase.DONE, t, t + self.t_initial))
+        self._foot_state[len(self._phases) - 1] = {k: v.copy() for k, v in positions.items()}
         self.total_duration = t + self.t_initial
+        self.final_foot_positions = {k: v.copy() for k, v in positions.items()}
+        final_midpoint = 0.5 * (
+            positions[self.left_frame] + positions[self.right_frame]
+        )
+        self.total_advance = float(final_midpoint[0] - self._home_midpoint[0])
 
     def _phase_at(self, t: float) -> tuple[int, GaitPhase]:
         for index, phase in enumerate(self._phases):
@@ -178,15 +214,62 @@ class GaitSchedule:
 
     # -- references --------------------------------------------------------
 
-    def _com_over(self, stance_frame: str | None) -> np.ndarray:
-        """CoM target above a stance foot (or the midpoint when both are down)."""
+    def _com_over(self, stance_frame: str | None, index: int) -> np.ndarray:
+        """CoM target for phase `index`, biased toward `stance_frame`.
+
+        Uses the foot positions in force during that phase, so the reference
+        travels with the gait instead of being pinned to the t=0 stance.
+
+        Lateral and forward bias are **separate**, and that separation is what
+        makes forward walking possible at all (L-M3-a). Biasing both axes
+        toward the stance foot is right when stepping in place, where the feet
+        are side by side. Once the feet straddle a stride the same rule aims
+        the CoM at a foot that is also half a step *ahead*, so the robot leans
+        out over a diagonal support polygon and topples — measured as a fall
+        during the first transfer of every forward-walking attempt.
+
+        Sideways the CoM still has to get over the stance foot (that is the
+        whole point of the transfer). Forward it should stay near the midpoint
+        and simply flow with the feet, which is what a walk actually looks
+        like: the body advances steadily while support alternates beneath it.
+        """
+        feet = self._foot_state.get(index, self.foot_home)
+        midpoint = 0.5 * (feet[self.left_frame] + feet[self.right_frame])
+
         target = self.com_home.copy()
-        if stance_frame is None:
-            return target
-        midpoint = 0.5 * (self.foot_home[self.left_frame] + self.foot_home[self.right_frame])
-        offset = self.foot_home[stance_frame][:2] - midpoint[:2]
-        target[:2] = self.com_home[:2] + self.com_shift_ratio * offset
+        target[0] = self.com_home[0] + (midpoint[0] - self._home_midpoint[0])
+        target[1] = self.com_home[1] + (midpoint[1] - self._home_midpoint[1])
+        if stance_frame is not None:
+            offset = feet[stance_frame][:2] - midpoint[:2]
+            target[0] += self.com_forward_shift_ratio * offset[0]
+            target[1] += self.com_shift_ratio * offset[1]
         return target
+
+    def forward_progress(self, t: float) -> float:
+        """Commanded forward CoM displacement at time `t` [m].
+
+        Advance is a **continuous ramp over the whole walking interval**, not a
+        per-phase quantity. Deriving it from the current foot midpoint instead
+        (the natural-looking choice) freezes the CoM through every single
+        support and then jumps it during double support: the body stops dead
+        while a foot is in the air, and the robot walks out from under itself.
+        Measured as a backwards fall on the second step — the CoM ended up
+        0.11 m *behind* where it started while the feet had moved forward
+        (L-M3-b).
+
+        A steady ramp is also simply what walking is: support alternates
+        underneath a body that keeps moving.
+        """
+        if self.total_advance <= 0.0:
+            return 0.0
+        start = self.t_initial
+        end = self.total_duration - self.t_initial
+        if t <= start:
+            return 0.0
+        if t >= end:
+            return self.total_advance
+        alpha = (t - start) / (end - start)
+        return self.total_advance * alpha
 
     def reference(self, t: float) -> GaitReference:
         """Full reference at time `t`."""
@@ -201,9 +284,11 @@ class GaitSchedule:
             position, velocity, acceleration = self._swing_state(
                 t - phase.t_start, phase.duration, start, landing
             )
+            com_target = self._com_over(stance_frame, index)
+            com_target[0] = self.com_home[0] + self.forward_progress(t)
             return GaitReference(
                 phase=phase.phase,
-                com_target=self._com_over(stance_frame),
+                com_target=com_target,
                 stance_feet=(stance_frame,),
                 swing_foot=swing_frame,
                 swing_position=position,
@@ -219,10 +304,12 @@ class GaitSchedule:
         # Raised cosine → zero velocity at both ends of the transfer.
         blend = 0.5 * (1.0 - np.cos(np.pi * alpha))
         previous = self._com_target_before(index)
-        goal = self._com_over(next_stance)
+        goal = self._com_over(next_stance, index)
+        com_target = previous + blend * (goal - previous)
+        com_target[0] = self.com_home[0] + self.forward_progress(t)
         return GaitReference(
             phase=phase.phase,
-            com_target=previous + blend * (goal - previous),
+            com_target=com_target,
             stance_feet=(self.left_frame, self.right_frame),
             swing_foot=None,
             swing_position=None,
@@ -239,8 +326,8 @@ class GaitSchedule:
         if previous.phase in (Phase.SINGLE_LEFT, Phase.SINGLE_RIGHT):
             swing_frame, _, _ = self._swing_of_phase[index - 1]
             stance = self.right_frame if swing_frame == self.left_frame else self.left_frame
-            return self._com_over(stance)
-        return self.com_home.copy()
+            return self._com_over(stance, index - 1)
+        return self._com_over(None, index - 1)
 
     def _swing_state(
         self,

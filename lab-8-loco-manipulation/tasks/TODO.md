@@ -120,9 +120,24 @@
       L-M2-c (two plausible improvements that made it worse), L-M2-d (settle before
       measuring home poses).
 
-## M3 — Forward Walking (retires Lab 7's deferred capstone)
-- [ ] Gate: ≥ 10 steps, ≥ 1.0 m, no fall
-- [ ] Evidence: `media/m3_walking.mp4` + stride/ZMP plots
+## M3 — Forward Walking (retires Lab 7's deferred capstone) — 🚧 IN PROGRESS
+- [x] `gait_planner` forward-walking support: footstep placement ahead of the
+      **stance** foot (a full stride of body advance per step, not half), per-phase
+      foot bookkeeping so references follow the feet, and `forward_progress(t)`.
+- [x] Two real defects found and fixed (LESSONS L-M3-a, L-M3-b):
+      lateral vs forward CoM bias must be separate ratios; the forward reference must
+      be a continuous ramp rather than a per-phase quantity.
+- [x] Tests still green (62) with the planner changes; forward-stride case covered.
+- [ ] **Gate NOT passed**: best run reaches **3 of 10 steps, 0.22 m of 1.0 m**.
+      Tuning sweeps (stride 0.06/0.08/0.12, t_double 1.5/2.0, forward shift 0/0.3)
+      all fail the same way, so this is a strategy limit, not a gain problem —
+      exactly what M2's write-up predicted.
+- [ ] **Next implementation step**: capture-point / DCM tracking. Command the
+      divergent component ξ = c + ċ/ω (ω = √(g/z_c)) and place footsteps to arrest
+      it, instead of commanding CoM position. The quasi-static "shift then swing"
+      rule needs a stationary moment over each foot that forward walking never
+      provides.
+- [ ] Evidence: `media/m3_walking.mp4` + stride/ZMP plots (once the gate passes)
 
 ## M4 — Walk + Arm Task
 - [ ] Gate: M3 gate holds AND hand error < 50 mm while walking
@@ -140,19 +155,18 @@
 - [ ] Root README / MASTER_PLAN / status board / plan/LAB_08.md updates
 
 ## Current Focus
-> **M3 — Forward Walking** (≥ 10 steps, ≥ 1.0 m). `GaitSchedule` already takes a
-> `step_length`, and a forward stride is covered by a test, so M3 is mostly about
-> compressing the timeline: M2's 2.0 s double support / 0.5 s swing is quasi-static.
+> **M3 — Forward Walking, continued.** The reference generator now supports forward
+> walking correctly (L-M3-a, L-M3-b fixed and tested), but the gate is not passed:
+> 3 of 10 steps, 0.22 m of 1.0 m.
 >
-> What M2 leaves for M3 to solve:
-> - The weight-shift strategy (move the CoM over the stance foot, *then* swing) has
->   a deadline problem as timing tightens — over-damping already failed for exactly
->   this reason (L-M2-c). Capture-point / DCM tracking is the expected replacement.
-> - Torque headroom is now large (49.6 of 139 N·m), so the budget for faster motion
->   exists — provided no task re-introduces an over-specified demand (L-M2-b).
-> - Contact switching is measured-contact driven and stable across 16 switches;
->   forward stepping adds touchdown at a *new* location, so landing detection will
->   matter more than it did stepping in place.
+> Start the next session at the DCM implementation, not at gain tuning — the sweeps
+> already run rule the latter out:
+> 1. Add `ω = √(g/z_c)` and a DCM estimate `ξ = c + ċ/ω` to `lab8_common`.
+> 2. Plan a DCM reference over the footstep sequence (piecewise exponential between
+>    steps) and track *that* in the QP instead of CoM position; the CoM task becomes
+>    a DCM task with the same weight ladder.
+> 3. Re-check the M2 in-place gate afterwards — DCM should subsume it, and a
+>    regression there would mean the new reference is wrong.
 
 ## Blockers
 > None. OSQP verified (1.1.3). G1 menagerie assets present under

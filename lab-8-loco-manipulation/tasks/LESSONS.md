@@ -256,3 +256,63 @@ this is quasi-static stepping, not dynamic walking. M3 has to compress the
 timeline and add a stride; the honest expectation is that the weight-transfer
 approach used here (move the CoM over the stance foot, then swing) will run
 out of road, and that capture-point/DCM tracking is what replaces it.
+
+---
+
+### M3 — Forward Walking (2026-08-15) — **IN PROGRESS, gate not passed**
+
+Status: **3 of 10 steps, 0.22 m of the required 1.0 m.** Two real defects in
+the reference generator were found and fixed along the way (both were making
+forward walking impossible rather than merely hard); what remains is the
+strategy limit predicted at the end of M2.
+
+#### L-M3-a: Lateral and forward CoM bias are different problems
+- **Symptom**: Every forward-walking attempt fell during the *first* weight
+  transfer, before the second step — while the identical controller stepped in
+  place indefinitely.
+- **Root cause**: M2's rule "move the CoM toward the stance foot" biased both
+  horizontal axes. Stepping in place that is correct, because the feet are
+  side by side and the stance foot is only *sideways* from the midpoint. Once
+  a stride separates the feet, the same rule also aims the CoM half a step
+  **forward**, out over a diagonal support polygon.
+- **Fix**: Separate ratios — `com_shift_ratio` (lateral, 0.9) and
+  `com_forward_shift_ratio` (forward, default 0). Sideways the CoM still has
+  to get over the stance foot; forward it tracks the foot midpoint.
+- **Takeaway**: A heuristic validated in a symmetric case can hide an implicit
+  assumption about geometry. "Toward the stance foot" quietly meant "sideways"
+  the whole time.
+
+#### L-M3-b: The CoM reference must flow continuously, not per phase
+- **Symptom**: With the axes separated the robot got further but fell
+  backwards on the second step — the CoM ended up 0.11 m *behind* its start
+  while the feet had advanced.
+- **Root cause**: The forward reference was derived from the current foot
+  midpoint, which is constant through a whole single-support phase and jumps
+  at each touchdown. So the commanded body position froze every time a foot
+  was in the air, and the feet walked out from under a stationary CoM.
+- **Fix**: `GaitSchedule.forward_progress(t)` — a continuous ramp across the
+  whole walking interval, independent of phase. Max reference jump per 5 ms
+  tick: 2.11 mm → 0.88 mm.
+- **Takeaway**: Support alternates; the body does not. Any reference derived
+  from "which feet are down right now" inherits the discontinuity of the
+  contact schedule.
+
+#### Where it stands, and the honest diagnosis
+With both fixes the gait reaches 3 steps / 0.22 m before falling (stride 0.08
+gets furthest). This is the limit M2's write-up predicted: the quasi-static
+strategy — *shift the CoM over the stance foot, then swing* — requires the CoM
+to be nearly stationary over one foot at each transfer, and forward walking
+never gives it that moment. The robot has to keep moving, which means the
+reference must be expressed in terms of where the CoM is *going*, not where it
+should sit.
+
+The standard answer is capture-point / DCM tracking: command the divergent
+component `ξ = c + ċ/ω` (ω = √(g/z_c)) and place each footstep where it will
+arrest ξ, instead of commanding CoM position directly. That is the next
+implementation step for M3, not another round of gain tuning — the failure is
+structural, and the tuning sweeps already run (stride 0.06/0.08/0.12, double
+support 1.5/2.0 s, forward shift 0/0.3) all fail the same way.
+
+Working artefacts from this session that M3 keeps: forward footstep placement
+(swing foot lands ahead of the *stance* foot, so the body advances a full
+stride per step), per-phase foot bookkeeping, and the continuous forward ramp.
