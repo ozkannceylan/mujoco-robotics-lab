@@ -120,24 +120,54 @@
       L-M2-c (two plausible improvements that made it worse), L-M2-d (settle before
       measuring home poses).
 
-## M3 — Forward Walking (retires Lab 7's deferred capstone) — 🚧 IN PROGRESS
-- [x] `gait_planner` forward-walking support: footstep placement ahead of the
-      **stance** foot (a full stride of body advance per step, not half), per-phase
-      foot bookkeeping so references follow the feet, and `forward_progress(t)`.
-- [x] Two real defects found and fixed (LESSONS L-M3-a, L-M3-b):
-      lateral vs forward CoM bias must be separate ratios; the forward reference must
-      be a continuous ramp rather than a per-phase quantity.
-- [x] Tests still green (62) with the planner changes; forward-stride case covered.
-- [ ] **Gate NOT passed**: best run reaches **3 of 10 steps, 0.22 m of 1.0 m**.
-      Tuning sweeps (stride 0.06/0.08/0.12, t_double 1.5/2.0, forward shift 0/0.3)
-      all fail the same way, so this is a strategy limit, not a gain problem —
-      exactly what M2's write-up predicted.
-- [ ] **Next implementation step**: capture-point / DCM tracking. Command the
-      divergent component ξ = c + ċ/ω (ω = √(g/z_c)) and place footsteps to arrest
-      it, instead of commanding CoM position. The quasi-static "shift then swing"
-      rule needs a stationary moment over each foot that forward walking never
-      provides.
-- [ ] Evidence: `media/m3_walking.mp4` + stride/ZMP plots (once the gate passes)
+## M3 — Forward Walking (retires Lab 7's deferred capstone) — ✅ DONE (2026-08-16), GATE PASSED 4/4
+- [x] Step 3.1: `src/dcm_planner.py` — piecewise-linear ZMP through the footsteps
+      (hold → sweep onto stance → hold at the stance foot → sweep to the next),
+      with the DCM back-integrated from a terminal rest condition. Backward is
+      the only stable direction for an unstable system: it contracts the
+      boundary error by `e^{−ωT}` where forward integration amplifies it.
+      Segments are deliberately not one-per-gait-phase (L-M3-h).
+- [x] Step 3.2: `wb_tasks.DCMTask` — commands `c̈ = ω²(c − p_cmd)` from
+      `p_cmd = ξ − ξ̇_ref/ω + (k/ω)(ξ − ξ_ref)`, clamped into the stance feet.
+      **The CoM position task is off the control path entirely**: nothing tells
+      the robot where its CoM should be, only where its divergent component is
+      going. Optional leaky integrator, defaulting off (L-M3-g).
+- [x] Step 3.3: `gait_planner` gains `step_width` — the dominant gait parameter
+      (L-M3-f). `lab8_common` gains `lipm_omega` / `divergent_component`.
+- [x] Step 3.4: **Foot contact model corrected** (L-M3-d). `ContactSpec` now
+      describes the real Menagerie G1 sole (x ∈ [−0.05, 0.12], y ∈ ±0.025,
+      35 mm below the frame) instead of a symmetric ±0.08 guess, and the CoP
+      rows carry the `h·f` shear term. This, not the control law, was the
+      single biggest contributor.
+- [x] Step 3.5: **QP solver tolerance fixed** (L-M3-e). 38 % of ticks were
+      hitting the iteration cap at 12.6 ms; now 100 % converge in ~25
+      iterations and 0.073 ms, with a *smaller* constraint residual.
+- [x] Step 3.6: `m3_walking.py` — 12 steps × 10 cm, plus `--in-place` to re-run
+      M2's gate through the DCM controller.
+- [x] Tests: `tests/test_dcm.py` — 35 tests (LIPM primitives, segment algebra
+      against the DCM ODE, plan continuity/terminal rest/foot-patch targeting,
+      the control law reducing to the planned ZMP under perfect tracking, VRP
+      clamping, and the CoP box against the real foot geometry). Lab 8 total
+      **97 passed**.
+- [x] Gate — all criteria PASS:
+
+      | criterion | result | measured |
+      |---|---|---|
+      | ≥10 steps without falling | PASS | **12/12** |
+      | Travelled ≥ 1.0 m | PASS | **1.18 m** |
+      | ZMP inside support > 90 % | PASS | 99.3 % |
+      | Torques within limits | PASS | 56.0 N·m (limit 139) |
+
+- [x] Regressions: M2's in-place gate re-run under the DCM controller; M0 and
+      M1 re-run after the QP changes. M2 *improved* (ZMP 98.7 % → 100 %).
+- [x] Evidence: `media/m3_walking.mp4` + `media/m3_walking_metrics.png`
+- [x] Lessons: L-M3-c (read saturation before error when a new controller
+      underperforms), **L-M3-d (the contact model was the real bug)**,
+      L-M3-e (a tighter QP tolerance made the answer worse), L-M3-f (stance
+      width dominates stride length), L-M3-g (the integrator became harmful
+      once the cause was fixed), L-M3-h (a well-motivated fix to the plan's
+      initial condition halved the gait — a dynamic reference is allowed to
+      want the robot already moving).
 
 ## M4 — Walk + Arm Task
 - [ ] Gate: M3 gate holds AND hand error < 50 mm while walking
@@ -155,18 +185,18 @@
 - [ ] Root README / MASTER_PLAN / status board / plan/LAB_08.md updates
 
 ## Current Focus
-> **M3 — Forward Walking, continued.** The reference generator now supports forward
-> walking correctly (L-M3-a, L-M3-b fixed and tested), but the gate is not passed:
-> 3 of 10 steps, 0.22 m of 1.0 m.
+> **M4 — Walk + Arm Task.** M3 closed 2026-08-16; the DCM controller walks
+> 1.18 m in 12 steps with 6.2 mm DCM RMS and 56 N·m peak torque, and the
+> whole-body QP now solves in 0.073 ms, so there is headroom for a hand task.
 >
-> Start the next session at the DCM implementation, not at gain tuning — the sweeps
-> already run rule the latter out:
-> 1. Add `ω = √(g/z_c)` and a DCM estimate `ξ = c + ċ/ω` to `lab8_common`.
-> 2. Plan a DCM reference over the footstep sequence (piecewise exponential between
->    steps) and track *that* in the QP instead of CoM position; the CoM task becomes
->    a DCM task with the same weight ladder.
-> 3. Re-check the M2 in-place gate afterwards — DCM should subsume it, and a
->    regression there would mean the new reference is wrong.
+> Gate: M3's criteria still hold **and** hand error < 50 mm while walking.
+> Start by adding a `FramePositionTask` on a hand to `m3_walking`'s stack at a
+> weight below the DCM and swing tasks, and watch two things that M3 makes
+> predictable: whether the arm's momentum shows up as a lateral DCM
+> disturbance (it should, and the DCM error is the place to read it), and
+> whether the posture task still has enough authority to keep the other arm
+> from drifting. M1 already tracked a moving hand to 7.08 mm while standing,
+> so the new content is purely the coupling.
 
 ## Blockers
 > None. OSQP verified (1.1.3). G1 menagerie assets present under

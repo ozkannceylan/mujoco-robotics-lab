@@ -92,6 +92,13 @@ class GaitSchedule:
         t_double: Double-support (weight transfer) duration [s].
         t_single: Single-support (swing) duration [s].
         step_length: Forward stride [m]. Zero → stepping in place (M2).
+        step_width: Lateral distance between the feet after the first step [m].
+            None → keep each foot on its home line. This is the single biggest
+            lever on how hard the gait is to balance: the ZMP has to travel
+            from one foot to the other every step, and the lateral DCM swings
+            with the same amplitude, so a wide stance buys a large lateral
+            excursion that must be arrested inside one foot width. The G1's
+            rest stance is 0.237 m; a walking gait wants noticeably less.
         step_height: Peak swing clearance [m].
         com_shift_ratio: How far toward the stance foot the CoM target moves
             **laterally**, as a fraction of the distance from the foot
@@ -113,6 +120,7 @@ class GaitSchedule:
         t_double: float = 0.6,
         t_single: float = 0.7,
         step_length: float = 0.0,
+        step_width: float | None = None,
         step_height: float = 0.04,
         com_shift_ratio: float = 1.0,
         com_forward_shift_ratio: float = 0.0,
@@ -129,6 +137,7 @@ class GaitSchedule:
         self.t_double = float(t_double)
         self.t_single = float(t_single)
         self.step_length = float(step_length)
+        self.step_width = None if step_width is None else float(step_width)
         self.step_height = float(step_height)
         self.com_shift_ratio = float(com_shift_ratio)
         self.com_forward_shift_ratio = float(com_forward_shift_ratio)
@@ -169,6 +178,11 @@ class GaitSchedule:
             start = positions[swing].copy()
             landing = start.copy()
             landing[0] = positions[stance][0] + self.step_length
+            if self.step_width is not None:
+                # Place the foot beside the stance foot at the requested
+                # separation, keeping it on its own side of the body.
+                side = 1.0 if swing == self.left_frame else -1.0
+                landing[1] = positions[stance][1] + side * self.step_width
 
             phase = Phase.SINGLE_LEFT if swing == self.left_frame else Phase.SINGLE_RIGHT
             self._phases.append(GaitPhase(phase, t, t + self.t_single))
@@ -372,6 +386,36 @@ class GaitSchedule:
     def phases(self) -> list[GaitPhase]:
         """The full timeline (for plots and tests)."""
         return list(self._phases)
+
+    def foot_positions(self, index: int) -> dict[str, np.ndarray]:
+        """Foot positions in force during phase `index` (world).
+
+        During a single-support phase the swing foot is reported at its
+        *lift-off* position; it is only moved to the landing once the following
+        double support begins.
+        """
+        feet = self._foot_state.get(index, self.foot_home)
+        return {k: v.copy() for k, v in feet.items()}
+
+    def swing_frame_of_phase(self, index: int) -> str | None:
+        """Swing foot of phase `index`, or None if it is a support phase."""
+        entry = self._swing_of_phase.get(index)
+        return None if entry is None else entry[0]
+
+    def stance_frame_of_phase(self, index: int) -> str | None:
+        """Sole stance foot of phase `index`, or None in double support."""
+        swing = self.swing_frame_of_phase(index)
+        if swing is None:
+            return None
+        return self.right_frame if swing == self.left_frame else self.left_frame
+
+    def next_stance_frame(self, index: int) -> str | None:
+        """Foot that carries the robot in the next single-support phase."""
+        return self._next_stance_frame(index)
+
+    def phase_index_at(self, t: float) -> int:
+        """Index into `phases()` of the phase active at time `t`."""
+        return self._phase_at(t)[0]
 
     def contact_frames(self, t: float) -> tuple[str, ...]:
         """Stance frames at time `t` — the QP's contact set."""

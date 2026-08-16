@@ -79,13 +79,24 @@ torque command authority.
   stays inside the support polygon > 95% of stance time.
 - Evidence: `media/m2_stepping.mp4` + ZMP plot.
 
-### M3 — Forward Walking (own the gait, part 2 — retires Lab 7's deferred capstone)
-- Steps: forward LIPM references, 0.10–0.15 m strides; disturbance-free flat ground;
-  tune QP weights/PD gains; instrument falls with the Lab 7 debugging checklist.
+### M3 — Forward Walking (own the gait, part 2 — retires Lab 7's deferred capstone) ✅ DONE 2026-08-16
 - Gate: ≥ 10 consecutive forward steps, ≥ 1.0 m traveled, no fall, arms in nominal pose.
-- Evidence: `media/m3_walking.mp4` + stride/ZMP plots.
+- **Result: 12/12 steps, 1.18 m, ZMP inside 99.3 %, peak τ 56.0 N·m.**
+- Evidence: `media/m3_walking.mp4` + `media/m3_walking_metrics.png`.
 - Note: this gate deliberately equals Lab 7's abandoned "10+ steps" capstone — the
-  point is to demonstrate the actuator-model diagnosis was correct.
+  point was to demonstrate the actuator-model diagnosis was correct. It is.
+- **Deviation from this plan**: the step above said "forward LIPM references …
+  tune QP weights/PD gains". Tuning was measured to be the wrong lever — the
+  quasi-static CoM reference fails at every gain (session 1: 3/10 steps across
+  the whole sweep). M3 replaced the reference instead: `dcm_planner.py` plans a
+  ZMP through the footsteps and `wb_tasks.DCMTask` regulates the divergent
+  component ξ = c + ċ/ω, with no CoM *position* task on the control path.
+- **The larger share of the fix was not the control law.** Three defects found
+  underneath it, in order of contribution: the foot contact model was a
+  symmetric ±0.08 m guess rather than the G1's real asymmetric sole (L-M3-d);
+  the QP's 1e-6 solver tolerance was below what the problem's conditioning can
+  deliver, so 38 % of ticks returned an unconverged point (L-M3-e); and stance
+  width, not stride length, dominates lateral balance cost (L-M3-f).
 
 ### M4 — Walk + Arm Task
 - Steps: (a) walk with both arms holding a fixed Cartesian pose (carry posture);

@@ -17,7 +17,10 @@ lab-8-loco-manipulation/
 │   ├── wb_id_qp.py              # M1: OSQP acceleration-level ID QP  ← the control path
 │   ├── wb_qp.py                 # M1: velocity-level QP — kinematic sub-problems ONLY
 │   ├── inverse_dynamics.py      # M0-style velocity tracker (off the M1 control path)
-│   ├── gait_planner.py          # M2: LIPM refs + contact schedule (adapts Lab 7 lipm_planner)
+│   ├── gait_planner.py          # M2–M3: phase timeline, contact schedule, swing refs,
+│   │                            #   footstep placement (step_length / step_width)
+│   ├── dcm_planner.py           # M3: ZMP through the footsteps + the DCM trajectory it
+│   │                            #   generates, back-integrated from terminal rest
 │   ├── locomotion_controller.py # M2–M3: stepping/walking loop tying gait → QP → τ
 │   ├── loco_manip_fsm.py        # M5: WALK→STOP→REACH→GRASP→CARRY→PLACE sequencer
 │   └── mN_*.py                  # one runnable demo per milestone, writes media/mN_*
@@ -25,6 +28,19 @@ lab-8-loco-manipulation/
 │                                #   QP feasibility, RNEA cross-validation, gait refs)
 └── media/                       # gate evidence only — no orphans (Lab 7 lesson)
 ```
+
+### M3 deviation: the balance reference is the DCM, not the CoM
+
+`wb_tasks.CoMTask` remains for M2's in-place path, but the walking controller
+drives `wb_tasks.DCMTask`, whose desired acceleration is `ω²(c − p_cmd)` with
+`p_cmd` the ZMP the divergent component needs. **Nothing on the M3 control path
+tells the robot where its CoM should be.** The `GaitSchedule.reference()` CoM
+target is ignored when a `DCMPlan` is supplied to `SteppingController`.
+
+The other M3 interface change is that `ContactSpec` now carries the contact
+patch's centre and the frame's height above the ground, so the QP's CoP rows
+and the controller's ZMP clamp describe the same physical foot — `dcm_planner`
+reads the same offsets when placing its ZMP.
 
 ## Data Flow (one control tick)
 

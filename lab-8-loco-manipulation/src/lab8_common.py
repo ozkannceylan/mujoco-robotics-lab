@@ -244,6 +244,37 @@ def com_position(mj_model: mujoco.MjModel, mj_data: mujoco.MjData) -> np.ndarray
     return mj_data.subtree_com[0].copy()
 
 
+def lipm_omega(com_height: float) -> float:
+    """Natural frequency of the linear inverted pendulum, ω = √(g/z_c) [1/s].
+
+    `z_c` is the CoM height **above the contact plane**, not above the world
+    origin — on flat ground with the feet at z≈0 the two coincide, but the
+    distinction matters the moment a step goes onto a different level.
+    """
+    if com_height <= 0.0:
+        raise ValueError(f"CoM height must be positive, got {com_height}")
+    return float(np.sqrt(GRAVITY / com_height))
+
+
+def divergent_component(
+    com: np.ndarray, com_velocity: np.ndarray, omega: float
+) -> np.ndarray:
+    """Divergent component of motion (capture point), ξ = c + ċ/ω.
+
+    The LIPM's CoM dynamics `c̈ = ω²(c − p_zmp)` split into a stable part that
+    needs no control and an unstable part `ξ` obeying `ξ̇ = ω(ξ − p_zmp)`.
+    Only `ξ` can run away, so a walking controller only has to steer `ξ` — and
+    the ZMP it can produce is bounded by the support polygon, which is exactly
+    the constraint the whole-body QP already enforces.
+
+    Accepts 2D or 3D input and returns the same shape; only the horizontal
+    components are meaningful under the constant-height assumption.
+    """
+    com = np.asarray(com, dtype=float)
+    com_velocity = np.asarray(com_velocity, dtype=float)
+    return com + com_velocity / float(omega)
+
+
 def foot_contact_state(
     mj_model: mujoco.MjModel, mj_data: mujoco.MjData
 ) -> tuple[bool, bool]:

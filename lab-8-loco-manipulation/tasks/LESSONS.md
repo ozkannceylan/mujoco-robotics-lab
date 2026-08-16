@@ -259,9 +259,16 @@ out of road, and that capture-point/DCM tracking is what replaces it.
 
 ---
 
-### M3 — Forward Walking (2026-08-15) — **IN PROGRESS, gate not passed**
+### M3 — Forward Walking (2026-08-15 / 16) — **GATE PASSED 4/4**
 
-Status: **3 of 10 steps, 0.22 m of the required 1.0 m.** Two real defects in
+Two sessions. The first ended at **3 of 10 steps, 0.22 m of the required
+1.0 m**; the second reached **12 of 12 steps and 1.18 m**. The entries below
+are in the order they were found, so the first two describe the reference
+generator that the DCM work then replaced — they are kept because both bugs
+were real and both would have hidden inside the new controller just as well.
+
+#### Session 1 status (superseded)
+**3 of 10 steps, 0.22 m of the required 1.0 m.** Two real defects in
 the reference generator were found and fixed along the way (both were making
 forward walking impossible rather than merely hard); what remains is the
 strategy limit predicted at the end of M2.
@@ -297,22 +304,173 @@ strategy limit predicted at the end of M2.
   from "which feet are down right now" inherits the discontinuity of the
   contact schedule.
 
-#### Where it stands, and the honest diagnosis
-With both fixes the gait reaches 3 steps / 0.22 m before falling (stride 0.08
-gets furthest). This is the limit M2's write-up predicted: the quasi-static
+#### Where session 1 ended, and the diagnosis that turned out to be right
+With both fixes the gait reached 3 steps / 0.22 m before falling (stride 0.08
+got furthest). That was the limit M2's write-up predicted: the quasi-static
 strategy — *shift the CoM over the stance foot, then swing* — requires the CoM
 to be nearly stationary over one foot at each transfer, and forward walking
-never gives it that moment. The robot has to keep moving, which means the
-reference must be expressed in terms of where the CoM is *going*, not where it
-should sit.
+never gives it that moment. The tuning sweeps already run (stride
+0.06/0.08/0.12, double support 1.5/2.0 s, forward shift 0/0.3) all failed the
+same way, so the next step was recorded as capture-point / DCM tracking rather
+than another round of gains. That call was correct, but the four entries below
+are what actually made it work — three of the four are not about DCM at all.
 
-The standard answer is capture-point / DCM tracking: command the divergent
-component `ξ = c + ċ/ω` (ω = √(g/z_c)) and place each footstep where it will
-arrest ξ, instead of commanding CoM position directly. That is the next
-implementation step for M3, not another round of gain tuning — the failure is
-structural, and the tuning sweeps already run (stride 0.06/0.08/0.12, double
-support 1.5/2.0 s, forward shift 0/0.3) all fail the same way.
+---
 
-Working artefacts from this session that M3 keeps: forward footstep placement
-(swing foot lands ahead of the *stance* foot, so the body advances a full
-stride per step), per-phase foot bookkeeping, and the continuous forward ramp.
+#### L-M3-c: DCM tracking is the right reference, and it is not sufficient alone
+- **What changed**: `dcm_planner.py` plans a piecewise-linear ZMP through the
+  footsteps and back-integrates `ξ̇ = ω(ξ − p)` from a terminal rest condition;
+  `wb_tasks.DCMTask` commands `c̈ = ω²(c − p_cmd)` with
+  `p_cmd = ξ − ξ̇_ref/ω + (k/ω)(ξ − ξ_ref)`, clamped into the stance feet.
+  The CoM position task is gone from the control path entirely — nothing tells
+  the robot where its CoM should be, only where its divergent component is
+  heading.
+- **First measured result**: **worse than the old controller** — 2 of 12 steps
+  and 0.32 m *backwards*, with the commanded ZMP clamped at a foot edge on
+  53 % of ticks. It would have been easy to read that as "DCM does not work
+  here" and start tuning k.
+- **What it actually meant**: a ZMP command pinned at the foot edge half the
+  time is not a gain problem, it is a statement that the controller is asking
+  for authority the model says it does not have. That pointed at the contact
+  model and the solver, not the control law — see L-M3-d and L-M3-e. With
+  those two fixed and nothing else changed, the same DCM controller went from
+  2 steps to 7, and to **12 with the stance narrowed** (L-M3-f).
+- **Takeaway**: When a new controller performs worse than the one it replaces,
+  read its *saturation* signals before its error signals. Error tells you it is
+  failing; saturation tells you what it thinks it is not allowed to do.
+
+#### L-M3-d: The foot contact model was a symmetric guess, and walking is where that bites
+- **Symptom**: The QP planned CoM accelerations MuJoCo did not deliver —
+  regressing realised against commanded lateral acceleration gave slope 0.78
+  with a **−0.09 m/s² offset** and correlation 0.62. A constant acceleration
+  disturbance is exactly what produces a standing DCM error (`d/(ω·k)` ≈ 8 mm),
+  and it landed on the lateral axis where the whole margin is one foot width.
+- **Root cause**: `ContactSpec` described the foot as a ±0.08 m box centred on
+  the ankle frame, with the CoP read as `−m_y/f_z`. The real Menagerie G1 foot
+  is four spheres at x ∈ {−0.05, 0.12}, y ∈ {±0.025, ±0.03}, z = −0.03 in the
+  ankle-roll frame. So the model **over-claimed 30 mm of rearward CoP the foot
+  does not have** — the QP wrote contact wrenches the simulator then refused to
+  produce, which is precisely a constant force error — while **throwing away
+  40 mm of forward CoP**, the authority that decelerates the CoM before
+  touchdown. Standing in place, neither error is excited; walking uses both
+  ends of the foot every step.
+- **Fix**: `half_length=0.085`, `center_x=0.035`, `half_width=0.025`, plus the
+  `origin_height=0.035` term the CoP needs because the wrench is expressed
+  about a frame 35 mm above the ground:
+  `CoP_x = (−m_y − h·f_x)/f_z`, `CoP_y = (m_x − h·f_y)/f_z`. At the shear a
+  step uses (~0.3·mg) the height term alone is a 12 mm CoP error. The DCM plan
+  targets the same patch centre, so plan and constraint describe one foot.
+- **Result**: 2 steps → 6. M2's in-place gate *improved* at the same time —
+  ZMP inside 98.7 % → **100 %**, peak torque 49.6 → 47.7 N·m.
+- **Takeaway**: A contact model that a standing gate cannot distinguish from
+  the truth is still wrong, and walking is the test that distinguishes it. When
+  a controller's plan and the simulator's outcome disagree by a constant, the
+  suspect is a constraint that lies about geometry, not a gain.
+
+#### L-M3-e: A tighter QP tolerance made the solution worse
+- **Symptom**: 38 % of control ticks returned OSQP status
+  `maximum iterations reached` at the 4000-iteration cap, averaging **12.6 ms**
+  per solve against a 1 ms budget — 100× the 0.11 ms M1 measured while
+  standing.
+- **Root cause**: `eps_abs = eps_rel = 1e-6` on a cost whose task weights span
+  1e4 down to 1e1 against a 1e-4 regularisation. The tolerance was far below
+  what that conditioning can deliver, so the solver spent its whole budget not
+  converging.
+- **Fix**: `tolerance=1e-4`, `max_iterations=2000`, both now constructor
+  arguments. **Every** tick converges, in ~25 iterations and **0.073 ms** — and
+  the base-dynamics constraint residual *fell* from 0.021 to 8.5e-5 N·m.
+  Asking for less accuracy produced a more accurate answer.
+- **Combined with L-M3-d**: commanded-vs-realised CoM acceleration went from
+  slope 0.78 / offset −0.09 / correlation 0.62 to slope **0.95** / offset
+  **0.04** / correlation **0.995**.
+- **Takeaway**: An iteration cap that is hit is not a performance note, it is a
+  correctness warning — the returned point is wherever the solver happened to
+  be. And a solver tolerance is a claim about how well-conditioned your problem
+  is; set it below that and you pay in iterations for a worse answer.
+
+#### L-M3-f: Stance width is the dominant gait parameter, not stride length
+- **Symptom**: With the contact model and solver fixed, the gait reached 7 of
+  12 steps and still fell, ZMP command clamped 40 % of ticks.
+- **Root cause**: The gait kept both feet on their rest lines — the G1 stands
+  0.237 m wide. The ZMP must cross from one foot to the other every step, and
+  the lateral DCM swings with the same amplitude, so a wide stance demands a
+  large lateral excursion be arrested inside a 50 mm foot width. Stride length
+  costs nothing by comparison: it is arrested by the *long* axis of the foot.
+- **Fix**: `GaitSchedule(step_width=...)` places each landing beside the stance
+  foot at a chosen separation; 0.18 m for the gate.
+
+  | stance width | steps | distance | DCM RMS | ZMP clamped | peak τ |
+  |---|---|---|---|---|---|
+  | 0.237 m (rest) | 7/12, fell | 0.84 m | 121.5 mm | 40 % | 139 N·m |
+  | 0.18 m | **12/12** | **1.18 m** | **6.2 mm** | 3 % | 56.0 N·m |
+  | 0.14 m | 12/12 | 1.19 m | 17.5 mm | 9 % | 59.9 N·m |
+
+- **Takeaway**: In lateral balance the cost is set by how far the ZMP has to
+  travel sideways each step, and that is stance width. 0.14 m works too but
+  tracks worse — the feet start crowding each other's swing.
+
+#### L-M3-g: The integral term I added to fix the bias became harmful once the bias was real-fixed
+- **What happened**: A leaky integrator on the DCM error was added to reject
+  the −0.09 m/s² acceleration bias of L-M3-d. It is the textbook remedy and it
+  would have worked — as a mask. After the contact model and solver were fixed
+  the bias was gone, and the same integrator turned a passing gait into a
+  falling one: 12/12 → 8/12 at width 0.18, 12/12 → 10/12 at 0.14, with DCM RMS
+  6.2 mm → 118 mm.
+- **Fix**: `integral_gain` defaults to 0. The code stays, documented, because
+  it is the right tool against a disturbance you genuinely cannot remove.
+- **Takeaway**: An integrator is a way of not knowing what your error is. It
+  bought a real improvement while the cause was unknown, and became pure phase
+  lag the moment the cause was fixed. Fix the cause, then re-measure whether
+  the compensator is still earning its place.
+
+#### L-M3-h: I "fixed" the initial DCM lead, and the fix made the gait worse
+- **The objection**: `xi_initial` came out 30 mm to one side of the foot
+  midpoint. A DCM tracking a linearly ramping ZMP leads it by `k/ω` in steady
+  state, and sweeping the ZMP from the midpoint onto the first stance foot
+  across the whole 1.5 s settle makes `k/ω` ≈ 30 mm. So the plan appeared to
+  ask a robot standing perfectly still at t=0 to already have its capture point
+  off-centre — a textbook initial-condition mismatch.
+- **The fix**: split the settle into a hold at the midpoint plus a short sweep,
+  so the lead decays as `e^{−ω·hold}`. Clean, well-motivated, and it did
+  exactly what it claimed: the initial lead dropped to sub-millimetre.
+- **The measurement**: it turned a **12/12** gait into **6/12**. Sweeping the
+  parameter afterwards:
+
+  | settle_sweep | steps | distance | DCM RMS | ZMP clamped |
+  |---|---|---|---|---|
+  | 0.3 | 6/12, fell | 0.77 m | 138.2 mm | 32 % |
+  | 0.5 | 8/12, fell | 0.89 m | 124.4 mm | 20 % |
+  | 0.7 | 6/12, fell | 0.61 m | 159.6 mm | 27 % |
+  | **1.0 (no hold)** | **12/12** | **1.18 m** | **6.2 mm** | 3 % |
+
+- **Why the objection was wrong**: the lead is not an error, it is the lateral
+  momentum the first step needs, and 1.5 s of gentle ramp is the robot
+  acquiring it. Holding still and then sweeping the ZMP across in half the time
+  enters the first transfer cold and twice as fast. `settle_sweep` defaults to
+  1.0 and the split path is kept only so the reasoning can be re-run.
+- **How it was caught**: the gate run disagreed with the tuning sweep that had
+  passed an hour earlier, and the only difference between them was this change.
+  Re-running the gate rather than trusting the sweep is what surfaced it.
+- **Takeaway**: "the plan's initial condition doesn't match the robot's state"
+  is a real class of bug — but a *dynamic* reference is allowed to want the
+  robot moving, and a settle is the interval for it to start. Derive whatever
+  you like; the gate decides.
+
+#### M3 gate
+
+| criterion | result | measured |
+|---|---|---|
+| ≥10 steps without falling | PASS | **12/12** |
+| Travelled ≥ 1.0 m | PASS | **1.18 m** |
+| ZMP inside support > 90 % | PASS | 99.3 % |
+| Torques within limits | PASS | 56.0 N·m (limit 139) |
+
+Regression: M2's 4-step in-place gate re-run through the DCM controller, and
+M0/M1 re-run after the QP changes — all still pass.
+
+#### What M3 kept from session 1
+Forward footstep placement (the swing foot lands ahead of the *stance* foot,
+so the body advances a full stride per step) and per-phase foot bookkeeping.
+`forward_progress` and the split CoM shift ratios are no longer on the control
+path — the DCM plan supersedes them — but they remain in `gait_planner` for the
+CoM-task path M2 still uses.

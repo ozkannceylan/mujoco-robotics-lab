@@ -39,6 +39,7 @@ __all__ = [
     "FramePoseTask",
     "FrameOrientationTask",
     "CoMTask",
+    "DCMTask",
     "PostureTask",
     "TaskStack",
 ]
@@ -361,6 +362,139 @@ class CoMTask(Task):
     def drift(self, model, data):
         del model
         return data.acom[0][list(self.axes)]
+
+
+class DCMTask(CoMTask):
+    """Steer the divergent component of motion instead of the CoM position.
+
+    Same Jacobian as `CoMTask` (the CoM one, horizontal rows) — what changes is
+    the *desired acceleration*. A CoM task asks the QP to put the CoM where the
+    planner says; a DCM task asks it to put the **ZMP** where the divergent
+    part of the state needs it, which is the only quantity a walking robot can
+    actually control and the only one that can run away.
+
+    From the LIPM, with ξ = c + ċ/ω and the ZMP p:
+
+        ξ̇ = ω(ξ − p)
+
+    Requiring the DCM error to decay as ``ė = −k·e`` gives the commanded ZMP
+
+        p_cmd = ξ − ξ̇_ref/ω + (k/ω)(ξ − ξ_ref)
+
+    and the CoM acceleration that realises it, ``c̈ = ω²(c − p_cmd)``, expands
+    to a form that needs no matrix inverse and no ZMP measurement::
+
+        c̈_des = −ω·ċ + ω·ξ̇_ref − ω·k·(ξ − ξ_ref)
+
+    Note what is *absent*: any term pulling the CoM toward a commanded
+    position. The CoM is free to travel; only its divergent component is
+    regulated. That is precisely the freedom the quasi-static rule lacked.
+
+    `p_cmd` is clamped into the current support polygon before use (see
+    `set_vrp_bounds`). Commanding a ZMP outside the feet asks for a contact
+    wrench the QP's CoP constraint forbids, so the request would be silently
+    traded away in the cost — with the clamp, the controller instead does the
+    most it can and the saturation is visible in the log.
+
+    The **leaky integral** term deserves its own note. The LIPM the law is
+    derived from is not the robot: measured against MuJoCo, the CoM
+    acceleration the QP plans and the one the simulator delivers differ by a
+    near-constant lateral offset of ≈0.09 m/s² (swinging limbs, finite contact
+    stiffness, a CoM height that is not actually constant). A constant
+    acceleration disturbance `d` turns the closed loop into a steady-state DCM
+    error `d/(ω·k)` — about 8 mm here, and it lands on the *lateral* axis where
+    the whole margin is a foot width. The integral term absorbs it; the leak
+    (`integral_leak`) keeps it from winding up while the ZMP command is
+    clamped, when the error is not something more integration can fix.
+
+    Args:
+        omega: LIPM frequency √(g/z_c) [1/s].
+        gain: DCM error gain k [1/s]. Stable for any k > 0; large k demands ZMP
+            excursions the feet cannot deliver.
+        integral_gain: k_i on ∫(ξ − ξ_ref) dt [1/s]. Zero disables it.
+        integral_leak: First-order decay of the integral state [1/s].
+    """
+
+    def __init__(
+        self,
+        model: pin.Model,
+        omega: float,
+        weight: float = 1e4,
+        gain: float = 2.0,
+        integral_gain: float = 0.0,
+        integral_leak: float = 0.5,
+        name: str = "dcm",
+    ) -> None:
+        super().__init__(model, axes=(0, 1), weight=weight, gain=gain, name=name)
+        self.omega = float(omega)
+        self.integral_gain = float(integral_gain)
+        self.integral_leak = float(integral_leak)
+        self.integral = np.zeros(2)
+        self.xi_target = np.zeros(2)
+        self.xi_dot_target = np.zeros(2)
+        self.vrp_lower: np.ndarray | None = None
+        self.vrp_upper: np.ndarray | None = None
+        self.last_vrp = np.zeros(2)
+        self.vrp_saturated = False
+
+    def integrate_error(self, error: np.ndarray, dt: float) -> None:
+        """Advance the leaky integral state by one control tick.
+
+        Called by the controller rather than from `desired_acceleration`,
+        because the QP may evaluate a task more than once per tick and an
+        integrator that advances per *evaluation* is a subtly wrong controller.
+        """
+        if self.integral_gain == 0.0:
+            return
+        self.integral += dt * (np.asarray(error, dtype=float)[:2]
+                               - self.integral_leak * self.integral)
+
+    def set_reference(self, xi: np.ndarray, xi_dot: np.ndarray | None = None) -> None:
+        """Set the DCM reference and its feedforward velocity."""
+        self.xi_target = np.asarray(xi, dtype=float)[:2].copy()
+        self.xi_dot_target = (
+            np.zeros(2) if xi_dot is None else np.asarray(xi_dot, dtype=float)[:2].copy()
+        )
+
+    def set_vrp_bounds(
+        self, lower: np.ndarray | None, upper: np.ndarray | None
+    ) -> None:
+        """Restrict the commanded ZMP to a horizontal box (world, metres)."""
+        self.vrp_lower = None if lower is None else np.asarray(lower, dtype=float)[:2].copy()
+        self.vrp_upper = None if upper is None else np.asarray(upper, dtype=float)[:2].copy()
+
+    def current_dcm(self, data: pin.Data) -> np.ndarray:
+        """Measured ξ = c + ċ/ω, horizontal, in MuJoCo world coordinates."""
+        com = self.current_com(data)[:2]
+        com_velocity = np.asarray(data.vcom[0], dtype=float)[:2]
+        return com + com_velocity / self.omega
+
+    def commanded_vrp(self, data: pin.Data) -> np.ndarray:
+        """The clamped ZMP this task is asking the contacts to produce."""
+        xi = self.current_dcm(data)
+        vrp = (
+            xi
+            - self.xi_dot_target / self.omega
+            + (self.gain / self.omega) * (xi - self.xi_target)
+            + (self.integral_gain / self.omega) * self.integral
+        )
+        if self.vrp_lower is not None and self.vrp_upper is not None:
+            clamped = np.clip(vrp, self.vrp_lower, self.vrp_upper)
+            self.vrp_saturated = bool(np.any(np.abs(clamped - vrp) > 1e-9))
+            vrp = clamped
+        else:
+            self.vrp_saturated = False
+        self.last_vrp = vrp
+        return vrp
+
+    def error(self, model, data, q):
+        del model, q
+        return self.xi_target - self.current_dcm(data)
+
+    def desired_acceleration(self, model, data, q, v, damping_gain=None):
+        del model, q, v, damping_gain
+        com = self.current_com(data)[:2]
+        return self.omega**2 * (com - self.commanded_vrp(data))
 
 
 class PostureTask(Task):

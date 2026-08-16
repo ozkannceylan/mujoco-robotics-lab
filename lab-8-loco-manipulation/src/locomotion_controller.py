@@ -37,7 +37,7 @@ __all__ = ["SteppingController", "StepLog"]
 
 @dataclass
 class StepLog:
-    """Per-tick telemetry for the M2 gate."""
+    """Per-tick telemetry for the M2/M3 gates."""
 
     t: list[float] = field(default_factory=list)
     phase: list[str] = field(default_factory=list)
@@ -48,6 +48,10 @@ class StepLog:
     tau_max: list[float] = field(default_factory=list)
     pelvis_z: list[float] = field(default_factory=list)
     swing_height_mm: list[float] = field(default_factory=list)
+    # M3 (DCM path) — empty when the controller runs on a plain CoM task.
+    dcm_err_mm: list[float] = field(default_factory=list)
+    vrp_saturated: list[bool] = field(default_factory=list)
+    com_x: list[float] = field(default_factory=list)
 
 
 class SteppingController:
@@ -78,6 +82,8 @@ class SteppingController:
         contact_template: ContactSpec | None = None,
         swing_ramp: float = 0.25,
         swing_orientation_task=None,
+        dcm_plan=None,
+        vrp_shrink: float = 0.7,
     ) -> None:
         self.mj_model = mj_model
         self.mj_data = mj_data
@@ -90,6 +96,15 @@ class SteppingController:
         self.swing_task = swing_task
         self.template = contact_template or ContactSpec("")
         self.swing_ramp = float(swing_ramp)
+
+        # M3: when a DCM plan is supplied, `com_task` must be a `DCMTask` and
+        # the controller commands the divergent component instead of a CoM
+        # position. `vrp_shrink` is the fraction of each foot's contact patch
+        # the commanded ZMP is allowed to use — a safety band, because the QP's
+        # CoP constraint is the *hard* version of the same limit and hitting it
+        # exactly leaves the solver no room to satisfy anything else.
+        self.dcm_plan = dcm_plan
+        self.vrp_shrink = float(vrp_shrink)
 
         # Optional: hold the swing foot level through the swing. A foot that
         # lands tilted touches down on one edge, which is both a poor contact
@@ -172,7 +187,18 @@ class SteppingController:
         self._t = t
         reference = self.schedule.reference(t)
 
-        self.com_task.set_target(reference.com_target)
+        if self.dcm_plan is None:
+            self.com_task.set_target(reference.com_target)
+        else:
+            plan = self.dcm_plan.reference(t)
+            self.com_task.set_reference(plan.xi, plan.xi_dot)
+            # One integrator step per control tick, on the error measured from
+            # the previous tick's kinematics (this runs before the fresh
+            # `update_dynamics`). Sign matches the ZMP law: a DCM that has run
+            # past its reference must be answered by a ZMP further out.
+            self.com_task.integrate_error(
+                self.com_task.current_dcm(self.pin_data) - plan.xi, DT
+            )
 
         if reference.swing_foot is None or reference.swing_foot in self._current_stance:
             # Either double support, or the swing foot has already landed and
@@ -206,7 +232,43 @@ class SteppingController:
                 self.swing_orientation_task.weight = self.swing_orientation_weight
 
         self._sync_contacts(self._effective_stance(reference))
+        if self.dcm_plan is not None:
+            self._update_vrp_bounds()
         return reference
+
+    def _update_vrp_bounds(self) -> None:
+        """Confine the commanded ZMP to the feet that are actually loaded.
+
+        The box is the union of the stance feet's contact patches, shrunk by
+        `vrp_shrink`. Axis-aligned is exact here because the gait walks along
+        +x with the feet unrotated; a turning gait would need the patch
+        corners rotated into world before taking the hull.
+
+        Without this the DCM law will happily ask for a ZMP outside the
+        support polygon whenever the divergent component runs far enough
+        ahead. The QP cannot deliver it — the CoP rows forbid it — so the
+        request is quietly traded off in the cost and the controller believes
+        it is still in charge. Clamping makes the saturation explicit
+        (`DCMTask.vrp_saturated`) and leaves the QP a feasible target.
+        """
+        lower = np.full(2, np.inf)
+        upper = np.full(2, -np.inf)
+        # Same asymmetric patch the QP's CoP rows use — the clamp is only
+        # useful if it agrees with the hard constraint it is protecting.
+        offset = np.array([self.template.center_x, self.template.center_y])
+        half = np.array(
+            [self.template.half_length * self.vrp_shrink,
+             self.template.half_width * self.vrp_shrink]
+        )
+        for name in self._current_stance:
+            frame_id = self.pin_model.getFrameId(name)
+            centre = (
+                np.asarray(self.pin_data.oMf[frame_id].translation, dtype=float)[:2] + offset
+            )
+            lower = np.minimum(lower, centre - half)
+            upper = np.maximum(upper, centre + half)
+        if np.all(np.isfinite(lower)):
+            self.com_task.set_vrp_bounds(lower, upper)
 
     def record(self, t: float, reference: GaitReference, tau: np.ndarray) -> None:
         """Append one row of telemetry."""
@@ -218,10 +280,21 @@ class SteppingController:
         self.log.tau_max.append(float(np.abs(tau).max()))
         self.log.pelvis_z.append(float(self.mj_data.qpos[2]))
 
-        com_error = np.linalg.norm(
-            reference.com_target[:2] - self.mj_data.subtree_com[0][:2]
-        )
-        self.log.com_err_mm.append(com_error * 1000.0)
+        com = self.mj_data.subtree_com[0]
+        self.log.com_x.append(float(com[0]))
+        if self.dcm_plan is None:
+            com_target = reference.com_target[:2]
+            self.log.dcm_err_mm.append(0.0)
+            self.log.vrp_saturated.append(False)
+        else:
+            plan = self.dcm_plan.reference(t)
+            com_target = plan.com
+            measured_dcm = self.com_task.current_dcm(self.pin_data)
+            self.log.dcm_err_mm.append(
+                float(np.linalg.norm(plan.xi - measured_dcm)) * 1000.0
+            )
+            self.log.vrp_saturated.append(bool(self.com_task.vrp_saturated))
+        self.log.com_err_mm.append(float(np.linalg.norm(com_target - com[:2])) * 1000.0)
 
         if reference.swing_foot is not None:
             frame_id = self.pin_model.getFrameId(reference.swing_foot)

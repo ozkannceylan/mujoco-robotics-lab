@@ -49,19 +49,42 @@ _CONTACT_DIM = 6  # 6D wrench per foot
 class ContactSpec:
     """A flat, non-slipping foot contact.
 
+    Defaults describe the **actual** Menagerie G1 foot: four contact spheres of
+    radius 5 mm at x ∈ {−0.05, 0.12}, y ∈ {±0.025, ±0.03}, z = −0.03 in the
+    ankle-roll frame. Three consequences the original symmetric ±0.08 box got
+    wrong, all of which matter for walking (LESSONS L-M3-d):
+
+    * The patch is **not centred on the ankle**. It reaches 0.12 m forward but
+      only 0.05 m back, so the honest description is a half-length of 0.085
+      about a centre 0.035 m ahead of the frame. Assuming ±0.08 simultaneously
+      *over*-claims 30 mm of rearward CoP the foot does not have — the QP plans
+      contact wrenches MuJoCo then refuses to produce — and throws away 40 mm
+      of the forward authority that decelerating the CoM before touchdown
+      needs.
+    * The sole sits 0.035 m **below** the frame origin the wrench is expressed
+      about, so `CoP = −m_y/f_z` is only right when f_x is zero. Walking is
+      exactly when it is not: at 0.3·mg of shear that is a 10 mm CoP error, on
+      an axis with 85 mm of total travel.
+    * The rear pair is 0.025 m off centre, not 0.03.
+
     Args:
         frame_name: Pinocchio frame of the foot (ankle roll link).
         friction: Coulomb coefficient (Menagerie G1 foot geoms use 0.6).
         half_length: Contact patch half-extent along local +x [m].
         half_width: Contact patch half-extent along local +y [m].
+        center_x / center_y: Patch centre relative to the frame origin [m].
+        origin_height: Height of the frame origin above the contact plane [m].
         min_normal_force: Lower bound on f_z [N] — keeps the solver from
             "letting go" of a stance foot to make a task easier.
     """
 
     frame_name: str
     friction: float = 0.6
-    half_length: float = 0.08
-    half_width: float = 0.03
+    half_length: float = 0.085
+    half_width: float = 0.025
+    center_x: float = 0.035
+    center_y: float = 0.0
+    origin_height: float = 0.035
     min_normal_force: float = 1.0
 
 
@@ -90,6 +113,17 @@ class WholeBodyIDQP:
         data: Pinocchio data.
         contacts: Stance contacts held during this phase.
         torque_limits: (nu, 2) actuator limits [N·m].
+        tolerance: OSQP primal/dual tolerance. The stack spans task weights
+            from 1e4 down to 1e1 against a 1e-4 regularisation, so demanding
+            1e-6 on a problem conditioned like that costs iterations without
+            buying control accuracy: at 1e-6 the walking gait hit the 4000
+            iteration cap on 38 % of ticks and averaged 12.6 ms a solve, versus
+            a 1 ms budget. 1e-4 is well below the acceleration resolution the
+            robot can act on.
+        max_iterations: Iteration cap. A tick that hits it still returns a
+            usable, dynamically-consistent solution (the base-dynamics residual
+            stays ≲0.02 N·m) — it is a warning about conditioning, not a
+            failure.
         acc_regularisation: λ_a on ‖q̈‖².
         force_regularisation: λ_f on ‖f‖² — prefers the smallest wrench that
             does the job, which also keeps the two feet from fighting.
@@ -103,6 +137,8 @@ class WholeBodyIDQP:
         torque_limits: np.ndarray,
         acc_regularisation: float = 1e-4,
         force_regularisation: float = 1e-5,
+        tolerance: float = 1e-4,
+        max_iterations: int = 2000,
     ) -> None:
         self.model = model
         self.data = data
@@ -110,6 +146,8 @@ class WholeBodyIDQP:
         self.torque_limits = np.asarray(torque_limits, dtype=float)
         self.acc_reg = float(acc_regularisation)
         self.force_reg = float(force_regularisation)
+        self.tolerance = float(tolerance)
+        self.max_iterations = int(max_iterations)
 
         self._solver: osqp.OSQP | None = None
         self.set_contacts(self.contacts)
@@ -157,10 +195,24 @@ class WholeBodyIDQP:
         """Linearised friction pyramid + CoP bounds for all contacts.
 
         Rows act on the force block only; the caller pads the q̈ columns.
+
+        The wrench `[fx, fy, fz, mx, my, mz]` is world-aligned about the foot
+        frame's origin, which sits `h` above the ground, so the CoP on the
+        contact plane is::
+
+            CoP_x = (−m_y − h·f_x) / f_z
+            CoP_y = ( m_x − h·f_y) / f_z
+
+        and the bound `CoP ∈ centre ± half` becomes the four linear rows below
+        after multiplying through by `f_z > 0`. World-aligned axes make the
+        patch offsets world-axis offsets too — exact for this straight-line
+        gait, and the place a turning gait would have to rotate the patch
+        corners before taking these bounds.
         """
         blocks, lower, upper = [], [], []
         for contact in self.contacts:
             mu, hl, hw = contact.friction, contact.half_length, contact.half_width
+            cx, cy, h = contact.center_x, contact.center_y, contact.origin_height
             # Ordering of a 6D wrench row: [fx, fy, fz, mx, my, mz]
             rows = [
                 ([0, 0, mu, 0, 0, 0], 0.0, np.inf),          # unilateral (with fz>=fmin below)
@@ -168,10 +220,10 @@ class WholeBodyIDQP:
                 ([-1, 0, mu, 0, 0, 0], 0.0, np.inf),         # fx ≤  mu fz
                 ([0, 1, mu, 0, 0, 0], 0.0, np.inf),          # fy ≥ −mu fz
                 ([0, -1, mu, 0, 0, 0], 0.0, np.inf),         # fy ≤  mu fz
-                ([0, 0, hw, 1, 0, 0], 0.0, np.inf),          # CoP_y ≥ −hw
-                ([0, 0, hw, -1, 0, 0], 0.0, np.inf),         # CoP_y ≤  hw
-                ([0, 0, hl, 0, 1, 0], 0.0, np.inf),          # CoP_x ≥ −hl
-                ([0, 0, hl, 0, -1, 0], 0.0, np.inf),         # CoP_x ≤  hl
+                ([0, h, cy + hw, -1, 0, 0], 0.0, np.inf),    # CoP_y ≤ cy + hw
+                ([0, -h, hw - cy, 1, 0, 0], 0.0, np.inf),    # CoP_y ≥ cy − hw
+                ([h, 0, cx + hl, 0, 1, 0], 0.0, np.inf),     # CoP_x ≤ cx + hl
+                ([-h, 0, hl - cx, 0, -1, 0], 0.0, np.inf),   # CoP_x ≥ cx − hl
                 ([0, 0, 1, 0, 0, 0], contact.min_normal_force, np.inf),
             ]
             blocks.append(np.array([r[0] for r in rows], dtype=float))
@@ -259,8 +311,9 @@ class WholeBodyIDQP:
             self._solver = osqp.OSQP()
             self._solver.setup(
                 P=p_sparse, q=gradient, A=a_sparse, l=lower, u=upper,
-                verbose=False, polishing=False, eps_abs=1e-6, eps_rel=1e-6,
-                max_iter=4000,
+                verbose=False, polishing=False,
+                eps_abs=self.tolerance, eps_rel=self.tolerance,
+                max_iter=self.max_iterations,
             )
             self._a_nnz = a_sparse.nnz
         elif a_sparse.nnz != self._a_nnz:
@@ -268,8 +321,9 @@ class WholeBodyIDQP:
             self._solver = osqp.OSQP()
             self._solver.setup(
                 P=p_sparse, q=gradient, A=a_sparse, l=lower, u=upper,
-                verbose=False, polishing=False, eps_abs=1e-6, eps_rel=1e-6,
-                max_iter=4000,
+                verbose=False, polishing=False,
+                eps_abs=self.tolerance, eps_rel=self.tolerance,
+                max_iter=self.max_iterations,
             )
             self._a_nnz = a_sparse.nnz
         else:

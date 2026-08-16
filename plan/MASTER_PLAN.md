@@ -35,7 +35,7 @@ _Status refreshed 2026-08-13 (project review). This table is the single source o
 | 5 | Grasping & Manipulation | Pick and place an object | ✅ Complete — Phase 5 + Step 6.1 both closed 2026-08-13; capstone places box 5.7 mm from target with transport post-condition |
 | 6 | Dual-Arm Coordination | Two arms cooperatively carry an object (weld-constraint) | ✅ Complete (milestone-gated M0–M5; unit tests intentionally removed) |
 | 7 | Locomotion Fundamentals | Standing balance + quasi-static weight shift (M0–M3d); ZMP walking documented as structurally infeasible with position actuators | ✅ Complete at M3d scope (34 tests; M4 blocked by design) |
-| 8 | Whole-Body Loco-Manipulation | Walk while carrying an object | 🚧 In Progress — M0/M1/M2 PASS (torque G1; whole-body ID QP; 4 in-place steps, ZMP 98.7 % inside); M3 forward walking next |
+| 8 | Whole-Body Loco-Manipulation | Walk while carrying an object | 🚧 In Progress — M0–M3 PASS (torque G1; whole-body ID QP; in-place stepping; **DCM forward walking, 12 steps / 1.18 m**); M4 walk+arm next |
 | 9 | VLA Integration | "Pick up the red cup" — end-to-end language-to-action | 📋 Planned |
 
 ### Lab 8 dependency note (from Lab 7 outcome)
@@ -179,7 +179,7 @@ Every blog post:
 | Control & Planning | 3–4 | ✅ Complete (2026-03, published 2026-05) | |
 | Manipulation | 5–6 | ✅ Complete (2026-03/05; Lab 5 fully closed 2026-08-13) | |
 | Locomotion | 7 | ✅ Complete at M3d scope (2026-05) | M4 ZMP walking blocked → moved to Lab 8 |
-| Whole-Body | 8 | 🚧 In progress — M0/M1/M2 done (2026-08-15) | Owns gait generation via torque control; M3 forward walking retires Lab 7's deferred capstone |
+| Whole-Body | 8 | 🚧 In progress — M0–M3 done (M3 closed 2026-08-16) | Owns gait generation via torque control; **M3 retired Lab 7's deferred walking capstone** — 12 steps, 1.18 m, DCM tracking |
 | VLA | 9 | 📋 Not started | Builds on humanoid_vla; needs Lab 8 controllers for demo data |
 
 ---
@@ -189,7 +189,7 @@ Every blog post:
 | Risk | Status / Mitigation |
 |------|---------------------|
 | Contact physics instability (Lab 5) | ✅ Handled — condim/solref tuning worked; see Lab 5 LESSONS.md |
-| Bipedal walking divergence (Lab 7) | ⚠️ **Materialized, different root cause**: not divergence but the Menagerie G1 *position-actuator model* — PD replay cannot track dynamic ZMP references (6 attempts). Finding feeds Lab 8's torque-control design. |
+| Bipedal walking divergence (Lab 7) | ✅ **Retired 2026-08-16.** It materialized with a different root cause — not divergence but the Menagerie G1 *position-actuator model* (PD replay cannot track dynamic ZMP references, 6 attempts). That diagnosis is now confirmed: under torque control with DCM tracking, Lab 8 M3 walks 12 steps / 1.18 m on the same robot. |
 | G1 model complexity (Labs 7–8) | Partially retired — G1 stack works for quasi-static tasks |
 | GPU memory for VLA (Lab 9) | Open — cloud GPU for training; INT8 for local inference |
 | Scope creep | Working — hard-scoped capstones shipped for 7 labs |

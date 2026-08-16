@@ -18,7 +18,7 @@ Build a portfolio-ready robotics lab series using MuJoCo, progressing from simpl
 - Lab 5 (Grasping & Manipulation) is complete — custom parallel-jaw gripper, DLS IK, pick-and-place state machine, Lab 3+4 integration
 - Lab 6 (Dual-Arm Coordination) is complete — dual UR5e, weld-constraint cooperative carry, milestone-gated M0–M5
 - Lab 7 (Locomotion) is complete at M3d scope — G1 standing + weight shift; ZMP walking blocked by position actuators, deferred to Lab 8
-- Lab 8 (Whole-Body Loco-Manipulation) is in progress — milestone-gated M0–M6; owns gait generation via torque control (Lab 7's actuator finding). **M0/M1/M2 passed 2026-08-15** (torque-actuated G1, model parity 1e-16; whole-body inverse-dynamics QP with contact wrenches, 7.08 mm hand tracking; 4 torque-level in-place steps with ZMP 98.7 % inside support; 62 tests); next milestone M3 (forward walking)
+- Lab 8 (Whole-Body Loco-Manipulation) is in progress — milestone-gated M0–M6; owns gait generation via torque control (Lab 7's actuator finding). **M0/M1/M2 passed 2026-08-15**, **M3 passed 2026-08-16** (torque-actuated G1, model parity 1e-16; whole-body inverse-dynamics QP with contact wrenches, 7.08 mm hand tracking; in-place stepping with ZMP 100 % inside support; **DCM forward walking — 12 steps, 1.18 m, 6.2 mm DCM RMS**; 97 tests); next milestone M4 (walk + arm task)
 - Lab 9 (VLA) is planned — depends on Lab 8 controllers for demonstration data
 - End goals: strengthen fundamentals for humanoid VLA work, prepare for robotics interviews, build a portfolio demo
 
@@ -73,7 +73,7 @@ pytest lab-4-motion-planning/tests/test_collision.py
 # Single test method
 pytest lab-5-grasping-manipulation/tests/test_gripper.py::TestGripperContact::test_contact_detection -v
 
-# All tests across the project (268 as of 2026-08-15)
+# All tests across the project (303 as of 2026-08-16)
 pytest lab-*/tests/
 ```
 
@@ -94,6 +94,7 @@ python3 lab-2-Ur5e-robotics-lab/src/c3_draw_cube.py   # Lab 2 capstone
 python3 lab-3-dynamics-force-control/src/c1_force_control.py
 python3 lab-4-motion-planning/src/capstone_demo.py
 python3 lab-5-grasping-manipulation/src/record_pro_demo.py
+python3 lab-8-loco-manipulation/src/m3_walking.py   # G1 walks 1.18 m (needs MUJOCO_GL=egl)
 ```
 
 ---
@@ -257,6 +258,38 @@ Filter consecutive waypoints within `1e-8` before constructing arc-length spline
 ### Cross-lab imports need sys.path — but APPEND the foreign lab, never insert(0)
 Each lab module importing from another lab must add the foreign `src/` to `sys.path` using `Path(__file__).resolve()`. Use `sys.path.append(...)` for the foreign lab and keep your own `src/` at position 0. Labs share module names (`standing_controller`, `grasp_planner`, `record_demo`), so `insert(0, foreign_src)` silently shadows the local module with another lab's implementation — Lab 8 hit this as `ImportError: cannot import name 'GravityMode' from 'standing_controller'` pointing at Lab 7's file.
 
+### A contact model that a standing test cannot falsify is still worth checking
+Lab 8 described the G1 foot as a symmetric ±0.08 m CoP box on the ankle frame.
+The real Menagerie sole spans x ∈ [−0.05, 0.12], y ∈ ±0.025, 35 mm *below* that
+frame. Standing never excites the difference; walking uses both ends of the foot
+every step, and the error showed up as contact wrenches the QP planned and
+MuJoCo refused to produce (realised CoM acceleration: slope 0.78, bias
+−0.09 m/s²). Also include the shear term — the wrench is about a frame above the
+ground, so `CoP_x = (−m_y − h·f_x)/f_z`, not `−m_y/f_z` (Lab 8 L-M3-d).
+
+### An OSQP tolerance below your problem's conditioning costs accuracy, not buys it
+`eps_abs = eps_rel = 1e-6` on a task stack spanning weights 1e4…1e1 against a
+1e-4 regularisation made 38 % of Lab 8's control ticks return `maximum
+iterations reached` at 12.6 ms/solve. At `1e-4` every tick converges in ~25
+iterations and 0.073 ms — **and the constraint residual drops** (0.021 →
+8.5e-5 N·m). A hit iteration cap is a correctness warning, not a perf note: the
+returned point is wherever the solver happened to be (Lab 8 L-M3-e).
+
+### Quasi-static balance references cannot walk; command the DCM instead
+"Move the CoM over the foot that is about to take the load" works for stepping
+in place and fails at every gain setting for forward walking — it needs a moment
+of rest over each foot that walking never provides. Command the divergent
+component `ξ = c + ċ/ω` (`ω = √(g/z_c)`) instead: plan a ZMP through the
+footsteps, back-integrate `ξ̇ = ω(ξ − p)` from a terminal rest condition, and
+issue `c̈ = ω²(c − p_cmd)` with `p_cmd = ξ − ξ̇_ref/ω + (k/ω)(ξ − ξ_ref)`. No CoM
+*position* task on the control path at all (Lab 8 `dcm_planner.py`, L-M3-c).
+
+### Lateral balance cost is set by stance width, not stride length
+The ZMP crosses between the feet every step and the lateral DCM swings with the
+same amplitude, so a wide stance demands a large excursion be arrested inside
+one foot width. Lab 8's G1 went 7/12 steps at its 0.237 m rest stance and 12/12
+at 0.18 m, with stride and everything else unchanged (L-M3-f).
+
 ### Floating base: do NOT inertia-shape joint PD gains with M(q)
 The Lab 5 fix `τ = M(q)(Kp·e + Kd·ė) + g` is correct for a **fixed-base** arm. On a floating-base humanoid `M(q)[6:,6:]` is not the inertia felt through the closed leg chains, and shaping gains with it saturates actuators and makes the G1 fall at every gain setting. Use raw joint-space gains there (Lab 8 L-M0-b).
 
@@ -298,11 +331,13 @@ Published (portfolio-ready, documented in main README):
 - [x] Lab 7: Locomotion Fundamentals (Unitree G1, floating-base Pinocchio, stacked-Jacobian whole-body IK, standing + weight shift on M3d scope; M4 ZMP walking deferred as structural limitation of position actuators)
 
 In progress (real work on disk, not yet portfolio-ready):
-- [ ] Lab 8: Whole-Body Loco-Manipulation (`lab-8-loco-manipulation/`) — M0/M1/M2 DONE 2026-08-15 (torque G1 7/7; ID QP 5/5; stepping 3/3; 62 tests). Kickoff
-      2026-08-14: PLAN/ARCHITECTURE/TODO/LESSONS written, milestone-gated M0–M6.
-      Owns gait generation via torque control. Resume at tasks/TODO.md "Current
-      Focus" (M0: torque-actuated G1 bring-up). ONE milestone per session;
-      gate + media evidence per milestone (Lab 6/7 rules apply).
+- [ ] Lab 8: Whole-Body Loco-Manipulation (`lab-8-loco-manipulation/`) — M0–M3 DONE
+      (torque G1 7/7; ID QP 5/5; stepping 3/3; **walking 4/4 — 12 steps, 1.18 m,
+      2026-08-16**; 97 tests). Kickoff 2026-08-14: PLAN/ARCHITECTURE/TODO/LESSONS
+      written, milestone-gated M0–M6. Owns gait generation via torque control.
+      Resume at tasks/TODO.md "Current Focus" (M4: walk + arm task). ONE
+      milestone per session; gate + media evidence per milestone (Lab 6/7 rules
+      apply).
 
 Future (no folder yet — planned in main README roadmap only):
 - [ ] Lab 9: VLA Integration
