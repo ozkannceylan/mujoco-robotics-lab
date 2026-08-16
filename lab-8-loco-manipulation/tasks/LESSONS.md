@@ -474,3 +474,106 @@ so the body advances a full stride per step) and per-phase foot bookkeeping.
 `forward_progress` and the split CoM shift ratios are no longer on the control
 path — the DCM plan supersedes them — but they remain in `gait_planner` for the
 CoM-task path M2 still uses.
+
+
+---
+
+### M4 — Walk + Arm Task (2026-08-16) — **IN PROGRESS: carry PASSES 5/5, reach does not**
+
+Status: the **carry** task passes every gate criterion — 12/12 steps, 1.170 m,
+ZMP 99.1 % inside, hand error **14.5 mm RMS / 25.7 mm max** against a 50 mm
+gate, 55.2 N·m peak. The **reach** task (right hand tracing a circle while
+walking) does not: best run is 6 of 12 steps. M4 is not closed until both pass.
+
+#### L-M4-a: A gait plan must be built on the posture the robot will walk in
+- **Symptom**: Adding a two-handed carry pose to M3's working gait made the
+  robot fall on the first step, every time, at every task weight.
+- **Root cause**: two separate errors stacked.
+  1. The arms were commanded into the carry pose *after* the DCM plan was
+     built. Bringing both arms forward moves the CoM ~85 mm ahead of where it
+     rests, so the plan — whose ZMP targets the foot patch centres — spent the
+     whole walk asking the robot to pull its CoM back to a place its own
+     posture forbade. A 50 mm standing DCM error before the first step.
+  2. The obvious fix, settling into the carry pose under the **standing
+     controller** first, is worse: joint PD holds joint *angles*, so with the
+     arms out front the robot simply leans, and over 6 s it drifts and yaws off
+     its own footprint (CoM y 0.027 → 0.24 m).
+- **Fix**: reach the pose under the **whole-body QP**, with the DCM reference
+  frozen at the measured capture point — the QP then bends the hips to keep the
+  CoM planted while the arms travel (CoM moves 2.7 → 29 mm, not 85 mm). Then
+  rebuild the schedule and DCM plan from the *current* state
+  (`m3_walking.make_plan`, split out of `build` for exactly this). Initial DCM
+  error after both: 20.8 mm, and all of that is the lateral k/ω lead M3 wants.
+- **Takeaway**: a plan is a statement about a specific robot configuration. If
+  anything changes the configuration between planning and execution, replan —
+  and reach the configuration with the controller that understands balance, not
+  the one that understands joint angles.
+
+#### L-M4-b: A steady offset with no variance is two tasks fighting — but the fight may be load-bearing
+- **Symptom**: At a hand weight the robot could walk with (1e1), tracking error
+  was 46 mm RMS — and per-axis it was almost pure bias: x mean −39.7 mm, z mean
+  −16.5 mm, lateral 4.4 mm, variance near zero.
+- **Diagnosis**: the posture task pulls the arms toward `Q_STAND_JOINTS` (arms
+  down) at weight 10 while the hand task holds them forward at weight 10. The
+  QP splits the difference. That reads as an obvious bug in the stack.
+- **What happened when I fixed it**: re-nominalising the posture task on the
+  achieved pose took the walk from 12/12 steps to **2/12**. Restricting the
+  re-nominalisation to the *arm* joints only — the legs must keep their nominal,
+  since the posture task is where the gait's redundancy is resolved — still gave
+  **6/12**.
+- **Why**: the pull toward rest was the arms' only damping. Undamped arms are a
+  centroidal disturbance, and the balance controller was paying for the droop
+  in exchange for a stabiliser nobody had named as one.
+- **Takeaway**: before removing a contradiction between two tasks, find out what
+  the losing side was buying. Here the correct answer was not to remove the
+  fight but to give the QP a *proper* damper — see L-M4-c.
+
+#### L-M4-c: Centroidal angular momentum is what lets a walking robot use its hands
+- **The wall**: every lever that made the hand task stronger made the walk
+  worse, non-monotonically. Hand weight 1e1 → walks, 46 mm droop; 2e1 → falls at
+  5 steps; 1e2 → falls at 7; 3e2 → falls at 5. Hand gain 400 → walks; 1000 →
+  falls at 3. Carry offset 0.20 m → walks; 0.10 m → falls at 4. When every
+  direction is downhill and the ordering is not even monotonic, the stack is
+  missing a term, not a setting.
+- **The missing term**: `wb_tasks.CentroidalAngularMomentumTask` — regulate
+  `L = A_g(q) q̇` (angular block) toward zero. Without it the arms' only
+  restraint is a joint-space posture pull that has to double as a momentum
+  damper (L-M4-b); with it, the QP gets an explicit, cheap way to say "the arms
+  may move, but they may not spin the body", and the hand task stops being
+  traded against balance through a proxy.
+- **Measured** (carry task, everything else identical):
+
+  | momentum weight | hand weight | steps | hand RMS | hand max | DCM RMS |
+  |---|---|---|---|---|---|
+  | 0 | 1e1 | 12/12 | 46.0 mm | 56.5 mm | 5.6 mm |
+  | 0 | 1e2 | 7/12, fell | 61.6 mm | 429.5 mm | 133.8 mm |
+  | **1e1** | **1e2** | **12/12** | **14.5 mm** | **25.7 mm** | 13.9 mm |
+  | 1e2 | 1e1 | 5/12, fell | 119.9 mm | 616.1 mm | 129.7 mm |
+  | 1e2 | 1e2 | 8/12, fell | 46.5 mm | 362.4 mm | 120.8 mm |
+
+  The same hand task that fell on step 7 walks all twelve and tracks three
+  times better. Too much momentum damping is as bad as none — it forbids the
+  arm motion the task needs.
+- **Takeaway**: on a floating-base robot, a manipulation task and a balance
+  task are not independent objectives that need re-weighting; they are coupled
+  through momentum, and the coupling deserves its own term in the QP. The
+  brief said so ("regulate centroidal momentum while performing arm tasks") and
+  it took a wall of failed tuning to believe it.
+
+#### Where reach stands (open)
+The circle task still falls, and the two things tried have not fixed it:
+* **Speed is not the problem.** Periods 2.0/3.0/4.0 s and radii 0.08/0.10 m all
+  fall at 3–4 steps.
+* **Plane matters, but not enough.** The circle was originally in the lateral
+  (y–z) plane, which spends the axis M3 showed has nothing to spare (the foot
+  is 170 mm long and 50 mm wide, and stance width alone decided M3's gate).
+  Moving it to the sagittal (x–z) plane improved the best run from 4 steps to
+  6, and it is the right plane on principle, but it does not close the gap.
+
+Next to try, in order: (1) the momentum task's gain and weight were tuned for
+the *static* carry pose — a moving hand deliberately generates angular
+momentum, so the momentum reference should be the plan's own `L_ref` from the
+commanded arm motion rather than zero; (2) fade the circle in only during
+double support, so the arm's peak demand does not land in single support;
+(3) treat the reach task as M5 scope if a momentum *reference* turns out to be
+the honest prerequisite.

@@ -110,21 +110,15 @@ INPLACE_PLOT_PATH = MEDIA_DIR / "m3_inplace_metrics.png"
 RENDER_EVERY = int(round(1.0 / (RENDER_FPS * DT)))
 
 
-def build(mj_model, mj_data, pin_model, pin_data, *, step_length: float, n_steps: int):
-    """Settle the robot, then build the DCM plan, task stack and controller."""
-    # Homes must be measured on the *settled* robot (L-M2-d): taken at t=0 the
-    # swing target sits ~10 mm below where the foot actually rests, so every
-    # touchdown fights a reference buried in the floor.
-    settle = StandingController(
-        mj_model, pin_model, pin_data, gravity_mode=GravityMode.CONTACT_CONSISTENT
-    )
-    for _ in range(int(SETTLE_SECONDS / DT)):
-        settle.step(mj_data)
+def make_plan(pin_model, pin_data, *, step_length: float, n_steps: int):
+    """Gait schedule + DCM plan for the robot's **current** configuration.
 
-    q, v = mj_state_to_pin(mj_data)
-    stack = TaskStack(pin_model, pin_data)
-    stack.update_dynamics(q, v)
-
+    Split out of `build` because a caller may need to change the robot's pose
+    after the initial settle — M4 brings both arms into a carry position, which
+    moves the CoM some 80 mm forward — and a plan built before that change
+    describes a robot that no longer exists. `pin_data` must already hold the
+    current kinematics.
+    """
     left_home = pin_point_to_world(pin_data.oMf[pin_model.getFrameId(LEFT_FOOT)].translation)
     right_home = pin_point_to_world(pin_data.oMf[pin_model.getFrameId(RIGHT_FOOT)].translation)
     com_home = pin_point_to_world(pin_data.com[0])
@@ -141,6 +135,40 @@ def build(mj_model, mj_data, pin_model, pin_data, *, step_length: float, n_steps
         step_width=STEP_WIDTH if step_length > 0.0 else None,
     )
     plan = DCMPlan(schedule, com_height, com_home, settle_sweep=SETTLE_SWEEP)
+    return schedule, plan
+
+
+def build(
+    mj_model, mj_data, pin_model, pin_data, *,
+    step_length: float,
+    n_steps: int,
+    q_nominal: np.ndarray | None = None,
+):
+    """Settle the robot, then build the DCM plan, task stack and controller.
+
+    `q_nominal` overrides the joint pose the robot settles into and that the
+    posture task pulls toward. Everything downstream — foot homes, CoM home, ω,
+    the whole DCM plan — is measured **after** that settle, so a caller that
+    wants to walk in a different upper-body posture (M4's carry pose) gets a
+    gait plan built on the configuration the robot will actually walk in
+    rather than on a pose it is about to leave.
+    """
+    # Homes must be measured on the *settled* robot (L-M2-d): taken at t=0 the
+    # swing target sits ~10 mm below where the foot actually rests, so every
+    # touchdown fights a reference buried in the floor.
+    q_nominal = Q_STAND_JOINTS if q_nominal is None else np.asarray(q_nominal, dtype=float)
+    settle = StandingController(
+        mj_model, pin_model, pin_data,
+        gravity_mode=GravityMode.CONTACT_CONSISTENT, q_nom=q_nominal,
+    )
+    for _ in range(int(SETTLE_SECONDS / DT)):
+        settle.step(mj_data)
+
+    q, v = mj_state_to_pin(mj_data)
+    stack = TaskStack(pin_model, pin_data)
+    stack.update_dynamics(q, v)
+
+    schedule, plan = make_plan(pin_model, pin_data, step_length=step_length, n_steps=n_steps)
 
     dcm_task = stack.add(
         DCMTask(
@@ -158,7 +186,7 @@ def build(mj_model, mj_data, pin_model, pin_data, *, step_length: float, n_steps
             LEFT_FOOT, pin_model, weight=SWING_WEIGHT, gain=SWING_GAIN, name="swing"
         )
     )
-    stack.add(PostureTask(Q_STAND_JOINTS, weight=POSTURE_WEIGHT, gain=POSTURE_GAIN))
+    stack.add(PostureTask(q_nominal, weight=POSTURE_WEIGHT, gain=POSTURE_GAIN))
     pelvis_task.capture_current(pin_data)
 
     qp = WholeBodyIDQP(

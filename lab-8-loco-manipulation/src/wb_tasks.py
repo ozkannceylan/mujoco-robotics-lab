@@ -40,6 +40,7 @@ __all__ = [
     "FrameOrientationTask",
     "CoMTask",
     "DCMTask",
+    "CentroidalAngularMomentumTask",
     "PostureTask",
     "TaskStack",
 ]
@@ -497,6 +498,72 @@ class DCMTask(CoMTask):
         return self.omega**2 * (com - self.commanded_vrp(data))
 
 
+class CentroidalAngularMomentumTask(Task):
+    """Damp the whole-body angular momentum about the centre of mass.
+
+    Why a walking robot with a hand task needs this
+    ----------------------------------------------
+    Without it, the only thing restraining the arms is the posture task's pull
+    toward a nominal pose — which is a *joint-space* term that knows nothing
+    about momentum, and which therefore has to be strong enough to double as a
+    damper. That coupling is what boxed M4 in: strengthening the hand task far
+    enough to actually track its target let the arms swing freely, the swing
+    showed up as centroidal angular momentum, and the balance controller lost
+    (LESSONS L-M4-c). Weakening the hand task kept the robot upright but left a
+    40 mm steady droop, because the same posture pull that damps the arms also
+    drags them off target.
+
+    Regulating `L` directly separates those jobs. The QP gets an explicit,
+    cheap way to say "the arms may move, but they may not spin the body", so
+    the hand task no longer has to be traded against balance through a
+    joint-space proxy.
+
+    The centroidal momentum matrix `A_g(q)` maps joint velocity to momentum
+    about the CoM, `h = A_g q̇`; its angular block is the task Jacobian, and the
+    drift is `Ȧ_g q̇`, which Pinocchio reports as the momentum time variation
+    evaluated at zero acceleration.
+
+    Args:
+        gain: `L̇_des = −gain · L` [1/s].
+    """
+
+    def __init__(
+        self,
+        weight: float = 1e1,
+        gain: float = 10.0,
+        name: str = "angular_momentum",
+    ) -> None:
+        super().__init__(name, weight, gain)
+
+    def dimension(self) -> int:
+        return 3
+
+    def momentum(self, data: pin.Data, v: np.ndarray) -> np.ndarray:
+        """Angular momentum about the CoM (3,) [kg·m²/s]."""
+        return data.Ag[3:6, :] @ np.asarray(v, dtype=float)
+
+    def jacobian(self, model, data, q):
+        del model, q
+        return data.Ag[3:6, :]
+
+    def error(self, model, data, q):
+        del model, q
+        # Target is zero momentum; `error` is target − current, and current
+        # needs q̇, which this signature does not carry. The QP only calls
+        # `desired_acceleration`, so report the residual the last solve saw.
+        return -np.asarray(getattr(data, "_last_angular_momentum", np.zeros(3)))
+
+    def drift(self, model, data):
+        del model
+        return np.asarray(data.dhg.angular, dtype=float)
+
+    def desired_acceleration(self, model, data, q, v, damping_gain=None):
+        del model, q, damping_gain
+        momentum = self.momentum(data, v)
+        data._last_angular_momentum = momentum
+        return -self.gain * momentum
+
+
 class PostureTask(Task):
     """Pull the actuated joints toward a nominal configuration.
 
@@ -578,6 +645,13 @@ class TaskStack:
         pin.computeJointJacobians(self.model, self.data, q)
         pin.jacobianCenterOfMass(self.model, self.data, q)
         pin.centerOfMass(self.model, self.data, q, v, zero_acceleration)
+        # Centroidal momentum matrix and its drift — needed by
+        # `CentroidalAngularMomentumTask`, and cheap enough to compute
+        # unconditionally rather than duplicate the kinematics pass.
+        pin.computeCentroidalMap(self.model, self.data, q)
+        pin.computeCentroidalMomentumTimeVariation(
+            self.model, self.data, q, v, zero_acceleration
+        )
 
     def assemble(self, q: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Stack active tasks into (J, ẋ_des, per-row weights).

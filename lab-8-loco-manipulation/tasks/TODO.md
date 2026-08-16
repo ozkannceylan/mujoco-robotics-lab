@@ -169,9 +169,43 @@
       initial condition halved the gait — a dynamic reference is allowed to
       want the robot already moving).
 
-## M4 — Walk + Arm Task
-- [ ] Gate: M3 gate holds AND hand error < 50 mm while walking
-- [ ] Evidence: `media/m4_walk_reach.mp4` + hand-error plot
+## M4 — Walk + Arm Task — 🚧 IN PROGRESS (carry PASSES 5/5, reach open)
+- [x] `src/m4_walk_reach.py` — walks M3's gait with both hands on a Cartesian
+      task. Two sub-tasks per PLAN: **carry** (both hands hold a pose fixed in
+      the walking frame) and **reach** (right hand traces a circle).
+- [x] `wb_tasks.CentroidalAngularMomentumTask` — regulates `L = A_g q̇` toward
+      zero. **This is the milestone's real content** (L-M4-c): without it no
+      hand weight both walks and tracks; with it the hand task that used to
+      fall on step 7 walks all twelve and tracks three times better.
+- [x] `m3_walking.make_plan` split out of `build` so the gait can be replanned
+      after the robot changes posture (L-M4-a).
+- [x] Carry pose reached under the whole-body QP with the DCM frozen, then the
+      plan rebuilt on the achieved configuration.
+- [x] Hand reference carries the plan's own CoM velocity **and acceleration**
+      (`c̈ = ω²(c − p)`), not just position.
+- [x] **Carry gate — 5/5 PASS**:
+
+      | criterion | result | measured |
+      |---|---|---|
+      | ≥10 steps, no fall | PASS | **12/12** |
+      | Travelled ≥ 1.0 m | PASS | 1.170 m |
+      | ZMP inside support > 90 % | PASS | 99.1 % |
+      | Hand error < 50 mm walking | PASS | **14.5 mm RMS, 25.7 mm max** |
+      | Torques within limits | PASS | 55.2 N·m peak |
+
+- [ ] **Reach gate NOT passed**: best 6 of 12 steps. Circle speed is not the
+      cause (2/3/4 s periods, 0.08/0.10 m radii all fall at 3–4 steps); the
+      lateral→sagittal plane change helped (4 → 6 steps) but did not close it.
+- [ ] **Next implementation step**: give the momentum task a *reference* rather
+      than zero. A deliberately moving hand generates angular momentum by
+      design, so commanding `L → 0` fights the task itself; the reference
+      should be the momentum the planned arm motion implies. Then re-check the
+      carry gate, which must not regress.
+- [x] Evidence (carry): `media/m4_walk_reach.mp4` + `media/m4_hand_error.png`
+- [x] Lessons: L-M4-a (replan on the posture you will walk in; reach it with
+      the QP, not joint PD), L-M4-b (a no-variance offset is two tasks fighting
+      — but check what the losing side was buying), **L-M4-c (centroidal
+      angular momentum is the missing term, not a gain)**.
 
 ## M5 — Loco-Manipulation Capstone
 - [ ] WALK→REACH→GRASP(weld)→CARRY→PLACE sequence; payload mass in CoM model
@@ -185,18 +219,21 @@
 - [ ] Root README / MASTER_PLAN / status board / plan/LAB_08.md updates
 
 ## Current Focus
-> **M4 — Walk + Arm Task.** M3 closed 2026-08-16; the DCM controller walks
-> 1.18 m in 12 steps with 6.2 mm DCM RMS and 56 N·m peak torque, and the
-> whole-body QP now solves in 0.073 ms, so there is headroom for a hand task.
+> **M4 — Walk + Arm Task, continued.** The carry half is done and passes 5/5
+> (12 steps, 1.17 m, hand 14.5 mm RMS). The reach half — right hand circling
+> while walking — still falls at 6 of 12 steps.
 >
-> Gate: M3's criteria still hold **and** hand error < 50 mm while walking.
-> Start by adding a `FramePositionTask` on a hand to `m3_walking`'s stack at a
-> weight below the DCM and swing tasks, and watch two things that M3 makes
-> predictable: whether the arm's momentum shows up as a lateral DCM
-> disturbance (it should, and the DCM error is the place to read it), and
-> whether the posture task still has enough authority to keep the other arm
-> from drifting. M1 already tracked a moving hand to 7.08 mm while standing,
-> so the new content is purely the coupling.
+> Start at the momentum **reference**, not at more tuning; the sweeps already
+> run rule tuning out (hand weight, hand gain, carry offset, circle period and
+> radius, circle plane — every one non-monotonic or downhill):
+> 1. `CentroidalAngularMomentumTask` currently commands `L → 0`. A hand that is
+>    deliberately moving generates angular momentum on purpose, so this term is
+>    now fighting the very task it was added to enable.
+> 2. Compute the reference momentum the commanded arm trajectory implies —
+>    `A_g(q) q̇_ref` restricted to the arm columns is the cheap version — and
+>    regulate `L → L_ref`.
+> 3. Re-run the carry gate afterwards. It must still be 5/5; a regression there
+>    means the reference is wrong rather than merely differently tuned.
 
 ## Blockers
 > None. OSQP verified (1.1.3). G1 menagerie assets present under
