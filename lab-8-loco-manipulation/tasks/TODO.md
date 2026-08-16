@@ -193,14 +193,17 @@
       | Hand error < 50 mm walking | PASS | **14.5 mm RMS, 25.7 mm max** |
       | Torques within limits | PASS | 55.2 N·m peak |
 
-- [ ] **Reach gate NOT passed**: best 6 of 12 steps. Circle speed is not the
-      cause (2/3/4 s periods, 0.08/0.10 m radii all fall at 3–4 steps); the
-      lateral→sagittal plane change helped (4 → 6 steps) but did not close it.
-- [ ] **Next implementation step**: give the momentum task a *reference* rather
-      than zero. A deliberately moving hand generates angular momentum by
-      design, so commanding `L → 0` fights the task itself; the reference
-      should be the momentum the planned arm motion implies. Then re-check the
-      carry gate, which must not regress.
+- [x] Momentum reference implemented (L-M4-d): `set_reference(L_ref)` from the
+      commanded circle through the arm Jacobian and A_g, RMC-style. Plus the
+      left arm freed during reach (PLAN (b) never locked it).
+- [ ] **Reach gate: 4 of 5 criteria now pass** — 12/12 steps, 1.178 m, ZMP
+      99.6 %, torques 58.2 N·m. Open: hand error 37.6 mm RMS but **91.6 mm
+      peak** vs the 50 mm gate — a single contact-switch transient at t=5.92.
+- [ ] **Known risk**: the working point (period 2.0 s, radius 0.10 m) is a
+      narrow pocket — periods 1.8/2.5/3.0 and radius 0.08 all fall. Next
+      session: understand the pocket before trusting the pass; then target the
+      double-support transient that owns the error peak. Re-check carry (must
+      stay 5/5) after any change.
 - [x] Evidence (carry): `media/m4_walk_reach.mp4` + `media/m4_hand_error.png`
 - [x] Lessons: L-M4-a (replan on the posture you will walk in; reach it with
       the QP, not joint PD), L-M4-b (a no-variance offset is two tasks fighting
@@ -223,17 +226,16 @@
 > (12 steps, 1.17 m, hand 14.5 mm RMS). The reach half — right hand circling
 > while walking — still falls at 6 of 12 steps.
 >
-> Start at the momentum **reference**, not at more tuning; the sweeps already
-> run rule tuning out (hand weight, hand gain, carry offset, circle period and
-> radius, circle plane — every one non-monotonic or downhill):
-> 1. `CentroidalAngularMomentumTask` currently commands `L → 0`. A hand that is
->    deliberately moving generates angular momentum on purpose, so this term is
->    now fighting the very task it was added to enable.
-> 2. Compute the reference momentum the commanded arm trajectory implies —
->    `A_g(q) q̇_ref` restricted to the arm columns is the cheap version — and
->    regulate `L → L_ref`.
-> 3. Re-run the carry gate afterwards. It must still be 5/5; a regression there
->    means the reference is wrong rather than merely differently tuned.
+> The momentum reference and the free left arm are DONE and ablated (L-M4-d):
+> reach now walks 12/12 and 1.178 m. Two things remain, in order:
+> 1. **The 91.6 mm hand-error peak** (gate is 50): one contact-switch
+>    transient in one double support (t=5.92). Target the transient — e.g.
+>    soften the stance-set switch or brace the hand task through it — do not
+>    tune the circle; every neighbouring circle setting falls.
+> 2. **The pocket problem**: only (period 2.0, radius 0.10) survives;
+>    1.8/2.5/3.0 and 0.08 all fall. Before declaring the gate, understand why
+>    the neighbours fail — a pass surrounded by falls is not yet a result.
+> Then re-run carry (must stay 5/5) and the M3 no-arms gate.
 
 ## Blockers
 > None. OSQP verified (1.1.3). G1 menagerie assets present under

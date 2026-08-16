@@ -19,8 +19,12 @@ Two tasks, both from `tasks/PLAN.md` M4:
   forward travel. The body sways ±90 mm laterally every step underneath them,
   so the arms must actively counter the gait rather than ride along with it.
   This is the harder reading of "fixed Cartesian pose" and the better test.
-* **reach** — the same carry pose for the left hand, while the right traces a
-  100 mm circle. A moving target on a walking robot.
+* **reach** — the right hand traces a 100 mm circle; the **left arm is free**,
+  held only by the posture task. Locking the left hand to a Cartesian pose as
+  well was measured to be the failure: with every upper-body DOF spoken for,
+  the momentum task's demands were ground into the 25 N·m shoulders (143
+  saturated ticks) and the robot fell at step 6. A task arm and a free arm is
+  also simply what humans do — the free arm is the reaction wheel (L-M4-d).
 
 Usage:
     MUJOCO_GL=egl python3 lab-8-loco-manipulation/src/m4_walk_reach.py
@@ -53,6 +57,7 @@ from lab8_common import (  # noqa: E402
     CTRL_LEFT_ARM,
     CTRL_RIGHT_ARM,
     DT,
+    V_RIGHT_ARM,
     MEDIA_DIR,
     Q_STAND_JOINTS,
     RENDER_FPS,
@@ -92,6 +97,14 @@ REACH_PERIOD = 2.0       # one lap [s]
 # tracks to 14.5 mm. Too much is as bad as none — 1e2 falls at step 5.
 MOMENTUM_WEIGHT = 1e1
 MOMENTUM_GAIN = 10.0
+# Reach only: feed the momentum task the reference the commanded circle
+# implies (resolved momentum control, Kajita et al. 2003) instead of zero.
+# With L→0 the task fights the very trajectory the hand task feeds forward.
+MOMENTUM_REFERENCE = True
+# Ablation flag: lock the left hand to a Cartesian pose during reach as well
+# (the configuration that saturated the shoulders and fell). Kept toggleable
+# so the free-arm claim stays measurable, not narrative.
+REACH_FREE_LEFT = True
 HAND_ANCHOR = "body"     # "body": pose fixed in the walking frame (the brief's
                          #   carry task — the load travels with the robot)
                          # "world": y and z pinned in world, forward travel only
@@ -237,6 +250,24 @@ def pre_pose(mj_model, mj_data, pin_model, pin_data, stack, qp, controller, hand
     return {frame: task.current_position(pin_data) for frame, task in hand_tasks.items()}
 
 
+def _planned_arm_momentum(pin_model, pin_data, hand_task, reference, t) -> np.ndarray:
+    """Angular momentum the commanded right-hand motion implies (3,).
+
+    Resolved-momentum-control style: map the circle's Cartesian velocity
+    (hand ẋ_ref minus the walking frame's own travel) into right-arm joint
+    velocities through the arm block of the hand Jacobian, then through the
+    arm block of the centroidal momentum matrix `A_g`. The base's contribution
+    is deliberately excluded — the gait owns the base, and its momentum is not
+    something the arm plan should claim.
+    """
+    del t  # the reference is already evaluated into the task's targets
+    _, travel_velocity, _ = reference.travel(reference._last_t)
+    relative = hand_task.target_velocity - travel_velocity
+    arm_jacobian = hand_task.jacobian(pin_model, pin_data, None)[:, V_RIGHT_ARM]
+    arm_velocity = np.linalg.lstsq(arm_jacobian, relative, rcond=1e-4)[0]
+    return np.asarray(pin_data.Ag)[3:6, V_RIGHT_ARM] @ arm_velocity
+
+
 def run(mode: str, record: bool = False, video_path: Path = VIDEO_PATH) -> dict:
     """Walk the M3 gait while both hands hold a task. Returns gate metrics."""
     mj_model, mj_data = load_g1_torque_mujoco(timestep=DT)
@@ -246,17 +277,24 @@ def run(mode: str, record: bool = False, video_path: Path = VIDEO_PATH) -> dict:
         step_length=m3.STEP_LENGTH, n_steps=m3.N_STEPS,
     )
 
+    momentum_task = None
     if MOMENTUM_WEIGHT > 0.0:
-        stack.add(
+        momentum_task = stack.add(
             CentroidalAngularMomentumTask(weight=MOMENTUM_WEIGHT, gain=MOMENTUM_GAIN)
         )
+    # carry: both hands are task hands. reach: only the right — the left arm
+    # stays free under the posture task, as the momentum task's actuation.
+    task_frames = (
+        (RIGHT_HAND,) if (mode == "reach" and REACH_FREE_LEFT)
+        else (LEFT_HAND, RIGHT_HAND)
+    )
     hand_tasks = {
         frame: stack.add(
             FramePositionTask(
                 frame, pin_model, weight=HAND_WEIGHT, gain=HAND_GAIN, name=f"hand:{frame}"
             )
         )
-        for frame in (LEFT_HAND, RIGHT_HAND)
+        for frame in task_frames
     }
     rest = {frame: task.current_position(pin_data) for frame, task in hand_tasks.items()}
     homes = pre_pose(mj_model, mj_data, pin_model, pin_data, stack, qp, controller, hand_tasks, rest)
@@ -289,9 +327,9 @@ def run(mode: str, record: bool = False, video_path: Path = VIDEO_PATH) -> dict:
         camera.elevation = -10.0
 
     log = {
-        "t": [], "hand_err_mm": {LEFT_HAND: [], RIGHT_HAND: []},
-        "hand_ref": {LEFT_HAND: [], RIGHT_HAND: []},
-        "hand_pos": {LEFT_HAND: [], RIGHT_HAND: []},
+        "t": [], "hand_err_mm": {frame: [] for frame in task_frames},
+        "hand_ref": {frame: [] for frame in task_frames},
+        "hand_pos": {frame: [] for frame in task_frames},
     }
     fell_at: float | None = None
     steps_completed = 0
@@ -306,6 +344,13 @@ def run(mode: str, record: bool = False, video_path: Path = VIDEO_PATH) -> dict:
 
             q, v = mj_state_to_pin(mj_data)
             stack.update_dynamics(q, v)
+            if momentum_task is not None and mode == "reach" and MOMENTUM_REFERENCE:
+                reference._last_t = t
+                momentum_task.set_reference(
+                    _planned_arm_momentum(
+                        pin_model, pin_data, hand_tasks[RIGHT_HAND], reference, t
+                    )
+                )
             result = qp.solve(stack, q, v)
             mj_data.ctrl[:] = result.tau
             mujoco.mj_step(mj_model, mj_data)
@@ -370,6 +415,8 @@ def plot_metrics(results: list[dict], path: Path) -> None:
     for result, colour in zip(results, ("C0", "C3")):
         times = np.array(result["log"]["t"])
         for frame, style in ((LEFT_HAND, "--"), (RIGHT_HAND, "-")):
+            if frame not in result["log"]["hand_err_mm"]:
+                continue  # reach mode has no left-hand task — the arm is free
             axes[0].plot(
                 times, result["log"]["hand_err_mm"][frame], style, color=colour, lw=0.9,
                 label=f"{result['mode']} · {'left' if frame == LEFT_HAND else 'right'}",
@@ -458,8 +505,9 @@ def main() -> None:
               f"τ {result['tau_max']:.1f} N·m")
         print(f"    hand  {result['hand_rms_mm']:.1f} mm RMS, "
               f"{result['hand_max_mm']:.1f} mm max  "
-              f"(left {result['hand_rms_per_frame'][LEFT_HAND]:.1f}, "
-              f"right {result['hand_rms_per_frame'][RIGHT_HAND]:.1f})")
+              + "  (" + ", ".join(
+                  f"{'left' if f == LEFT_HAND else 'right'} {rms:.1f}"
+                  for f, rms in result["hand_rms_per_frame"].items()) + ")")
         print(f"    DCM   {result['dcm_err_rms_mm']:.1f} mm RMS "
               f"(M3 without arms: 6.2 mm)")
         if result["fell"]:

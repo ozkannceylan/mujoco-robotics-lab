@@ -577,3 +577,46 @@ commanded arm motion rather than zero; (2) fade the circle in only during
 double support, so the arm's peak demand does not land in single support;
 (3) treat the reach task as M5 scope if a momentum *reference* turns out to be
 the honest prerequisite.
+
+
+#### L-M4-d: The momentum reference and the free arm — measured, both necessary, and the pocket is narrow
+- **Diagnosis that led here** (per-joint saturation + momentum trace on the
+  failing reach run): the saturated actuators were the 25 N·m **shoulders**
+  (right roll 143 ticks, left pitch 129), not the legs. The gait's own natural
+  roll momentum oscillates at ±2 kg·m²/s — three times what the hand circle
+  generates — so `L → 0` was asking the QP to cancel *walking itself*, and the
+  cheapest joints for that are the arms. The left arm was simultaneously
+  holding a Cartesian pose at weight 1e2: ground between "hold still" and
+  "cancel momentum", it saturated, and the DCM error compounded step over step
+  (10 → 60 → 250 mm, fall at step 6).
+- **Fix 1 — momentum reference (resolved momentum control, Kajita IROS 2003)**:
+  `CentroidalAngularMomentumTask.set_reference(L_ref)` with `L_ref` computed
+  each tick from the commanded circle velocity through the arm block of the
+  hand Jacobian and `A_g`. The task now damps momentum *deviation from plan*
+  instead of fighting the trajectory another task feeds forward.
+- **Fix 2 — free left arm in reach**: the left hand's Cartesian task is dropped
+  (PLAN's sub-task (b) never asked for it); the left arm is held only by
+  posture, making it the momentum task's actuation — the human arm-swing
+  arrangement.
+- **Ablation** (period 2.0, radius 0.10, hand weight 1e2):
+
+  | configuration | steps | outcome |
+  |---|---|---|
+  | both fixes | **12/12, 1.178 m, no fall** | hand 37.6 mm RMS / 91.6 mm max |
+  | free arm, no L_ref | 11/12, fell | L_ref matters at the margin |
+  | L_ref, left locked | 5/12, fell | the free arm is the larger effect |
+  | both, hand weight 3e2 | 5/12, fell | strengthening the hand still breaks balance |
+
+- **The open finding — the operating point is a narrow pocket.** Every
+  neighbour of (period 2.0 s, radius 0.10 m) falls: periods 1.8, 2.5, 3.0 and
+  radius 0.08 all fail, including *smaller* motions. Period 2.0 sits near the
+  gait cycle (2 × 0.9 s = 1.8 s), so the surviving case is close to
+  gait-synchronous — but exact lock (1.8) is worse, so this is not a clean
+  resonance story yet. The 91.6 mm error peak is a single event in one double
+  support (t = 5.92 s), i.e. contact-switch turbulence, not tracking lag.
+- **Takeaway**: the two structural fixes turned "falls at step 4" into "walks
+  the full gate distance", and the ablation pins the credit. But a pass that
+  sits alone in a pocket of falls is not yet an engineering result — the
+  remaining work is to understand the pocket (why neighbours fail) and to
+  soften the contact-switch transient that owns the error peak, not to tune
+  within the pocket.

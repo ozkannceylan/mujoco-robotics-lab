@@ -523,8 +523,22 @@ class CentroidalAngularMomentumTask(Task):
     drift is `Ȧ_g q̇`, which Pinocchio reports as the momentum time variation
     evaluated at zero acceleration.
 
+    Regulating toward zero versus toward a reference
+    ------------------------------------------------
+    `L → 0` is right when no task deliberately moves mass around — it is pure
+    damping, and it is what lets M4's carry pose walk. It is wrong the moment a
+    task *commands* motion: a hand tracing a circle generates angular momentum
+    by design, and a zero-reference momentum task then fights the very
+    trajectory another task is feeding forward. Measured on the reach task, the
+    QP resolved that contradiction by whipping the arms as reaction wheels
+    until the 25 N·m shoulders saturated (143 ticks) and the robot fell at
+    step 6. This is the classic resolved-momentum-control point (Kajita et al.,
+    IROS 2003): the momentum reference should be the value the planned motion
+    implies, not zero. Call `set_reference` with that value each tick;
+    the default reference is zero, which recovers pure damping.
+
     Args:
-        gain: `L̇_des = −gain · L` [1/s].
+        gain: `L̇_des = −gain · (L − L_ref)` [1/s].
     """
 
     def __init__(
@@ -534,6 +548,14 @@ class CentroidalAngularMomentumTask(Task):
         name: str = "angular_momentum",
     ) -> None:
         super().__init__(name, weight, gain)
+        self.reference = np.zeros(3)
+
+    def set_reference(self, reference: np.ndarray | None) -> None:
+        """Set the planned angular momentum L_ref (3,) [kg·m²/s]."""
+        self.reference = (
+            np.zeros(3) if reference is None
+            else np.asarray(reference, dtype=float)[:3].copy()
+        )
 
     def dimension(self) -> int:
         return 3
@@ -560,8 +582,8 @@ class CentroidalAngularMomentumTask(Task):
     def desired_acceleration(self, model, data, q, v, damping_gain=None):
         del model, q, damping_gain
         momentum = self.momentum(data, v)
-        data._last_angular_momentum = momentum
-        return -self.gain * momentum
+        data._last_angular_momentum = momentum - self.reference
+        return -self.gain * (momentum - self.reference)
 
 
 class PostureTask(Task):
