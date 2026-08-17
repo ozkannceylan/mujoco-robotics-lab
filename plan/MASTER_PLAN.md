@@ -35,7 +35,7 @@ _Status refreshed 2026-08-13 (project review). This table is the single source o
 | 5 | Grasping & Manipulation | Pick and place an object | ✅ Complete — Phase 5 + Step 6.1 both closed 2026-08-13; capstone places box 5.7 mm from target with transport post-condition |
 | 6 | Dual-Arm Coordination | Two arms cooperatively carry an object (weld-constraint) | ✅ Complete (milestone-gated M0–M5; unit tests intentionally removed) |
 | 7 | Locomotion Fundamentals | Standing balance + quasi-static weight shift (M0–M3d); ZMP walking documented as structurally infeasible with position actuators | ✅ Complete at M3d scope (34 tests; M4 blocked by design) |
-| 8 | Whole-Body Loco-Manipulation | Walk while carrying an object | 🚧 In Progress — **M0–M5 PASS**; capstone walks, picks, carries two-handed and places a payload **11.8 mm** from target. Only M6 (docs + blog) remains |
+| 8 | Whole-Body Loco-Manipulation | Walk while carrying an object | ✅ Complete (2026-08-17) — **M0–M6 PASS**; walks 12 steps / 1.18 m under torque control, and the capstone picks, carries two-handed and places a payload **11.8 mm** from target (97 tests, docs EN/TR + blog) |
 | 9 | VLA Integration | "Pick up the red cup" — end-to-end language-to-action | 📋 Planned |
 
 ### Lab 8 dependency note (from Lab 7 outcome)
@@ -47,6 +47,12 @@ position actuators cannot track the dynamic reference (IK converges, PD replay f
 generation as *its own deliverable*, built on the torque-level inverse-dynamics path
 (Pinocchio RNEA → joint torques) that LAB_08's architecture already prescribes. Lab 9's
 data pipeline depends on Lab 8's controllers, so this is the critical path for the series.
+
+**Resolved 2026-08-17.** Lab 8 built the gait generator (`gait_planner.py` +
+`dcm_planner.py`) on the torque path as milestones M2–M3 and it walks — 12 steps,
+1.18 m, on the same robot Lab 7 could not step with. Lab 9 can take its
+demonstration data from `m3_walking.py` (walking), `m4_walk_reach.py` (walk +
+carry) and `m5_capstone.py` (walk → pick → carry → place).
 
 ---
 
@@ -123,7 +129,7 @@ mujoco-robotics-lab/
 ├── lab-5-grasping-manipulation/
 ├── lab-6-dual-arm/                # No tests/ — milestone-gated verification instead
 ├── lab-7-locomotion/
-└── lab-8-loco-manipulation/       # In progress (M0-M2 done); torque G1, ID QP, stepping
+└── lab-8-loco-manipulation/       # Complete (M0-M6); torque G1, ID QP, DCM walking, capstone
 ```
 
 ---
@@ -179,7 +185,7 @@ Every blog post:
 | Control & Planning | 3–4 | ✅ Complete (2026-03, published 2026-05) | |
 | Manipulation | 5–6 | ✅ Complete (2026-03/05; Lab 5 fully closed 2026-08-13) | |
 | Locomotion | 7 | ✅ Complete at M3d scope (2026-05) | M4 ZMP walking blocked → moved to Lab 8 |
-| Whole-Body | 8 | 🚧 In progress — M0–M5 done (M5 closed 2026-08-17) | Owns gait generation via torque control; **M3 retired Lab 7's deferred walking capstone**; M4 added centroidal angular-momentum control; M5 sequenced them into walk→pick→carry→place. M6 (docs + blog) is all that remains |
+| Whole-Body | 8 | ✅ Complete (2026-08-17) — M0–M6 | Owns gait generation via torque control; **M3 retired Lab 7's deferred walking capstone** (12 steps, 1.18 m); M4 added centroidal angular-momentum control (hand 14.5 mm RMS while walking); M5 sequenced them into walk→pick→carry→place (payload 11.8 mm from target); M6 shipped docs EN/TR + blog. 97 tests |
 | VLA | 9 | 📋 Not started | Builds on humanoid_vla; needs Lab 8 controllers for demo data |
 
 ---

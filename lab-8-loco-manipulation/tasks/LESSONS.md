@@ -847,3 +847,47 @@ Two separate errors, both landing on the one number the gate reads:
 Post-condition asserts run on the **simulated** payload pose, not on the
 commanded one (Lab 5's lesson): within tolerance of the target *and* at least
 0.30 m from where it started.
+
+---
+
+## M6 — Documentation & Blog (2026-08-17)
+
+#### L-M6-a: Write the blog post inside the milestone that earned it
+- Labs 3 and 4 both deferred their blog posts to "after the next thing". Both
+  were eventually written months later during a cleanup sweep, from notes rather
+  than from memory, and neither has been published externally since.
+- Lab 8's material is perishable in a way code is not: the *reason* a fix worked
+  lives in the failure that preceded it, and the failures are what make the post
+  worth reading. Six weeks later they compress to "tuned it".
+- **Fix**: M6 was scoped as a milestone with a gate, not as a chore appended to
+  M5, and the post was written before the status boards were touched.
+- **Takeaway**: a milestone whose deliverable is prose still needs a gate, or it
+  becomes the thing that is always one session away.
+
+#### L-M6-b: Documentation is where a project's honesty gets tested
+- Two Lab 8 results do not match `plan/LAB_08.md`: the QP is solved at the
+  acceleration level rather than the velocity level the brief specifies, and
+  M4's *moving*-hand sub-task never earned its gate. The tempting write-up
+  mentions neither — the numbers alone read as a clean six-for-six.
+- Both are now stated in the lab README, the blog post, `plan/LAB_08.md`'s status
+  header, `tasks/TODO.md` and `CLAUDE.md`. The deviation from the brief is a
+  *finding* (a kinematic QP cannot balance a floating base), and the exploratory
+  sub-task is the lab's clearest example of why a no-op perturbation test is
+  worth running.
+- **Takeaway**: the milestone that writes the summary is the one that decides
+  what the project claims. Record the deviations at the same time as the wins,
+  in the same documents, or the next reader inherits a result that was never
+  measured.
+
+#### M6 gate
+
+| criterion | result | artifact |
+|---|---|---|
+| Architecture doc (EN) | PASS | `docs/ARCHITECTURE.md` |
+| Code walkthrough | PASS | `docs/CODE_WALKTHROUGH.md` |
+| Architecture doc (TR) | PASS | `docs-turkish/ARCHITECTURE_TR.md` |
+| Blog post | PASS | `blog/lab8_loco_manipulation.md` |
+| Per-milestone evidence in README | PASS | M0–M5 gate tables + media |
+| Project status updated | PASS | root README / MASTER_PLAN / LAB_08 / CLAUDE.md / tasks/todo.md |
+
+**Lab 8 closed 2026-08-17: M0–M6 all passed, 97 tests.**

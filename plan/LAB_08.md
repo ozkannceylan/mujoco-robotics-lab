@@ -1,6 +1,12 @@
 # Lab 8: Whole-Body Loco-Manipulation
 
-> **Status:** 🚧 In Progress — kickoff 2026-08-14; see `lab-8-loco-manipulation/tasks/TODO.md` (next: M0)
+> **Status:** ✅ Complete — M0–M6 all passed (kickoff 2026-08-14, closed 2026-08-17).
+> Results and per-milestone gates: `lab-8-loco-manipulation/README.md`.
+> Two scope notes recorded honestly rather than silently: the QP is solved at the
+> **acceleration** level, not the velocity level this brief specifies (a kinematic
+> QP cannot balance a floating base — M1); and M4's *moving*-hand sub-task is
+> reported as **exploratory**, not passing, because its result does not survive a
+> no-op perturbation (M4 § L-M4-f). The M4 gate is the two-handed carry.
 > **Prerequisites:** Lab 6 (dual-arm coordination), Lab 7 (locomotion)  
 > **Platform:** Unitree G1 on MuJoCo + Pinocchio  
 > **Capstone Demo:** G1 walks to a table, picks up an object, carries it while walking

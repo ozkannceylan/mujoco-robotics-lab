@@ -18,7 +18,7 @@ Build a portfolio-ready robotics lab series using MuJoCo, progressing from simpl
 - Lab 5 (Grasping & Manipulation) is complete — custom parallel-jaw gripper, DLS IK, pick-and-place state machine, Lab 3+4 integration
 - Lab 6 (Dual-Arm Coordination) is complete — dual UR5e, weld-constraint cooperative carry, milestone-gated M0–M5
 - Lab 7 (Locomotion) is complete at M3d scope — G1 standing + weight shift; ZMP walking blocked by position actuators, deferred to Lab 8
-- Lab 8 (Whole-Body Loco-Manipulation) is in progress — milestone-gated M0–M6; owns gait generation via torque control (Lab 7's actuator finding). **M0/M1/M2 passed 2026-08-15**, **M3 + M4 passed 2026-08-16**, **M5 passed 2026-08-17** (torque-actuated G1, model parity 1e-16; whole-body inverse-dynamics QP with contact wrenches, 7.08 mm hand tracking; in-place stepping with ZMP 100 % inside support; **DCM forward walking — 12 steps, 1.18 m, 6.2 mm DCM RMS**; **walk + two-handed carry pose via centroidal angular-momentum control, 14.5 mm hand RMS**; **loco-manipulation capstone — walk→pick→carry→place, payload 11.8 mm from target**; 97 tests); next milestone M6 (docs + blog)
+- Lab 8 (Whole-Body Loco-Manipulation) is complete — milestone-gated M0–M6, closed 2026-08-17; owns gait generation via torque control (Lab 7's actuator finding). Torque-actuated G1, model parity 1e-16; whole-body inverse-dynamics QP with contact wrenches, 7.08 mm hand tracking; in-place stepping with ZMP 100 % inside support; **DCM forward walking — 12 steps, 1.18 m, 6.2 mm DCM RMS**; walk + two-handed carry pose via centroidal angular-momentum control, 14.5 mm hand RMS; **loco-manipulation capstone — walk→pick→carry→place, payload 11.8 mm from target**; docs EN/TR + code walkthrough + blog post; 97 tests
 - Lab 9 (VLA) is planned — depends on Lab 8 controllers for demonstration data
 - End goals: strengthen fundamentals for humanoid VLA work, prepare for robotics interviews, build a portfolio demo
 
@@ -371,18 +371,19 @@ Published (portfolio-ready, documented in main README):
 - [x] Lab 5: Grasping & Manipulation (custom MJCF jaw gripper, DLS IK, 11-state pick-and-place, Lab 3+4 integration). Phase 5 hardening closed 2026-08-13 (SO3-log IK, RRT* integration, pro demo re-recorded with 0 self-collisions). Step 6.1 capstone transport fixed same day: gripper friction pads were mounted on the OUTSIDE of the fingers (model bug) + 5 controller/planning fixes (inertia-scaled PD via crba, MJCF-built pin model, scene-derived collision truth, convergence-gated handoffs, touchdown-stop + ascend-before-retract). Capstone places box 5.7 mm from target with a transport post-condition assert.
 - [x] Lab 6: Dual-Arm Coordination (two UR5e arms, Pinocchio dual-arm DLS IK, weld-constraint cooperative carry, milestone-gated verification M0-M5)
 - [x] Lab 7: Locomotion Fundamentals (Unitree G1, floating-base Pinocchio, stacked-Jacobian whole-body IK, standing + weight shift on M3d scope; M4 ZMP walking deferred as structural limitation of position actuators)
+- [x] Lab 8: Whole-Body Loco-Manipulation (torque-actuated G1, whole-body inverse-dynamics QP,
+      DCM walking, centroidal angular-momentum control, walk→pick→carry→place capstone).
+      Milestone-gated M0–M6, all passed; closed 2026-08-17; 97 tests. Two results
+      reported honestly rather than claimed: M4's *moving*-hand sub-task is exploratory
+      (it does not survive a no-op perturbation — see L-M4-f), and the QP is solved at
+      the acceleration level rather than the velocity level `plan/LAB_08.md` specifies.
 
 In progress (real work on disk, not yet portfolio-ready):
-- [ ] Lab 8: Whole-Body Loco-Manipulation (`lab-8-loco-manipulation/`) — M0–M3 DONE
-      (torque G1 7/7; ID QP 5/5; stepping 3/3; **walking 4/4 — 12 steps, 1.18 m,
-      2026-08-16**; 97 tests). Kickoff 2026-08-14: PLAN/ARCHITECTURE/TODO/LESSONS
-      written, milestone-gated M0–M6. Owns gait generation via torque control.
-      Resume at tasks/TODO.md "Current Focus" (M6: documentation + blog). ONE
-      milestone per session; gate + media evidence per milestone (Lab 6/7 rules
-      apply).
+- *(none)*
 
 Future (no folder yet — planned in main README roadmap only):
-- [ ] Lab 9: VLA Integration
+- [ ] Lab 9: VLA Integration — depends on Lab 8's controllers for demonstration data
+      (`m3_walking.py`, `m4_walk_reach.py`, `m5_capstone.py`)
 
 Platform transitions: Labs 1 uses custom 2-link. Labs 2–6 use UR5e + Robotiq 2F-85. Labs 7+ use Unitree G1 humanoid.
 

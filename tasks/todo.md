@@ -1,6 +1,6 @@
 # Project Status Board
 
-> Refreshed: 2026-08-13 (evening) — full review + 8-agent cleanup sweep executed same day.
+> Refreshed: 2026-08-17 — Lab 8 closed (M0–M6). Prior full review: 2026-08-13 (evening).
 > Audit: `tasks/PROJECT_REVIEW_2026-08-13.md`. Per-lab detail: `lab-N-<name>/tasks/TODO.md`.
 
 ## Lab Status (summary)
@@ -12,16 +12,22 @@
 - [x] **Lab 5: Grasping & Manipulation** — **Fully complete 2026-08-13**. Phase 5 (pro demo, 0 self-collisions) AND Step 6.1 (capstone transport) closed. 6.1 root cause: gripper friction pads mounted on the OUTSIDE of the fingers (model bug) + 5 controller/planning fixes. Capstone now places box **5.7 mm** from target with a transport post-condition assert; 33/33 tests; both evidence videos re-recorded.
 - [x] **Lab 6: Dual-Arm Coordination** — Complete. M2 FK cross-validation now has an archived artifact (`media/m2_fk_validation.txt`, max err 2.6e-12 mm).
 - [x] **Lab 7: Locomotion (M3d scope)** — Complete. Test suite runs for real now (34/34 — imports were broken by the Menagerie rewrite); misleading M4 leftovers and scratch files deleted; media naming aligned. M4 ZMP walking remains BLOCKED by design → Lab 8.
-- [ ] **Lab 8: Whole-Body Loco-Manipulation** — 🚧 IN PROGRESS. **M0/M1/M2 PASSED 2026-08-15, M3 PASSED 2026-08-16**: torque-actuated G1 (parity 1e-16), whole-body inverse-dynamics QP with contact wrenches (hand tracking 7.08 mm RMS), torque-level stepping (4/4 in-place steps, ZMP now 100 % inside support), **DCM forward walking — 12/12 steps, 1.18 m, 6.2 mm DCM RMS**, and **M4 walk+arm — 12/12 steps while holding a two-handed carry pose to 14.5 mm RMS**, enabled by a centroidal angular-momentum task. M3 retires Lab 7's deferred 10-step capstone and confirms its actuator-model diagnosis. Along the way it corrected the foot contact model and the QP solver tolerance, which also improved M2 and cut solve time 12.6 ms → 0.073 ms. **M5 loco-manipulation capstone — walk→pick→carry→place, payload 11.8 mm from target, no fall.** 97 tests. Next: **M6 — docs + blog** (the last milestone).
+- [x] **Lab 8: Whole-Body Loco-Manipulation** — **Complete 2026-08-17 (M0–M6).** Torque-actuated G1 (model parity 1e-16), whole-body inverse-dynamics QP with contact wrenches (standing hand tracking 7.08 mm RMS), torque-level stepping (4/4 in-place, ZMP 100 % inside support), **DCM forward walking — 12/12 steps, 1.18 m, 6.2 mm DCM RMS**, **walk + two-handed carry — 12/12 steps, hand 14.5 mm RMS** via a centroidal angular-momentum task, and the **loco-manipulation capstone — walk→pick→carry→place, payload 11.8 mm from target, no fall**. M3 retires Lab 7's deferred 10-step capstone and confirms its actuator-model diagnosis. Along the way it corrected the foot contact model and the QP solver tolerance, which also improved M2 and cut solve time 12.6 ms → 0.073 ms. M6 shipped docs EN/TR, a code walkthrough and the blog post **in-milestone**. 97 tests. Two things deliberately not claimed: M4's *moving*-hand sub-task (exploratory — does not survive a no-op perturbation) and the velocity-level QP the brief specified (a kinematic QP cannot balance a floating base).
 - [ ] **Lab 9: VLA Integration** — Not started. Depends on Lab 8 controllers for demo data.
 
 ## Current Focus
 
-> **Lab 8 · M6 — Documentation & blog** (M0–M5 all passed, M5 closed
-> 2026-08-17). Labs 1–7 have no open code work items; Lab 8 has no open *code*
-> work either — M6 is entirely writing. Note the standing project failure this
-> milestone must not repeat: Labs 3 and 4 deferred their blog posts and they
-> are still unwritten.
+> **Lab 9 — VLA Integration** (not started; no folder yet). Labs 1–8 are all
+> complete and have no open code work items. Lab 8 closed 2026-08-17 with M6,
+> and its blog post was written in-milestone rather than deferred — the standing
+> project failure (Labs 3 and 4 deferred theirs and they are still unwritten
+> externally) was not repeated.
+>
+> Lab 9's demonstration data comes from Lab 8's controllers:
+> `m3_walking.py`, `m4_walk_reach.py`, `m5_capstone.py`.
+>
+> Per the workflow: read `plan/LAB_09.md` fully → PLAN → ARCHITECTURE → TODO →
+> then code.
 
 ## Blockers
 

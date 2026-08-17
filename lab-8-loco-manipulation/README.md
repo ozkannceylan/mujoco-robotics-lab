@@ -1,6 +1,6 @@
 # Lab 8 — Whole-Body Loco-Manipulation
 
-> **Status:** 🚧 In progress — **M0–M5 complete** (M5 closed 2026-08-17), M6 (docs + blog) is all that remains.
+> **Status:** ✅ Complete — **M0–M6 all passed** (kickoff 2026-08-14, closed 2026-08-17). 97 tests.
 > **Platform:** Unitree G1 (MuJoCo Menagerie, 29 DOF) under **torque** control + Pinocchio
 > **Goal:** A humanoid that walks and uses its hands at the same time — the operating
 > mode Lab 9's VLA policy will have to produce.
@@ -24,7 +24,7 @@ dynamics → joint torques, owning gait generation rather than inheriting it.
 | M3 | Forward walking | ≥ 10 steps, ≥ 1.0 m, no fall | ✅ **PASS** |
 | M4 | Walk + arm task | M3 gate holds, hand error < 50 mm while walking | ✅ **PASS** |
 | M5 | Loco-manipulation capstone | walk → grasp → carry → place, object within 50 mm | ✅ **PASS** |
-| M6 | Documentation & blog | docs EN/TR + blog post | ⏳ next |
+| M6 | Documentation & blog | docs EN/TR + blog post | ✅ **PASS** |
 
 ---
 
@@ -481,6 +481,23 @@ everywhere destabilised the tuck.
 
 ---
 
+## M6 — Documentation & Blog ✅
+
+| Criterion | Result | Artifact |
+|---|---|---|
+| Architecture doc (EN) | PASS | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
+| Code walkthrough | PASS | [`docs/CODE_WALKTHROUGH.md`](docs/CODE_WALKTHROUGH.md) |
+| Architecture doc (TR) | PASS | [`docs-turkish/ARCHITECTURE_TR.md`](docs-turkish/ARCHITECTURE_TR.md) |
+| Blog post | PASS | [`blog/lab8_loco_manipulation.md`](blog/lab8_loco_manipulation.md) |
+| Per-milestone evidence in this README | PASS | M0–M5 above, each with gate table + media |
+| Root README / MASTER_PLAN / LAB_08 status | PASS | Lab 8 marked complete |
+
+The blog post was written **in this milestone rather than deferred** — Labs 3 and
+4 deferred theirs and they are still unwritten, which is the one criterion this
+project has repeatedly failed.
+
+---
+
 ## Architecture
 
 ```
@@ -502,9 +519,14 @@ gait refs (M2+)   hand target (M1+)
    MuJoCo, torque actuators, 1 kHz
 ```
 
-Full module map, data flow and interface contracts:
-[`tasks/ARCHITECTURE.md`](tasks/ARCHITECTURE.md).
-Milestone plan and gates: [`tasks/PLAN.md`](tasks/PLAN.md).
+| Document | What it covers |
+|---|---|
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Why the QP is at the acceleration level, why DCM, why a momentum task; contact model, module map, data flow, frame conventions, solver settings |
+| [`docs/CODE_WALKTHROUGH.md`](docs/CODE_WALKTHROUGH.md) | Guided read of the source in dependency order, with the measurement behind each decision |
+| [`docs-turkish/ARCHITECTURE_TR.md`](docs-turkish/ARCHITECTURE_TR.md) | Türkçe mimari belgesi |
+| [`blog/lab8_loco_manipulation.md`](blog/lab8_loco_manipulation.md) | "The Humanoid Walked Once I Stopped Telling It Where to Stand" — long-form writeup |
+| [`tasks/ARCHITECTURE.md`](tasks/ARCHITECTURE.md) | Pre-implementation design record (interface contracts, model files) |
+| [`tasks/PLAN.md`](tasks/PLAN.md) · [`tasks/LESSONS.md`](tasks/LESSONS.md) | Milestone plan and gates · long-form entry for every defect summarised here |
 
 ### Modules
 

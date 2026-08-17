@@ -245,28 +245,58 @@
       cannot see, and two were the difference between commanding a hand and
       commanding the object in it.
 
-## M6 — Documentation & Blog
-- [ ] docs/ + docs-turkish/ (ARCHITECTURE + CODE_WALKTHROUGH pattern)
-- [ ] README with per-milestone evidence tables
-- [ ] Blog post (do NOT defer — Labs 3–4 lesson)
-- [ ] Root README / MASTER_PLAN / status board / plan/LAB_08.md updates
+## M6 — Documentation & Blog — ✅ DONE (2026-08-17), GATE PASSED 6/6
+- [x] `docs/ARCHITECTURE.md` — the *why* rather than the module list: acceleration-
+      level QP vs kinematic QP, DCM vs CoM reference, why the centroidal momentum
+      task exists and its two scoping rules, the contact-model error table, module
+      map, per-tick data flow, non-negotiable frame conventions, gait parameters,
+      payload handling, solver settings, cross-lab deps.
+- [x] `docs/CODE_WALKTHROUGH.md` — eight-section guided read in dependency order
+      (`g1_torque_model` → `lab8_common` → `wb_tasks` → `wb_id_qp` → planners →
+      `locomotion_controller` → capstone → tests), each with the measurement that
+      drove the code.
+- [x] `docs-turkish/ARCHITECTURE_TR.md` — Turkish architecture doc (Lab 7's pattern:
+      ARCHITECTURE only, not the walkthrough).
+- [x] `blog/lab8_loco_manipulation.md` — "The Humanoid Walked Once I Stopped Telling
+      It Where to Stand". **Written in-milestone, not deferred.**
+- [x] Lab README: M6 gate section + a document index; header and milestone table
+      moved to complete.
+- [x] Root `README.md` (status table, Lab 8 footnote, new Lab 8 section with metrics,
+      repo tree, demo command, topics table column), `plan/MASTER_PLAN.md` (lab
+      summary, phase board, tree, Lab 8 dependency note resolved),
+      `plan/LAB_08.md` status header (incl. the two scope deviations), `CLAUDE.md`,
+      `tasks/todo.md`.
+
+- [x] Gate — all criteria PASS:
+
+      | criterion | result | artifact |
+      |---|---|---|
+      | Architecture doc (EN) | PASS | `docs/ARCHITECTURE.md` |
+      | Code walkthrough | PASS | `docs/CODE_WALKTHROUGH.md` |
+      | Architecture doc (TR) | PASS | `docs-turkish/ARCHITECTURE_TR.md` |
+      | Blog post | PASS | `blog/lab8_loco_manipulation.md` |
+      | Per-milestone evidence in README | PASS | M0–M5 gate tables + media |
+      | Project status updated | PASS | root README / MASTER_PLAN / LAB_08 / CLAUDE.md |
 
 ## Current Focus
-> **M6 — Documentation & Blog.** M5 closed 2026-08-17; the G1 walks to a
-> pedestal, picks a payload up, carries it two-handed and places it 11.8 mm
-> from target without falling. M0–M5 all pass their gates.
+> **None — Lab 8 is complete.** M0–M6 all passed; closed 2026-08-17.
 >
-> M6 is the last milestone and it is entirely writing:
-> 1. `docs/` + `docs-turkish/` — ARCHITECTURE + CODE_WALKTHROUGH, the pattern
->    Labs 6–7 use.
-> 2. Lab README with per-milestone evidence tables (M0–M5 gate tables and media
->    already exist in this file and in LESSONS — lift them, do not re-derive).
-> 3. **Blog post — write it now, not later.** Labs 3 and 4 deferred theirs and
->    they are still unwritten months on; that is the one criterion this project
->    has repeatedly failed. The material is unusually good: DCM walking, the
->    centroidal-momentum finding, and a capstone whose ten defects were mostly
->    *not* control problems.
-> 4. Root README / MASTER_PLAN / status board / `plan/LAB_08.md` status header.
+> Two things are deliberately *not* claimed, and both are documented rather than
+> quietly dropped:
+> - **M4's moving-hand sub-task** (walk while the right hand traces a circle) is
+>   reported as exploratory in every gate run. It meets the numeric bar but does
+>   not survive a no-op perturbation — shifting the circle's starting phase takes
+>   12/12 steps to 3/12 — so it is a draw from a distribution, not a controller
+>   property. Sixteen ruled-out parameter families in LESSONS § L-M4-f. The M4
+>   gate is the two-handed carry, which *is* flat under the same scrutiny.
+> - **The QP is at the acceleration level**, not the velocity level `plan/LAB_08.md`
+>   specifies. A kinematic QP cannot balance a floating base (L-M1-a); `wb_qp.py`
+>   keeps the velocity-level solver for kinematic sub-problems, labelled unfit for
+>   balance.
+>
+> Next in the series is **Lab 9 (VLA)**, whose demonstration data comes from these
+> controllers: `m3_walking.py` (walking), `m4_walk_reach.py` (walk + carry),
+> `m5_capstone.py` (walk → pick → carry → place).
 
 ## Blockers
 > None. OSQP verified (1.1.3). G1 menagerie assets present under

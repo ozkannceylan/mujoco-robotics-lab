@@ -19,7 +19,7 @@ An open curriculum for rebuilding robotics fundamentals in **MuJoCo**, with **Pi
 | 5   | Grasping & manipulation | Complete\* |
 | 6   | Dual-arm coordination | Complete |
 | 7   | Locomotion fundamentals | Complete\*\* |
-| 8   | Whole-body loco-manipulation | In progress\*\*\* |
+| 8   | Whole-body loco-manipulation | Complete\*\*\* |
 | 9   | VLA integration | Planned |
 
 Only labs marked **Complete** have published writeups and metrics in this README. Planned labs may have in-progress code on disk but are not yet portfolio-ready.
@@ -28,7 +28,7 @@ Only labs marked **Complete** have published writeups and metrics in this README
 
 \*\* **Lab 7** is signed off at M3d scope: static balance, push recovery, FK/IK validation, and quasi-static weight shifting all pass their gates. Dynamic ZMP walking (M4) was identified as structurally infeasible with the Menagerie G1's position actuators — the lab's M5 documentation and blog post explain the diagnostic work in full rather than papering over the limit.
 
-\*\*\* **Lab 8** takes up exactly where Lab 7 stopped, and tests its diagnosis. **M0 (2026-08-15)** re-actuates the G1 with torque motors instead of position servos and re-establishes a 10 s stand from outside the simulator. **M1** adds the whole-body inverse-dynamics QP — joint accelerations *and* contact wrenches as decision variables — so the standing robot tracks a hand circle to 7.08 mm RMS while balance stays a hard constraint. **M2** takes four torque-level steps in place. **M3 (2026-08-16) walks: 12 steps, 1.18 m, no fall** — the capstone Lab 7 abandoned, on the same robot, which settles the actuator-model question. It got there by replacing the CoM position reference with **divergent-component-of-motion tracking**, and then by fixing two things underneath the controller that mattered more than the controller did: the foot's centre-of-pressure model was a symmetric guess rather than the G1's real asymmetric sole, and the QP's solver tolerance was set below what the problem's conditioning can deliver. **M4 walks and works at the same time**: the same 12 steps while both hands hold a Cartesian carry pose to 14.5 mm RMS. The enabler was a *missing term*, not a weight — no hand-task weight both walked and tracked, and the failures were non-monotonic, which is the tell. Regulating **centroidal angular momentum** took the identical hand task from falling on step 7 to the full distance with three times better tracking. **M5 (2026-08-17) is the capstone**: one continuous 25-second episode in which the robot walks to a pedestal, picks up a payload, brings it to its chest and secures it with the second hand, carries it, and sets it down **11.8 mm** from the target without falling. Its ten defects are the lab's most useful result — three were in code M0–M4 had already exercised, two were scene geometry the balance controller cannot see (a pedestal at hip height felled a controller that walks 12 steps on bare ground), and two were the difference between commanding a hand and commanding the object held in it. 97 tests. Only documentation (M6) remains. See [`lab-8-loco-manipulation/`](lab-8-loco-manipulation/).
+\*\*\* **Lab 8** takes up exactly where Lab 7 stopped, and tests its diagnosis. **M0 (2026-08-15)** re-actuates the G1 with torque motors instead of position servos and re-establishes a 10 s stand from outside the simulator. **M1** adds the whole-body inverse-dynamics QP — joint accelerations *and* contact wrenches as decision variables — so the standing robot tracks a hand circle to 7.08 mm RMS while balance stays a hard constraint. **M2** takes four torque-level steps in place. **M3 (2026-08-16) walks: 12 steps, 1.18 m, no fall** — the capstone Lab 7 abandoned, on the same robot, which settles the actuator-model question. It got there by replacing the CoM position reference with **divergent-component-of-motion tracking**, and then by fixing two things underneath the controller that mattered more than the controller did: the foot's centre-of-pressure model was a symmetric guess rather than the G1's real asymmetric sole, and the QP's solver tolerance was set below what the problem's conditioning can deliver. **M4 walks and works at the same time**: the same 12 steps while both hands hold a Cartesian carry pose to 14.5 mm RMS. The enabler was a *missing term*, not a weight — no hand-task weight both walked and tracked, and the failures were non-monotonic, which is the tell. Regulating **centroidal angular momentum** took the identical hand task from falling on step 7 to the full distance with three times better tracking. **M5 (2026-08-17) is the capstone**: one continuous 25-second episode in which the robot walks to a pedestal, picks up a payload, brings it to its chest and secures it with the second hand, carries it, and sets it down **11.8 mm** from the target without falling. Its ten defects are the lab's most useful result — three were in code M0–M4 had already exercised, two were scene geometry the balance controller cannot see (a pedestal at hip height felled a controller that walks 12 steps on bare ground), and two were the difference between commanding a hand and commanding the object held in it. **M6 (2026-08-17)** closes the lab with architecture docs (EN/TR), a code walkthrough and the blog post. 97 tests. See [`lab-8-loco-manipulation/`](lab-8-loco-manipulation/).
 
 ---
 
@@ -176,6 +176,29 @@ Lab 7 moves from manipulators to a humanoid: the **Unitree G1** (29 DOF, 33.34 k
 
 ---
 
+### Lab 8: Whole-Body Loco-Manipulation
+
+Lab 8 takes the same Unitree G1, replaces its position servos with **torque motors**, and rebuilds the stack around a whole-body **inverse-dynamics QP** — joint accelerations *and* contact wrenches as decision variables, solved once per millisecond. That settles the question Lab 7 left open: the robot walks. Balance is commanded through the **divergent component of motion** (`ξ = c + ċ/ω`) rather than a CoM position reference, and arm tasks are made compatible with walking by regulating **centroidal angular momentum** rather than by re-weighting.
+
+**Final demo**: one continuous 25-second episode — walk to a pedestal, stop, reach, grasp, lift, secure the load two-handed at the chest, walk carrying it, stop, place, release.
+
+![Lab 8 — Loco-Manipulation Capstone](lab-8-loco-manipulation/media/m5_capstone_metrics.png)
+
+| Metric | Value |
+|---|---|
+| Model parity vs MuJoCo (`M`, `g`) | 9.3e-17 / 1.7e-16 relative |
+| Standing hand-circle tracking (M1) | 7.08 mm RMS |
+| Forward walking (M3) | 12 / 12 steps, **1.18 m**, DCM RMS 6.2 mm |
+| ZMP inside support polygon while walking | 99.3 % of loaded ticks |
+| Walk + two-handed carry (M4) | 12 / 12 steps, hand 14.5 mm RMS |
+| Capstone payload placement (M5) | **11.8 mm** from target, transported 0.384 m |
+| QP solve time | 0.073 ms mean (47–53 variables) |
+| Peak torque / limit | 56.0 / 139 N·m |
+
+[Go to Lab 8](lab-8-loco-manipulation/) · [Blog post](lab-8-loco-manipulation/blog/lab8_loco_manipulation.md)
+
+---
+
 ## Repository Structure
 
 ```
@@ -247,6 +270,16 @@ mujoco-robotics-lab/
 │   ├── media/                    #   Per-milestone videos + plots + validation .txt
 │   └── README.md                 #   Lab overview
 │
+├── lab-8-loco-manipulation/      # Lab 8: Whole-Body Loco-Manipulation (torque G1)
+│   ├── src/                      #   Milestones M0-M5 + ID QP / tasks / gait + DCM planners
+│   ├── models/                   #   Torque model generated at runtime from Menagerie
+│   ├── docs/                     #   ARCHITECTURE.md + CODE_WALKTHROUGH.md
+│   ├── docs-turkish/             #   ARCHITECTURE_TR.md
+│   ├── blog/                     #   "The Humanoid Walked Once I Stopped Telling It Where to Stand"
+│   ├── tests/                    #   97 tests (parity, FD Jacobians, QP constraints, DCM)
+│   ├── media/                    #   Per-milestone videos + metric plots
+│   └── README.md                 #   Lab overview
+│
 ├── plan/                         # Lab briefs (LAB_01–LAB_09) + MASTER_PLAN.md
 ├── tasks/                        # Cross-lab todo / lessons / project reviews
 ├── tools/                        # setup_env.sh + video_producer.py
@@ -258,7 +291,7 @@ mujoco-robotics-lab/
 ```
 
 Each lab is self-contained with its own source code, models, documentation, and
-media. Test coverage varies by lab: labs 1–5 and 7 ship pytest suites, while lab 6
+media. Test coverage varies by lab: labs 1–5, 7 and 8 ship pytest suites, while lab 6
 is verified through numerical milestone gates (M0–M5) rather than unit tests.
 New labs follow the same structure.
 
@@ -315,6 +348,9 @@ python3 lab-6-dual-arm/src/m5_capstone_demo.py
 
 # Lab 7: G1 standing + 5 cm weight shift + LIPM/ZMP overlay
 python3 lab-7-locomotion/src/m5_capstone_demo.py
+
+# Lab 8: torque-controlled G1 walks → picks → carries → places (needs MUJOCO_GL=egl)
+MUJOCO_GL=egl python3 lab-8-loco-manipulation/src/m5_capstone.py
 ```
 
 ---
@@ -323,16 +359,16 @@ python3 lab-7-locomotion/src/m5_capstone_demo.py
 
 The published labs cover the same fundamental topics at increasing scale and physical realism:
 
-| Topic | Lab 1 (2-DOF) | Lab 2 (6-DOF) | Lab 3 (Force Control) | Lab 4 (Motion Planning) | Lab 5 (Grasping) | Lab 6 (Dual-Arm) | Lab 7 (Locomotion) |
-|---|---|---|---|---|---|---|---|
-| Forward Kinematics | Analytic 2-link FK | DH + Pinocchio + MuJoCo cross-validation | Reused from Lab 2 | Reused — FK drives Cartesian via-points | Pinocchio FK on UR5e + custom gripper frame | `DualArmModel` FK, 0.000 mm round-trip vs MuJoCo | Floating-base FK on the G1 (`nq ≠ nv`, quaternion) |
-| Jacobian | 2x2 analytic | Geometric, Pinocchio, numerical + singularity analysis | Pinocchio Jacobians for `τ = Jᵀ·F` | Used by seeded IK at each via-point | Frame Jacobian feeding DLS grasp IK | Per-arm Pinocchio Jacobians in `DualArmModel` | `LOCAL_WORLD_ALIGNED`, finite-difference validated (0/36 failures) |
-| Inverse Kinematics | Analytic + pseudo-inverse + DLS | Pseudo-inverse + adaptive DLS | DLS into contact-aware targets | Seeded DLS keeps the elbow on one side across segments | DLS with `pin.log3` SO(3) orientation error, 4 seeded grasp poses | Dual-arm DLS, 300 restarts + collision-checked candidates | Stacked-Jacobian whole-body DLS, 18 task rows |
-| Dynamics | M, C, g from MuJoCo | Pinocchio RNEA, ABA, CRBA + cross-validation | RNEA/CRBA parity at sub-1e-4 | Gravity compensation reused from Lab 3 | Gravity compensation inside Lab 3's impedance torque | Per-arm gravity compensation | CoM dynamics + LIPM (Kajita preview control) |
-| Trajectory | Cubic, quintic | Cubic, quintic, trapezoidal, min-jerk, multi-segment | Straight-line task-space path under contact | RRT/RRT\* path → shortcutting → TOPP-RA (quintic fallback) | Lab 4 plan + smoothing per pick-and-place segment | 2 s smooth-step bimanual interpolation, arms synced to 2 ms | Footstep plan + ZMP reference + cubic/parabolic swing foot |
-| Control | PD + gravity compensation | PD+g, computed torque, task-space impedance, OSC | Gravity comp + Cartesian impedance + hybrid force | Lab 3 joint PD + gravity comp (no new control code) | Lab 3 `compute_impedance_torque` under gravity comp | Joint PD + gravity comp (no Cartesian impedance, by design) | Position-PD with gravity feedforward (ankle torque unavailable) |
-| Contact | — | — | `mj_contactForce` over full EE contact set, 5 ± 1 N regulation | Collision as a planning constraint (HPP-FCL + MuJoCo geometry), 0.034 m clearance | Gripper-pad contact detection confirms the grasp | Weld-constraint grasp + MuJoCo contact check during IK search | Foot-ground contact; feet pinned to < 1.4 mm drift |
-| Integration | Square drawing | Pick-and-place pipeline + 3D cube drawing | Constant-force line trace on a table | RRT\* slalom through 4 tabletop obstacles | 11-state pick-and-place chaining Labs 3 + 4 | 6-state cooperative carry (APPROACH → PLACE) | Standing + 5 cm weight shift + LIPM/ZMP overlay |
+| Topic | Lab 1 (2-DOF) | Lab 2 (6-DOF) | Lab 3 (Force Control) | Lab 4 (Motion Planning) | Lab 5 (Grasping) | Lab 6 (Dual-Arm) | Lab 7 (Locomotion) | Lab 8 (Loco-Manipulation) |
+|---|---|---|---|---|---|---|---|---|
+| Forward Kinematics | Analytic 2-link FK | DH + Pinocchio + MuJoCo cross-validation | Reused from Lab 2 | Reused — FK drives Cartesian via-points | Pinocchio FK on UR5e + custom gripper frame | `DualArmModel` FK, 0.000 mm round-trip vs MuJoCo | Floating-base FK on the G1 (`nq ≠ nv`, quaternion) | Floating-base FK reused from Lab 7, evaluated once per control tick |
+| Jacobian | 2x2 analytic | Geometric, Pinocchio, numerical + singularity analysis | Pinocchio Jacobians for `τ = Jᵀ·F` | Used by seeded IK at each via-point | Frame Jacobian feeding DLS grasp IK | Per-arm Pinocchio Jacobians in `DualArmModel` | `LOCAL_WORLD_ALIGNED`, finite-difference validated (0/36 failures) | Frame + CoM + centroidal momentum map `A_g`, all FD-validated |
+| Inverse Kinematics | Analytic + pseudo-inverse + DLS | Pseudo-inverse + adaptive DLS | DLS into contact-aware targets | Seeded DLS keeps the elbow on one side across segments | DLS with `pin.log3` SO(3) orientation error, 4 seeded grasp poses | Dual-arm DLS, 300 restarts + collision-checked candidates | Stacked-Jacobian whole-body DLS, 18 task rows | None — control is at the acceleration level, no IK on the path |
+| Dynamics | M, C, g from MuJoCo | Pinocchio RNEA, ABA, CRBA + cross-validation | RNEA/CRBA parity at sub-1e-4 | Gravity compensation reused from Lab 3 | Gravity compensation inside Lab 3's impedance torque | Per-arm gravity compensation | CoM dynamics + LIPM (Kajita preview control) | Full ID: `M q̈ + h = Sᵀτ + J_cᵀ f`, parity to 1e-16 vs MuJoCo |
+| Trajectory | Cubic, quintic | Cubic, quintic, trapezoidal, min-jerk, multi-segment | Straight-line task-space path under contact | RRT/RRT\* path → shortcutting → TOPP-RA (quintic fallback) | Lab 4 plan + smoothing per pick-and-place segment | 2 s smooth-step bimanual interpolation, arms synced to 2 ms | Footstep plan + ZMP reference + cubic/parabolic swing foot | Footstep plan → piecewise-linear ZMP → back-integrated DCM + swing arcs |
+| Control | PD + gravity compensation | PD+g, computed torque, task-space impedance, OSC | Gravity comp + Cartesian impedance + hybrid force | Lab 3 joint PD + gravity comp (no new control code) | Lab 3 `compute_impedance_torque` under gravity comp | Joint PD + gravity comp (no Cartesian impedance, by design) | Position-PD with gravity feedforward (ankle torque unavailable) | Whole-body inverse-dynamics QP (OSQP), torque motors at 1 kHz |
+| Contact | — | — | `mj_contactForce` over full EE contact set, 5 ± 1 N regulation | Collision as a planning constraint (HPP-FCL + MuJoCo geometry), 0.034 m clearance | Gripper-pad contact detection confirms the grasp | Weld-constraint grasp + MuJoCo contact check during IK search | Foot-ground contact; feet pinned to < 1.4 mm drift | Contact wrenches are QP variables: friction pyramid, CoP box, unilateral |
+| Integration | Square drawing | Pick-and-place pipeline + 3D cube drawing | Constant-force line trace on a table | RRT\* slalom through 4 tabletop obstacles | 11-state pick-and-place chaining Labs 3 + 4 | 6-state cooperative carry (APPROACH → PLACE) | Standing + 5 cm weight shift + LIPM/ZMP overlay | Walk → pick → two-handed carry → place, payload 11.8 mm from target |
 
 ---
 
