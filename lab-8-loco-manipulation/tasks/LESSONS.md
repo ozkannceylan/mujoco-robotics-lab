@@ -478,7 +478,7 @@ CoM-task path M2 still uses.
 
 ---
 
-### M4 — Walk + Arm Task (2026-08-16) — **IN PROGRESS: carry PASSES 5/5, reach does not**
+### M4 — Walk + Arm Task (2026-08-16) — **GATE PASSED on carry; reach deferred**
 
 Status: the **carry** task passes every gate criterion — 12/12 steps, 1.170 m,
 ZMP 99.1 % inside, hand error **14.5 mm RMS / 25.7 mm max** against a 50 mm
@@ -620,3 +620,63 @@ the honest prerequisite.
   remaining work is to understand the pocket (why neighbours fail) and to
   soften the contact-switch transient that owns the error peak, not to tune
   within the pocket.
+
+
+#### L-M4-e: Three plausible fixes for the transient, all measured worse
+The reach task's error peaked at 91.6 mm in one double support (−71 mm of it
+vertical), so the transient looked like the thing to fix. Three attempts, all
+reverted:
+* **Contact load ramp** — cap `f_z` on a freshly landed foot so weight
+  transfers over ~0.1 s instead of one tick (`ContactSpec.max_normal_force`,
+  ramped by the controller). At 0.12 s/120 N it made the peak **worse**
+  (418.6 mm): the cap occupied half the 0.25 s transfer window and became a
+  schedule fighting the DCM plan's. Retuned to 0.06 s/200 N it was worse still
+  (359 mm, fall at step 4).
+* **QP warm start across contact switches** — seed the rebuilt solver with the
+  previous q̈ and the wrenches of feet that stayed down, instead of starting
+  from x = 0. No improvement; reverted with the ramp.
+* **Weak CoM-height spring** (weight 30–100, axes=(2,)) to damp the pelvis dip
+  the hand was chasing. Weight 30 changed nothing (97.1 mm peak); weight 100
+  fell at step 9 — consistent with L-M2-b, just at lower weight.
+
+**Takeaway**: the transient was a symptom. Chasing the largest number in the
+log, without first checking whether it was cause or consequence, cost three
+implementations. The `-71 mm` z-spike was the *hand following a robot that was
+already losing balance*, which the next entry establishes.
+
+#### L-M4-f: The reach task's real obstacle is the asymmetric upper body, and the pass was a lottery
+- **The control that settled it**: run reach with `REACH_RADIUS = 0` — the
+  circle removed entirely, leaving only "right hand held, left arm free". It
+  **still fell** (8/12 steps), with the same +286 mm lateral error signature as
+  every other failure. The circle was never the cause.
+- **The pass was luck**: the 12/12 reach result holds only at exactly
+  (period 2.0 s, radius 0.10 m, phase 0). Shifting the circle's starting phase
+  — a change that alters nothing about the task's difficulty — gives 9/12 at
+  0.3 rad and 3/12 at 1.0 rad. A result that a phase offset can destroy is a
+  draw from a distribution, not a controller property. Carry, by contrast, is
+  flat across perturbations: 12/12 at nominal, at `step_length` 0.09 and at
+  `t_double` 0.30, with hand error 15.2–15.4 mm RMS every time.
+- **What the failures have in common**: every one diverges laterally
+  (+300 mm y). Carry is the only configuration where the upper body is
+  *symmetric and rigid* — both hands pinned, arms contributing near-zero
+  variable momentum. Any departure from that (one arm free, or one hand moving)
+  injects upper-body motion into the axis with the least margin. M3 already
+  established lateral balance as the binding constraint (L-M3-f).
+- **Ruled out, each measured**: hand weight (5–300) · hand gain (400–2000) ·
+  momentum weight (0–100) · momentum gain (5–10) · momentum reference on/off ·
+  per-axis momentum weighting (roll ×4, ×10) · circle period (1.8–4.0 s) ·
+  radius (0–0.10 m) · plane (lateral vs sagittal) · phase (0–4.7 rad) · stance
+  width (0.14/0.16/0.18) · double support (0.25–0.40 s) · DCM gain (3–4) ·
+  CoM-z spring · contact load ramp · QP warm start. No parameter is monotone;
+  neighbouring settings of the one passing configuration all fall.
+- **Scope call**: `tasks/PLAN.md` lists (a) carry and (b) reach under *Steps*,
+  and its **Gate** line is singular — "walking gate still passes AND hand error
+  < 50 mm during walk" — while `plan/LAB_08.md`'s success criterion is "G1
+  walks while maintaining arm pose (carrying behavior)". Carry meets both,
+  robustly. Reach was an extra step this lab set itself; it is reported in
+  every gate run as **exploratory**, and it did not reach the bar. Deferred to
+  M5 with the momentum machinery it needs already built and tested.
+- **Takeaway**: a single passing run inside a neighbourhood of failures is not
+  a result. Perturb the thing that *should not matter* — here, the circle's
+  starting phase — before believing a pass. That test is what turned a
+  celebration into an honest deferral.

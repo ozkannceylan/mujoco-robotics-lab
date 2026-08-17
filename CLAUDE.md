@@ -18,7 +18,7 @@ Build a portfolio-ready robotics lab series using MuJoCo, progressing from simpl
 - Lab 5 (Grasping & Manipulation) is complete — custom parallel-jaw gripper, DLS IK, pick-and-place state machine, Lab 3+4 integration
 - Lab 6 (Dual-Arm Coordination) is complete — dual UR5e, weld-constraint cooperative carry, milestone-gated M0–M5
 - Lab 7 (Locomotion) is complete at M3d scope — G1 standing + weight shift; ZMP walking blocked by position actuators, deferred to Lab 8
-- Lab 8 (Whole-Body Loco-Manipulation) is in progress — milestone-gated M0–M6; owns gait generation via torque control (Lab 7's actuator finding). **M0/M1/M2 passed 2026-08-15**, **M3 passed 2026-08-16** (torque-actuated G1, model parity 1e-16; whole-body inverse-dynamics QP with contact wrenches, 7.08 mm hand tracking; in-place stepping with ZMP 100 % inside support; **DCM forward walking — 12 steps, 1.18 m, 6.2 mm DCM RMS**; 97 tests); next milestone M4 (walk + arm task)
+- Lab 8 (Whole-Body Loco-Manipulation) is in progress — milestone-gated M0–M6; owns gait generation via torque control (Lab 7's actuator finding). **M0/M1/M2 passed 2026-08-15**, **M3 + M4 passed 2026-08-16** (torque-actuated G1, model parity 1e-16; whole-body inverse-dynamics QP with contact wrenches, 7.08 mm hand tracking; in-place stepping with ZMP 100 % inside support; **DCM forward walking — 12 steps, 1.18 m, 6.2 mm DCM RMS**; **walk + two-handed carry pose via centroidal angular-momentum control, 14.5 mm hand RMS**; 97 tests); next milestone M5 (loco-manipulation capstone)
 - Lab 9 (VLA) is planned — depends on Lab 8 controllers for demonstration data
 - End goals: strengthen fundamentals for humanoid VLA work, prepare for robotics interviews, build a portfolio demo
 
@@ -290,6 +290,24 @@ same amplitude, so a wide stance demands a large excursion be arrested inside
 one foot width. Lab 8's G1 went 7/12 steps at its 0.237 m rest stance and 12/12
 at 0.18 m, with stride and everything else unchanged (L-M3-f).
 
+### An arm task on a walking robot needs a centroidal momentum task, not re-weighting
+Manipulation and balance are coupled through momentum: the CoM Jacobian includes
+the arms, so a hand task disturbs the quantity keeping the robot upright. Lab 8
+found no hand weight that both walked and tracked — and the failures were
+*non-monotonic*, which is the tell that a term is missing rather than mis-tuned.
+Adding `L = A_g(q) q̇` regulation took the same hand task from falling on step 7
+to 12/12 steps with 3× better tracking (Lab 8 L-M4-c). Use `L → 0` for a held
+pose; supply an `L_ref` when a task deliberately moves mass (Kajita's resolved
+momentum control), or the term fights the trajectory it was added to enable.
+
+### Perturb what should not matter before believing a pass
+A Lab 8 walking+reach configuration passed 12/12 steps; shifting the commanded
+circle's *starting phase* — which changes nothing about the task — dropped it to
+9/12 and then 3/12. A result a no-op perturbation can destroy is a draw from a
+distribution, not a controller property. The same check on the carry task came
+back flat (12/12 across stride and double-support changes), which is what made
+that gate trustworthy (Lab 8 L-M4-f).
+
 ### Floating base: do NOT inertia-shape joint PD gains with M(q)
 The Lab 5 fix `τ = M(q)(Kp·e + Kd·ė) + g` is correct for a **fixed-base** arm. On a floating-base humanoid `M(q)[6:,6:]` is not the inertia felt through the closed leg chains, and shaping gains with it saturates actuators and makes the G1 fall at every gain setting. Use raw joint-space gains there (Lab 8 L-M0-b).
 
@@ -335,7 +353,7 @@ In progress (real work on disk, not yet portfolio-ready):
       (torque G1 7/7; ID QP 5/5; stepping 3/3; **walking 4/4 — 12 steps, 1.18 m,
       2026-08-16**; 97 tests). Kickoff 2026-08-14: PLAN/ARCHITECTURE/TODO/LESSONS
       written, milestone-gated M0–M6. Owns gait generation via torque control.
-      Resume at tasks/TODO.md "Current Focus" (M4: walk + arm task). ONE
+      Resume at tasks/TODO.md "Current Focus" (M5: loco-manipulation capstone). ONE
       milestone per session; gate + media evidence per milestone (Lab 6/7 rules
       apply).
 

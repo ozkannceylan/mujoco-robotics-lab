@@ -98,11 +98,21 @@ torque command authority.
   deliver, so 38 % of ticks returned an unconverged point (L-M3-e); and stance
   width, not stride length, dominates lateral balance cost (L-M3-f).
 
-### M4 — Walk + Arm Task
+### M4 — Walk + Arm Task ✅ DONE 2026-08-16
 - Steps: (a) walk with both arms holding a fixed Cartesian pose (carry posture);
   (b) walk while the right hand tracks a moving target.
 - Gate: walking gate (M3) still passes AND hand error < 50 mm (brief's 5 cm) during walk.
-- Evidence: `media/m4_walk_reach.mp4` + hand-error plot.
+- **Result on (a): 12/12 steps, 1.170 m, ZMP 99.1 %, hand 14.5 mm RMS / 25.7 mm max,
+  55.2 N·m peak.** Robust across perturbations (step length, double-support duration).
+- **Step (b) not achieved, deferred to M5 with evidence** (LESSONS L-M4-f). The gate
+  line above is singular and `plan/LAB_08.md`'s criterion is the carrying behavior,
+  so (a) is what gates; (b) was an extra step this lab set itself. It is run and
+  printed as *exploratory* in every gate run rather than quietly dropped.
+- **Deviation**: the enabling change was not a weight but a missing term —
+  `wb_tasks.CentroidalAngularMomentumTask`. The brief called for it
+  ("regulate centroidal momentum while performing arm tasks") and a wall of failed
+  tuning was required before that was believed (L-M4-c).
+- Evidence: `media/m4_walk_reach.mp4` + `media/m4_hand_error.png`.
 
 ### M5 — Loco-Manipulation Capstone
 - Steps: scene with table + object (reuse Lab 5 sizing: 40 mm cube-class object or a

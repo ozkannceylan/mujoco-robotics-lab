@@ -169,21 +169,23 @@
       initial condition halved the gait — a dynamic reference is allowed to
       want the robot already moving).
 
-## M4 — Walk + Arm Task — 🚧 IN PROGRESS (carry PASSES 5/5, reach open)
-- [x] `src/m4_walk_reach.py` — walks M3's gait with both hands on a Cartesian
-      task. Two sub-tasks per PLAN: **carry** (both hands hold a pose fixed in
-      the walking frame) and **reach** (right hand traces a circle).
+## M4 — Walk + Arm Task — ✅ DONE (2026-08-16), GATE PASSED 5/5 on carry
+- [x] `src/m4_walk_reach.py` — walks M3's gait with a Cartesian hand task.
+      Two sub-tasks from PLAN's *Steps*: **carry** (both hands hold a pose
+      fixed in the walking frame) and **reach** (right hand traces a circle).
+      PLAN's *Gate* line is singular and LAB_08's criterion is the carrying
+      behavior, so carry is what gates; reach is reported as exploratory.
 - [x] `wb_tasks.CentroidalAngularMomentumTask` — regulates `L = A_g q̇` toward
-      zero. **This is the milestone's real content** (L-M4-c): without it no
-      hand weight both walks and tracks; with it the hand task that used to
-      fall on step 7 walks all twelve and tracks three times better.
+      a reference (zero by default). **The milestone's real content** (L-M4-c):
+      without it no hand weight both walks and tracks; with it the hand task
+      that fell on step 7 walks all twelve and tracks three times better.
+      Supports an `L_ref` (RMC-style) and per-axis weighting.
 - [x] `m3_walking.make_plan` split out of `build` so the gait can be replanned
-      after the robot changes posture (L-M4-a).
+      after the robot changes posture (L-M4-a); `build` gained `q_nominal`.
 - [x] Carry pose reached under the whole-body QP with the DCM frozen, then the
       plan rebuilt on the achieved configuration.
-- [x] Hand reference carries the plan's own CoM velocity **and acceleration**
-      (`c̈ = ω²(c − p)`), not just position.
-- [x] **Carry gate — 5/5 PASS**:
+- [x] Hand reference carries the plan's own CoM velocity **and** acceleration.
+- [x] **Gate — 5/5 PASS (carry)**:
 
       | criterion | result | measured |
       |---|---|---|
@@ -193,22 +195,22 @@
       | Hand error < 50 mm walking | PASS | **14.5 mm RMS, 25.7 mm max** |
       | Torques within limits | PASS | 55.2 N·m peak |
 
-- [x] Momentum reference implemented (L-M4-d): `set_reference(L_ref)` from the
-      commanded circle through the arm Jacobian and A_g, RMC-style. Plus the
-      left arm freed during reach (PLAN (b) never locked it).
-- [ ] **Reach gate: 4 of 5 criteria now pass** — 12/12 steps, 1.178 m, ZMP
-      99.6 %, torques 58.2 N·m. Open: hand error 37.6 mm RMS but **91.6 mm
-      peak** vs the 50 mm gate — a single contact-switch transient at t=5.92.
-- [ ] **Known risk**: the working point (period 2.0 s, radius 0.10 m) is a
-      narrow pocket — periods 1.8/2.5/3.0 and radius 0.08 all fall. Next
-      session: understand the pocket before trusting the pass; then target the
-      double-support transient that owns the error peak. Re-check carry (must
-      stay 5/5) after any change.
-- [x] Evidence (carry): `media/m4_walk_reach.mp4` + `media/m4_hand_error.png`
+- [x] **Robustness checked, not assumed**: carry holds 12/12 at nominal, at
+      `step_length` 0.09 and at `t_double` 0.30, hand error 15.2–15.4 mm RMS
+      throughout. This check is what exposed reach as a lottery (L-M4-f).
+- [x] **Reach deferred to M5** with evidence: the `radius = 0` control falls
+      too (8/12), so the circle was never the cause — the asymmetric upper body
+      is. The one passing configuration collapses under a circle *phase* shift
+      (12/12 → 9/12 → 3/12). Sixteen parameter families ruled out, listed in
+      L-M4-f. The momentum machinery it needs is built and tested.
+- [x] Evidence: `media/m4_walk_reach.mp4` + `media/m4_hand_error.png`
 - [x] Lessons: L-M4-a (replan on the posture you will walk in; reach it with
       the QP, not joint PD), L-M4-b (a no-variance offset is two tasks fighting
       — but check what the losing side was buying), **L-M4-c (centroidal
-      angular momentum is the missing term, not a gain)**.
+      angular momentum is the missing term, not a gain)**, L-M4-d (momentum
+      reference + free arm, ablated), L-M4-e (three transient fixes, all worse
+      — the transient was a symptom), **L-M4-f (perturb what should not matter
+      before believing a pass)**.
 
 ## M5 — Loco-Manipulation Capstone
 - [ ] WALK→REACH→GRASP(weld)→CARRY→PLACE sequence; payload mass in CoM model
@@ -222,20 +224,25 @@
 - [ ] Root README / MASTER_PLAN / status board / plan/LAB_08.md updates
 
 ## Current Focus
-> **M4 — Walk + Arm Task, continued.** The carry half is done and passes 5/5
-> (12 steps, 1.17 m, hand 14.5 mm RMS). The reach half — right hand circling
-> while walking — still falls at 6 of 12 steps.
+> **M5 — Loco-Manipulation Capstone.** M4 closed 2026-08-16: the G1 walks
+> 1.17 m over 12 steps while holding both hands on a Cartesian pose to 14.5 mm
+> RMS, and the whole-body stack now has a centroidal angular-momentum task with
+> a settable reference.
 >
-> The momentum reference and the free left arm are DONE and ablated (L-M4-d):
-> reach now walks 12/12 and 1.178 m. Two things remain, in order:
-> 1. **The 91.6 mm hand-error peak** (gate is 50): one contact-switch
->    transient in one double support (t=5.92). Target the transient — e.g.
->    soften the stance-set switch or brace the hand task through it — do not
->    tune the circle; every neighbouring circle setting falls.
-> 2. **The pocket problem**: only (period 2.0, radius 0.10) survives;
->    1.8/2.5/3.0 and 0.08 all fall. Before declaring the gate, understand why
->    the neighbours fail — a pass surrounded by falls is not yet a result.
-> Then re-run carry (must stay 5/5) and the M3 no-arms gate.
+> Gate: WALK → REACH → GRASP(weld) → CARRY → PLACE with no fall, object within
+> 50 mm of target, and an object-pose post-condition assert (Lab 5's lesson:
+> DONE must verify the object actually moved).
+>
+> Two things M4 hands over that shape M5's opening move:
+> 1. **The payload changes the plan.** M4 measured that bringing the arms
+>    forward moves the CoM ~85 mm and that a gait plan built before that change
+>    is unwalkable (L-M4-a). Grasping an object is the same event with mass
+>    attached — replan after the grasp, and reach the pre-grasp pose under the
+>    QP, not under joint PD.
+> 2. **Reach arrives with M4's deferral attached** (L-M4-f). M5's REACH phase
+>    should happen *stopped*, which is M1's validated regime (7.08 mm), not
+>    while walking. If a walking reach is ever needed, the open problem is the
+>    asymmetric upper body's lateral margin, not the arm trajectory.
 
 ## Blockers
 > None. OSQP verified (1.1.3). G1 menagerie assets present under

@@ -539,16 +539,27 @@ class CentroidalAngularMomentumTask(Task):
 
     Args:
         gain: `L̇_des = −gain · (L − L_ref)` [1/s].
+        axis_weights: Per-axis relative weight on (roll, pitch, yaw) momentum.
+            The three axes are not equally scarce on a walking biped: lateral
+            balance is the binding constraint (L-M3-f — stance width alone
+            decided M3's gate), and lateral CoM divergence is driven by *roll*
+            momentum. Pitch, by contrast, is the axis a sagittal arm task
+            legitimately needs to use. Uniform weighting therefore over-damps
+            the useful axis and under-damps the dangerous one. Rows are scaled
+            by `√w_i`, which is exactly equivalent to a diagonal weight in the
+            QP's least-squares cost.
     """
 
     def __init__(
         self,
         weight: float = 1e1,
         gain: float = 10.0,
+        axis_weights: tuple[float, float, float] = (1.0, 1.0, 1.0),
         name: str = "angular_momentum",
     ) -> None:
         super().__init__(name, weight, gain)
         self.reference = np.zeros(3)
+        self.axis_scale = np.sqrt(np.asarray(axis_weights, dtype=float))
 
     def set_reference(self, reference: np.ndarray | None) -> None:
         """Set the planned angular momentum L_ref (3,) [kg·m²/s]."""
@@ -561,12 +572,12 @@ class CentroidalAngularMomentumTask(Task):
         return 3
 
     def momentum(self, data: pin.Data, v: np.ndarray) -> np.ndarray:
-        """Angular momentum about the CoM (3,) [kg·m²/s]."""
+        """Angular momentum about the CoM (3,) [kg·m²/s], unscaled."""
         return data.Ag[3:6, :] @ np.asarray(v, dtype=float)
 
     def jacobian(self, model, data, q):
         del model, q
-        return data.Ag[3:6, :]
+        return self.axis_scale[:, None] * data.Ag[3:6, :]
 
     def error(self, model, data, q):
         del model, q
@@ -577,13 +588,13 @@ class CentroidalAngularMomentumTask(Task):
 
     def drift(self, model, data):
         del model
-        return np.asarray(data.dhg.angular, dtype=float)
+        return self.axis_scale * np.asarray(data.dhg.angular, dtype=float)
 
     def desired_acceleration(self, model, data, q, v, damping_gain=None):
         del model, q, damping_gain
         momentum = self.momentum(data, v)
         data._last_angular_momentum = momentum - self.reference
-        return -self.gain * (momentum - self.reference)
+        return self.axis_scale * (-self.gain * (momentum - self.reference))
 
 
 class PostureTask(Task):

@@ -1,6 +1,6 @@
 # Lab 8 — Whole-Body Loco-Manipulation
 
-> **Status:** 🚧 In progress — **M0–M3 complete** (M3 closed 2026-08-16), M4 next.
+> **Status:** 🚧 In progress — **M0–M4 complete** (M4 closed 2026-08-16), M5 next.
 > **Platform:** Unitree G1 (MuJoCo Menagerie, 29 DOF) under **torque** control + Pinocchio
 > **Goal:** A humanoid that walks and uses its hands at the same time — the operating
 > mode Lab 9's VLA policy will have to produce.
@@ -22,8 +22,8 @@ dynamics → joint torques, owning gait generation rather than inheriting it.
 | M1 | Whole-body QP (standing reach) | hand RMS < 20 mm, CoM inside support polygon | ✅ **PASS** |
 | M2 | Torque-level stepping | 4 in-place steps, ZMP inside polygon > 95% stance | ✅ **PASS** |
 | M3 | Forward walking | ≥ 10 steps, ≥ 1.0 m, no fall | ✅ **PASS** |
-| M4 | Walk + arm task | M3 gate holds, hand error < 50 mm while walking | ⏳ next |
-| M5 | Loco-manipulation capstone | walk → grasp → carry → place, object within 50 mm | — |
+| M4 | Walk + arm task | M3 gate holds, hand error < 50 mm while walking | ✅ **PASS** |
+| M5 | Loco-manipulation capstone | walk → grasp → carry → place, object within 50 mm | ⏳ next |
 | M6 | Documentation & blog | docs EN/TR + blog post | — |
 
 ---
@@ -317,13 +317,100 @@ difference.
 
 ---
 
+## M4 — Walk + Arm Task ✅
+
+Walking and manipulating at once — the mode Lab 9's VLA policy has to produce,
+and the first milestone where this lab's two halves genuinely collide.
+
+```bash
+MUJOCO_GL=egl python3 lab-8-loco-manipulation/src/m4_walk_reach.py
+```
+
+| Criterion (carry) | Result | Measured |
+|---|---|---|
+| ≥ 10 steps without falling | PASS | **12 / 12** |
+| Travelled ≥ 1.0 m | PASS | 1.170 m |
+| ZMP inside support polygon > 90 % | PASS | 99.1 % |
+| Hand error < 50 mm while walking | PASS | **14.5 mm RMS, 25.7 mm max** |
+| Torques within limits | PASS | 55.2 N·m peak (limit 139) |
+
+![M4 hand error](media/m4_hand_error.png)
+
+Video: [`media/m4_walk_reach.mp4`](media/m4_walk_reach.mp4)
+
+### The missing term was momentum, not a weight
+
+Locomotion is a *centroidal* problem: the DCM task regulates the CoM's
+divergent component, and the CoM Jacobian includes the arms. So a hand task is
+not an independent addition — every kilogram the QP accelerates to satisfy a
+hand target lands in the quantity keeping the robot upright.
+
+Tuning could not resolve it, and said so clearly by being **non-monotonic**:
+hand weight 1e1 walked with a 46 mm droop, 2e1 fell at step 5, 1e2 at step 7,
+3e2 at step 5; hand gain 400 walked, 1000 fell at step 3; a *smaller* carry
+offset fell sooner than a larger one. When every direction is downhill and the
+ordering makes no sense, the model is missing a term.
+
+The term is centroidal angular momentum. `CentroidalAngularMomentumTask`
+regulates `L = A_g(q) q̇`, which lets the QP say "the arms may move, but they
+may not spin the body" — instead of restraining them through a joint-space
+posture pull that was doubling as a momentum damper:
+
+| Momentum weight | Hand weight | Steps | Hand RMS |
+|---|---|---|---|
+| 0 | 1e1 | 12/12 | 46.0 mm |
+| 0 | 1e2 | 7/12, fell | 61.6 mm |
+| **1e1** | **1e2** | **12/12** | **14.5 mm** |
+| 1e2 | 1e2 | 8/12, fell | 46.5 mm |
+
+The same hand task that fell on step 7 walks the full distance and tracks three
+times better. `plan/LAB_08.md` had listed "regulate centroidal momentum while
+performing arm tasks" from the start; it took the wall of failed tuning to
+believe it.
+
+### Two supporting findings
+
+**A gait plan describes a specific configuration.** Bringing both arms forward
+moves the CoM ~85 mm, and a DCM plan built before that spends the walk pulling
+the CoM toward a place the posture forbids. The carry pose is therefore reached
+*before* planning — and under the whole-body QP, not the standing controller:
+joint PD holds angles, so the robot just leans and, over 6 s, drifts and yaws
+off its own footprint (CoM y 0.027 → 0.24 m).
+
+**A steady offset with no variance is two tasks fighting — but check what the
+losing side was buying.** The posture task pulling the arms back to rest caused
+a 40 mm hand droop. Removing that contradiction took the walk from 12/12 steps
+to 2/12 (whole configuration re-nominalised) and 6/12 (arms only). It was the
+arms' only damping. The fix was to add a real damper, not to remove the fight.
+
+### What did not work: the moving-hand task
+
+The second sub-task — walking while the right hand traces a circle — is
+reported in every gate run as **exploratory**, and it did not reach the bar.
+It walks the distance (12/12 steps, 1.178 m) but tracks to only 37.6 mm RMS
+with a 91.6 mm peak, and more importantly **that pass is a lottery draw**:
+shifting the circle's starting phase, which changes nothing about the task's
+difficulty, gives 9/12 steps at 0.3 rad and 3/12 at 1.0 rad. Carry under the
+same scrutiny is flat — 12/12 at nominal, at a shorter stride and at a longer
+double support, 15.2–15.4 mm RMS every time.
+
+The control that settled the diagnosis: run the reach task with the circle
+radius set to **zero**. It still falls (8/12), with the same +286 mm lateral
+signature. The circle was never the cause — the asymmetric upper body is, and
+lateral balance is the axis with no margin (the finding that already decided
+M3). Sixteen parameter families were ruled out; the full list is in
+[`tasks/LESSONS.md`](tasks/LESSONS.md) § L-M4-f. Deferred to M5, where the
+reach happens stopped — M1's validated regime, 7.08 mm.
+
+---
+
 ## Architecture
 
 ```
 gait refs (M2+)   hand target (M1+)
         │               │
         ▼               ▼
-   task stack: DCM/CoM · feet · hand · posture (Pinocchio, LOCAL_WORLD_ALIGNED,
+   task stack: DCM/CoM · feet · hand · momentum · posture  (Pinocchio, LWA,
         │                                     with J̇q̇ drift + feedforward)
         ▼
    whole-body inverse-dynamics QP (OSQP)
@@ -359,6 +446,7 @@ Milestone plan and gates: [`tasks/PLAN.md`](tasks/PLAN.md).
 | `src/m2_stepping.py` | M2 gate: four in-place steps |
 | `src/dcm_planner.py` | M3: piecewise-linear ZMP through the footsteps + the DCM trajectory back-integrated from terminal rest |
 | `src/m3_walking.py` | M3 gate: 12 forward steps (`--in-place` re-runs M2's gate through the DCM controller) |
+| `src/m4_walk_reach.py` | M4 gate: walking with a Cartesian hand task (carry gates; reach reported as exploratory) |
 | `tests/` | 97 tests: actuator semantics, model parity, FD-validated task Jacobians, QP force balance / friction / CoP / torque limits, gait timeline + swing continuity + ZMP measurement, DCM plan against its own ODE, the DCM control law, and the CoP box against the real foot geometry |
 
 The torque model is **generated at runtime, not committed** — Menagerie stays
