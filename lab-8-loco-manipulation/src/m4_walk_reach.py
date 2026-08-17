@@ -90,6 +90,7 @@ HAND_WEIGHT = 1e2        # below DCM and swing (1e4): balance and footfall win
 HAND_GAIN = 400.0
 REACH_RADIUS = 0.10      # right-hand circle [m]
 REACH_PERIOD = 2.0       # one lap [s]
+REACH_PHASE = 0.0        # circle phase offset at walk start [rad]
 # Centroidal angular-momentum damping. This is what makes M4 possible at all
 # (L-M4-c): with it off, a hand task strong enough to track (weight 1e2) falls
 # on the 7th step, and the only weight that walks (1e1) leaves a 46 mm droop.
@@ -101,6 +102,14 @@ MOMENTUM_GAIN = 10.0
 # implies (resolved momentum control, Kajita et al. 2003) instead of zero.
 # With L→0 the task fights the very trajectory the hand task feeds forward.
 MOMENTUM_REFERENCE = True
+# Weak CoM-height spring. M2 established that commanding CoM height at full
+# task weight (1e4) saturates the 50 N·m waist and fells the robot (L-M2-b);
+# this is NOT that. At 1e1–1e2 the QP is free to sacrifice it whenever balance
+# needs the knees, and its only job is to damp the sharp pelvis dip during
+# weight transfers — which the hand, holding a fixed-height target, otherwise
+# has to chase (the −71 mm z spike at t=5.92, L-M4-e). 0 disables.
+Z_SPRING_WEIGHT = 0.0
+Z_SPRING_GAIN = 50.0
 # Ablation flag: lock the left hand to a Cartesian pose during reach as well
 # (the configuration that saturated the shoulders and fell). Kept toggleable
 # so the free-arm claim stays measurable, not narrative.
@@ -188,7 +197,7 @@ class HandReference:
             # 50 mm wide, and stance width alone decided M3). Swinging a hand
             # sideways spends the axis that has nothing to spare; swinging it
             # fore-aft spends the axis that does.
-            phase = 2.0 * np.pi * (t - self.t_initial) / REACH_PERIOD
+            phase = 2.0 * np.pi * (t - self.t_initial) / REACH_PERIOD + REACH_PHASE
             w = 2.0 * np.pi / REACH_PERIOD
             fade, d_fade = _smoothstep((t - self.t_initial) / REACH_PERIOD)
             d_fade /= REACH_PERIOD
@@ -277,6 +286,16 @@ def run(mode: str, record: bool = False, video_path: Path = VIDEO_PATH) -> dict:
         step_length=m3.STEP_LENGTH, n_steps=m3.N_STEPS,
     )
 
+    if Z_SPRING_WEIGHT > 0.0:
+        from wb_tasks import CoMTask
+
+        z_spring = stack.add(
+            CoMTask(pin_model, axes=(2,), weight=Z_SPRING_WEIGHT,
+                    gain=Z_SPRING_GAIN, name="com_z_spring")
+        )
+        q0, v0 = mj_state_to_pin(mj_data)
+        stack.update_dynamics(q0, v0)
+        z_spring.set_target(z_spring.current_com(pin_data))
     momentum_task = None
     if MOMENTUM_WEIGHT > 0.0:
         momentum_task = stack.add(
