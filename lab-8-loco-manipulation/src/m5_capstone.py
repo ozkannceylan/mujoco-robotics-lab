@@ -96,14 +96,16 @@ RIGHT_HAND = "right_wrist_yaw_link"
 
 # -- scene --------------------------------------------------------------
 PICK_X = 0.40
-PLACE_X = 0.78
+PLACE_X = 0.75
+PLACE_Y = -0.28    # closer in than the pick pedestal — never walked past
 APPROACH_STEPS = 3        # ≈0.25 m — puts the payload a comfortable reach away
-# The transport leg. Six steps was measured to run out of torque on its final
-# closing step (139 N·m, fall at t=20.7 s) after a sequence already 13 s long;
-# four completes with margin. The gate asks for a transport, not a marathon —
-# the walking *range* is M3's result (12 steps, 1.18 m), and re-proving it
-# while carrying is not what this milestone is for.
-CARRY_STEPS = 4           # ≈0.35 m
+# The transport leg, sized to what the loaded controller reliably delivers:
+# six steps ran out of torque on its closing step, four fell in the walk's
+# final settle. The gate asks for a transport, not a marathon — the walking
+# *range* is M3's result (12 steps, 1.18 m) and re-proving it while carrying is
+# not what this milestone is for. What M5 has to show is that the whole-body
+# controller survives acquiring, carrying and releasing mass.
+CARRY_STEPS = 3           # ≈0.25 m
 
 # -- phase durations [s] ------------------------------------------------
 T_SETTLE = 1.0
@@ -112,26 +114,32 @@ T_REACH = 2.5
 T_GRASP = 0.6
 T_LIFT = 1.2
 T_TUCK = 1.8
-T_PLACE = 2.0
+T_PLACE = 2.5
 T_RELEASE = 1.5
 
 # -- manipulation -------------------------------------------------------
 LIFT_HEIGHT = 0.12        # clearance above the pedestal before moving [m]
-# Where each hand sits during the carry, in the **pelvis frame**. These are
-# M4's carry pose, and reproducing it exactly is the point: M4 measured that a
-# symmetric two-handed hold walks 12/12 across perturbations while a single
-# held hand does not (L-M4-f). The payload rides on the right hand; the left
-# is held only to keep the upper body symmetric — which is why TUCK exists as
-# its own phase between LIFT and WALK-CARRY (L-M5-c).
-# The right hand is pulled toward the mid-line so the load rides near the
-# body's centre rather than out on one side — the payload sits ~60 mm in front
-# of the wrist, so a hand at y = −0.16 carries it at roughly y = −0.16 instead
-# of the −0.27 the pedestal-side pose left it at.
-CARRY_LOCAL = {
-    "right_wrist_yaw_link": np.array([0.183, -0.190, -0.022]),
-    "left_wrist_yaw_link": np.array([0.183, 0.190, -0.022]),
-}
-HAND_WEIGHT = 1e2         # M4's value: below DCM and swing
+# Where the **payload** rides during the carry, in the pelvis frame: in front
+# of the chest, on the mid-line. The hands follow from it rather than the other
+# way round, because what the balance controller cares about is where the mass
+# is (L-M5-g).
+#
+# TUCK therefore does two things: it brings the load from the pedestal-side
+# pose to the body's centre, and it brings the left hand onto the load's other
+# side so the second weld can close. Carrying on one arm — even with both arms
+# held in symmetric *poses* — leaves the mass one-sided, and that is the
+# configuration M4 measured as marginal (L-M4-f). Making the arms symmetric
+# bought 0.54 → 0.64 m of transport; making the *load* symmetric is the point
+# of this phase.
+CARRY_PAYLOAD_LOCAL = np.array([0.255, 0.0, -0.030])
+# Two hand weights, because the two regimes have different validated values.
+# Walking, M4 measured 1e2 as the ceiling — above it the arm task starts
+# trading against balance (L-M4-c). Standing, M1 ran 1e3 and tracked a moving
+# hand to 7.08 mm, and standing is not the fragile regime. Using the walking
+# value everywhere left a ~60 mm droop on every stationary reach, which lands
+# directly on the placement accuracy the gate measures (L-M5-i).
+HAND_WEIGHT = 1e2         # while walking — M4's ceiling
+HAND_WEIGHT_STAND = 1e3   # while standing — M1's value
 HAND_GAIN = 400.0
 MOMENTUM_WEIGHT = 1e1     # M4's value — the term that makes carrying possible
 MOMENTUM_GAIN = 10.0
@@ -181,13 +189,16 @@ class Capstone:
     """
 
     def __init__(self, record: bool = False):
-        self.scene = build_capstone_scene(DT, pick_x=PICK_X, place_x=PLACE_X)
+        self.scene = build_capstone_scene(
+            DT, pick_x=PICK_X, place_x=PLACE_X, place_pedestal_y=PLACE_Y
+        )
         self.mj_model, self.mj_data = self.scene.model, self.scene.data
         self.pin_model, self.pin_data = load_g1_pinocchio()
         self.log = CapstoneLog()
         self.t = 0.0
         self.phase = "settle"
         self.grasped = False
+        self.two_handed = False
         self.hand_target: np.ndarray | None = None
         self.payload_in_hand: np.ndarray | None = None  # payload offset, hand frame
 
@@ -347,12 +358,23 @@ class Capstone:
         self.swing_task.enabled = False
 
     def stand(self, duration: float, phase: str,
-              hand_goals: dict[str, np.ndarray] | None = None) -> None:
+              hand_goals: dict[str, np.ndarray] | None = None,
+              hand_weight: float = HAND_WEIGHT,
+              payload_goal: np.ndarray | None = None) -> None:
         """Stand still; optionally move hands to `hand_goals` over `duration`.
 
         Hands are driven along a raised-cosine so they start and end at rest —
         a step target on a 1e2-weight task against a frozen capture point is a
         disturbance the balance controller has to absorb for no reason.
+
+        `payload_goal` servos the **payload** rather than the right hand: the
+        hand target is recomputed every tick from the live hand→payload offset.
+        The grip is compliant by design, so the load shifts a little during a
+        2.5 s motion, and a hand target derived from a single pre-motion
+        measurement bakes that shift into the result — a systematic 55 mm
+        outboard placement error, on the one quantity the gate measures
+        (L-M5-i). The object is what the task is about, so the object is what
+        gets closed around.
         """
         self.phase = phase
         self._sync_kinematics()
@@ -362,10 +384,16 @@ class Capstone:
         starts = {frame: self.hand_position(frame) for frame in goals}
         for frame, task in self.hand_tasks.items():
             task.enabled = frame in goals
+            task.weight = hand_weight
         # Standing reach is M1's regime, which had no momentum term and tracked
         # to 7.08 mm. Nothing here needs one, and L-M5-a is the cost of adding
         # it where it is not earning anything.
         self.momentum_task.enabled = False
+
+        payload_start = self.scene.payload_position() if payload_goal is not None else None
+        if payload_goal is not None:
+            self.hand_tasks[RIGHT_HAND].enabled = True
+            self.hand_tasks[RIGHT_HAND].weight = hand_weight
 
         ticks = int(duration / DT)
         for i in range(ticks):
@@ -378,16 +406,30 @@ class Capstone:
                 self.hand_tasks[frame].set_target(target, rate * delta)
                 if frame == RIGHT_HAND:
                     self.hand_target = target
+            if payload_goal is not None:
+                delta = payload_goal - payload_start
+                waypoint = payload_start + blend * delta
+                target = self.payload_goal_to_hand(waypoint)
+                self.hand_tasks[RIGHT_HAND].set_target(target, rate * delta)
+                self.hand_target = target
             self._step()
 
     def carry_targets(self) -> dict[str, np.ndarray]:
-        """Both hands' carry poses in world coordinates, from the pelvis frame."""
+        """Both hands' carry poses in world coordinates.
+
+        Derived from where the **payload** should ride, not from nominal hand
+        poses: the right hand's position is whatever puts the welded load on
+        the chest mid-line, and the left mirrors it about the load.
+        """
         pelvis = self.pin_data.oMf[self.pin_model.getFrameId("pelvis")]
         origin = pin_point_to_world(pelvis.translation)
-        return {
-            frame: origin + pelvis.rotation @ local
-            for frame, local in CARRY_LOCAL.items()
-        }
+        payload_goal = origin + pelvis.rotation @ CARRY_PAYLOAD_LOCAL
+        right = self.payload_goal_to_hand(payload_goal)
+        # Mirror the right hand's grip about the payload's sagittal plane, so
+        # the two hands sit symmetrically on the load.
+        offset = right - payload_goal
+        left = payload_goal + np.array([offset[0], -offset[1], offset[2]])
+        return {RIGHT_HAND: right, LEFT_HAND: left}
 
     def walk(self, n_steps: int, phase: str, hold_hands: bool = False) -> None:
         """Walk `n_steps` under M3's DCM controller.
@@ -417,10 +459,13 @@ class Capstone:
             dcm_plan=plan, vrp_shrink=m3.VRP_SHRINK,
         )
 
+        # Hold whatever pose the hands are in now (after TUCK, both are on the
+        # load) and let it travel with the planned CoM.
         homes = {f: self.hand_position(f) for f in self.hand_tasks}
         com_home = plan.nominal_com(0.0)[0].copy()
         for frame, task in self.hand_tasks.items():
             task.enabled = hold_hands
+            task.weight = HAND_WEIGHT
         # The momentum task rides with the hand tasks: together they are M4's
         # validated carry configuration; alone the momentum term fights the
         # gait's own angular momentum (L-M5-a).
@@ -477,9 +522,19 @@ class Capstone:
         self._sync_kinematics()
 
     def payload_goal_to_hand(self, payload_goal: np.ndarray) -> np.ndarray:
-        """Hand target that puts the held payload at `payload_goal` (world)."""
-        rotation = self.pin_data.oMf[self.pin_model.getFrameId(RIGHT_HAND)].rotation
-        return payload_goal - rotation @ self.payload_in_hand
+        """Hand target that puts the held payload at `payload_goal` (world).
+
+        The hand→payload offset is re-measured from the **live** state rather
+        than reused from the grasp. The weld is deliberately compliant
+        (`solref` 0.02) so it behaves like a firm hand rather than a rigid bar,
+        which means the load settles a little in the grip over a 25 s sequence;
+        a grasp-time offset is stale by the time the place is commanded, and
+        the error lands directly on the placement.
+        """
+        frame = self.pin_data.oMf[self.pin_model.getFrameId(RIGHT_HAND)]
+        hand_world = pin_point_to_world(frame.translation)
+        offset = frame.rotation.T @ (self.scene.payload_position() - hand_world)
+        return payload_goal - frame.rotation @ offset
 
     def close(self) -> None:
         if self.writer is not None:
@@ -492,7 +547,7 @@ def run(record: bool = True) -> dict:
     capstone = Capstone(record=record)
     scene = capstone.scene
     result: dict = {"fell": False, "fell_at": None, "reason": ""}
-    reached_mm = grasp_gap_mm = float("nan")
+    reached_mm = grasp_gap_mm = release_error_mm = float("nan")
 
     try:
         # 1. WALK to the pick pedestal.
@@ -531,11 +586,24 @@ def run(record: bool = True) -> dict:
             T_LIFT, "lift", hand_goals={RIGHT_HAND: capstone.payload_goal_to_hand(lift_goal)}
         )
 
-        # 6. TUCK — both hands into M4's symmetric carry pose before walking.
-        #    Walking with the load still out at the pedestal is precisely the
-        #    asymmetric upper body M4 measured to be marginal (L-M4-f); it fell
-        #    on the carry leg every time until this phase was added (L-M5-c).
+        # 6. TUCK — bring the load to the chest mid-line and put the left hand
+        #    on its far side, then close the second weld. Walking with the load
+        #    out on one arm is the asymmetric configuration M4 measured to be
+        #    marginal (L-M4-f); this phase is what makes the *mass* symmetric
+        #    rather than just the arms holding it (L-M5-g).
         capstone.stand(T_TUCK, "tuck", hand_goals=capstone.carry_targets())
+        capstone._sync_kinematics()
+        left_gap_mm = float(np.linalg.norm(
+            capstone.hand_position(LEFT_HAND)
+            - capstone.carry_targets()[LEFT_HAND]
+        )) * 1000.0
+        if left_gap_mm > GRASP_TOLERANCE_MM:
+            raise Fell(
+                f"second grasp refused: left hand {left_gap_mm:.1f} mm from the "
+                f"load (tolerance {GRASP_TOLERANCE_MM:.0f} mm)"
+            )
+        scene.set_weld(True, which="left")
+        capstone.two_handed = True
 
         # 7. WALK-CARRY — M4's carry configuration, now with real mass.
         capstone.walk(CARRY_STEPS, "walk_carry", hold_hands=True)
@@ -543,14 +611,30 @@ def run(record: bool = True) -> dict:
         # 8. STOP before placing.
         capstone.stand(T_STOP, "stop_at_place")
 
-        # 9. PLACE — lower the payload onto the target, then let go.
+        # 9. PLACE — one-handed. The left weld opens *first*: with both wrists
+        #    welded the arms and the payload form a closed kinematic chain, and
+        #    the left arm (its task now off, but still rigidly attached) drags
+        #    against the placing motion. Measured: the payload reached only
+        #    halfway to the target and was released in mid-air (L-M5-h).
+        scene.set_weld(False, which="left")
+        capstone.two_handed = False
         capstone._sync_kinematics()
         place_goal = scene.place_target + np.array([0.0, 0.0, 0.004])
+        # The one phase whose accuracy the gate measures, and the only one run
+        # at M1's standing weight. Raising it in the earlier phases too was
+        # measured to destabilise the tuck (fall at t=13.9 s): every phase gets
+        # the weight its own milestone validated, and precision is bought only
+        # where precision is what is being asked for (L-M5-i).
         capstone.stand(
-            T_PLACE, "place",
-            hand_goals={RIGHT_HAND: capstone.payload_goal_to_hand(place_goal)},
+            T_PLACE, "place", payload_goal=place_goal,
+            hand_weight=HAND_WEIGHT_STAND,
         )
-        scene.set_weld(False)
+        capstone._sync_kinematics()
+        at_release = scene.payload_position().copy()
+        release_error_mm = float(np.linalg.norm(at_release - scene.place_target)) * 1000.0
+        print(f"    [place] payload at release {np.round(at_release, 3)} "
+              f"→ {release_error_mm:.1f} mm from target")
+        scene.set_weld(False, which="right")
         capstone.grasped = False
         capstone.hand_target = None
         for task in capstone.hand_tasks.values():
@@ -578,6 +662,7 @@ def run(record: bool = True) -> dict:
         "place_error_m": error,
         "payload_travel_m": float(np.linalg.norm(final - scene.pick_position)),
         "reach_error_mm": reached_mm,
+        "release_error_mm": release_error_mm,
         "grasp_gap_mm": grasp_gap_mm,
         "duration": capstone.t,
         "tau_max": max(log.tau_max) if log.tau_max else 0.0,

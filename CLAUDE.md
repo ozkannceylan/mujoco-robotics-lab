@@ -18,7 +18,7 @@ Build a portfolio-ready robotics lab series using MuJoCo, progressing from simpl
 - Lab 5 (Grasping & Manipulation) is complete — custom parallel-jaw gripper, DLS IK, pick-and-place state machine, Lab 3+4 integration
 - Lab 6 (Dual-Arm Coordination) is complete — dual UR5e, weld-constraint cooperative carry, milestone-gated M0–M5
 - Lab 7 (Locomotion) is complete at M3d scope — G1 standing + weight shift; ZMP walking blocked by position actuators, deferred to Lab 8
-- Lab 8 (Whole-Body Loco-Manipulation) is in progress — milestone-gated M0–M6; owns gait generation via torque control (Lab 7's actuator finding). **M0/M1/M2 passed 2026-08-15**, **M3 + M4 passed 2026-08-16** (torque-actuated G1, model parity 1e-16; whole-body inverse-dynamics QP with contact wrenches, 7.08 mm hand tracking; in-place stepping with ZMP 100 % inside support; **DCM forward walking — 12 steps, 1.18 m, 6.2 mm DCM RMS**; **walk + two-handed carry pose via centroidal angular-momentum control, 14.5 mm hand RMS**; 97 tests); next milestone M5 (loco-manipulation capstone)
+- Lab 8 (Whole-Body Loco-Manipulation) is in progress — milestone-gated M0–M6; owns gait generation via torque control (Lab 7's actuator finding). **M0/M1/M2 passed 2026-08-15**, **M3 + M4 passed 2026-08-16**, **M5 passed 2026-08-17** (torque-actuated G1, model parity 1e-16; whole-body inverse-dynamics QP with contact wrenches, 7.08 mm hand tracking; in-place stepping with ZMP 100 % inside support; **DCM forward walking — 12 steps, 1.18 m, 6.2 mm DCM RMS**; **walk + two-handed carry pose via centroidal angular-momentum control, 14.5 mm hand RMS**; **loco-manipulation capstone — walk→pick→carry→place, payload 11.8 mm from target**; 97 tests); next milestone M6 (docs + blog)
 - Lab 9 (VLA) is planned — depends on Lab 8 controllers for demonstration data
 - End goals: strengthen fundamentals for humanoid VLA work, prepare for robotics interviews, build a portfolio demo
 
@@ -308,6 +308,30 @@ distribution, not a controller property. The same check on the carry task came
 back flat (12/12 across stride and double-support changes), which is what made
 that gate trustworthy (Lab 8 L-M4-f).
 
+### A MuJoCo weld holds its COMPILE-TIME relative pose
+`eq_active` is a switch, not a "grasp here" instruction. `mjEQ_WELD` holds body2
+at the relpose baked into `model.eq_data` at compile time, so activating it
+where the hand happens to be commands a snap back to the rest configuration —
+Lab 8 measured a 0.42 m lurch that threw the robot down. Write the live
+relative pose into `eq_data[3:10]` (pos + wxyz quat, body2 in body1) before
+setting `eq_active`, and refuse to close a weld the hand has not actually
+reached (Lab 8 L-M5-b).
+
+### When a known-good controller regresses in a new scene, read the contact list
+Lab 8's identical M3 controller walks 12 steps on the bare model and fell on
+step 4 once a pedestal was added. Logging every contact involving a scene prop
+named it in one line — `pick_pedestal ↔ right_hip_roll_link` — where two hours
+of balance-tuning hypotheses had not. Scene furniture at limb height is a
+collision the balance controller cannot anticipate (Lab 8 L-M5-f).
+
+### Servo the object, not the gripper
+A hand target derived from a hand→object offset measured once before the motion
+goes stale: a compliant grasp lets the load settle, and Lab 8 saw that become a
+systematic 55 mm placement error. Recompute the hand target every tick from the
+*live* offset toward the object's goal. Release accuracy went 65 mm → 18.9 mm
+(Lab 8 L-M5-i). And check the goal is a pose the object can rest in — a target
+0.09 m in from a 0.10 m half-extent shelf overhangs, tips and drops (L-M5-j).
+
 ### Floating base: do NOT inertia-shape joint PD gains with M(q)
 The Lab 5 fix `τ = M(q)(Kp·e + Kd·ė) + g` is correct for a **fixed-base** arm. On a floating-base humanoid `M(q)[6:,6:]` is not the inertia felt through the closed leg chains, and shaping gains with it saturates actuators and makes the G1 fall at every gain setting. Use raw joint-space gains there (Lab 8 L-M0-b).
 
@@ -353,7 +377,7 @@ In progress (real work on disk, not yet portfolio-ready):
       (torque G1 7/7; ID QP 5/5; stepping 3/3; **walking 4/4 — 12 steps, 1.18 m,
       2026-08-16**; 97 tests). Kickoff 2026-08-14: PLAN/ARCHITECTURE/TODO/LESSONS
       written, milestone-gated M0–M6. Owns gait generation via torque control.
-      Resume at tasks/TODO.md "Current Focus" (M5: loco-manipulation capstone). ONE
+      Resume at tasks/TODO.md "Current Focus" (M6: documentation + blog). ONE
       milestone per session; gate + media evidence per milestone (Lab 6/7 rules
       apply).
 

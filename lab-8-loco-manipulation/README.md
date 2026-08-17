@@ -1,6 +1,6 @@
 # Lab 8 — Whole-Body Loco-Manipulation
 
-> **Status:** 🚧 In progress — **M0–M4 complete** (M4 closed 2026-08-16), M5 next.
+> **Status:** 🚧 In progress — **M0–M5 complete** (M5 closed 2026-08-17), M6 (docs + blog) is all that remains.
 > **Platform:** Unitree G1 (MuJoCo Menagerie, 29 DOF) under **torque** control + Pinocchio
 > **Goal:** A humanoid that walks and uses its hands at the same time — the operating
 > mode Lab 9's VLA policy will have to produce.
@@ -23,8 +23,8 @@ dynamics → joint torques, owning gait generation rather than inheriting it.
 | M2 | Torque-level stepping | 4 in-place steps, ZMP inside polygon > 95% stance | ✅ **PASS** |
 | M3 | Forward walking | ≥ 10 steps, ≥ 1.0 m, no fall | ✅ **PASS** |
 | M4 | Walk + arm task | M3 gate holds, hand error < 50 mm while walking | ✅ **PASS** |
-| M5 | Loco-manipulation capstone | walk → grasp → carry → place, object within 50 mm | ⏳ next |
-| M6 | Documentation & blog | docs EN/TR + blog post | — |
+| M5 | Loco-manipulation capstone | walk → grasp → carry → place, object within 50 mm | ✅ **PASS** |
+| M6 | Documentation & blog | docs EN/TR + blog post | ⏳ next |
 
 ---
 
@@ -404,6 +404,83 @@ reach happens stopped — M1's validated regime, 7.08 mm.
 
 ---
 
+## M5 — Loco-Manipulation Capstone ✅
+
+Everything the lab built, in one continuous 25-second episode: walk to a
+pedestal, stop, reach, grasp, lift, bring the load to the chest and secure it
+with the second hand, walk carrying it, stop, place it, let go.
+
+```bash
+MUJOCO_GL=egl python3 lab-8-loco-manipulation/src/m5_capstone.py
+```
+
+| Criterion | Result | Measured |
+|---|---|---|
+| Full sequence, no fall | PASS | 10 phases |
+| Payload within 50 mm of target | PASS | **11.8 mm** |
+| Payload actually transported | PASS | 0.384 m |
+| Torques within limits | PASS | 53.7 N·m peak (limit 139) |
+
+![M5 capstone metrics](media/m5_capstone_metrics.png)
+
+Video: [`media/m5_capstone.mp4`](media/m5_capstone.mp4)
+
+The gate's post-conditions assert on the payload's **simulated** pose — within
+tolerance of the target *and* at least 0.30 m from where it started. Lab 5
+learned that one the hard way: a capstone that checks only its own commands can
+report success while the object never moved.
+
+### Every phase is a regime an earlier milestone validated
+
+The capstone deliberately invents no new control. The approach walk is M3's DCM
+gait, the standing reach is M1, the carry walk is M4's carry. What M5 has to
+survive is the **transitions** — and that is where all ten of its defects were.
+
+Three of them were in code M1–M4 had already exercised:
+
+- **The centroidal-momentum task is an arm-task companion, not a global
+  stabiliser.** Left enabled across a bare walk it cancels the angular momentum
+  walking itself generates (the gait runs ±2 kg·m²/s of roll); the first walk
+  fell on step 2 with DCM error 12.5 → 226.7 mm. M4 had only ever run this term
+  *with* a hand task.
+- **The gait always swung the left foot first**, so a walk resumed after an odd
+  number of steps re-stepped its own leading foot into the place it already
+  stood. And **a walk ended mid-stride**, handing the next one a staggered
+  stance no milestone had validated. Both latent in M3/M4, which each walk once.
+
+Two were geometry the controller cannot see:
+
+- The identical M3 controller walks 12 steps on the bare model and fell on step
+  4 of the capstone scene. Not a control problem: logging contacts named it in
+  one line — `pick_pedestal ↔ right_hip_roll_link`. The pedestal's inner face
+  sat exactly where the hip passes, its top level with the walking wrists.
+- And at the end, an accurate release (18.9 mm) still put the payload on the
+  floor, because the target sat 0.09 m in from a pedestal with a 0.10 m
+  half-extent — the box overhung its edge and tipped off.
+
+### Symmetric arms are not a symmetric load
+
+Carrying on one arm walks 0.64 m and falls, even with both arms held in
+mirror-image poses. What the balance controller answers to is where the *mass*
+is. The sequence therefore picks one-handed (only the right hand can reach the
+pedestal), brings the load to the chest mid-line, and lets the left hand join
+it there with a second weld — which took the carry to 0.95 m. Placing then
+opens the left weld again, because two welds make a closed kinematic chain the
+QP does not model, and the left arm dragged against the placing motion until it
+was released.
+
+### Command the object, not the hand
+
+The final 55 mm of placement error was a stale transform: the hand target came
+from a hand→payload offset measured once before the motion, and the grip is
+compliant by design, so the load settles during a 25 s sequence. Recomputing
+the hand target every tick from the *live* offset — servoing the payload rather
+than the wrist — took the release from 65 mm to 18.9 mm. Precision was then
+bought only in the place phase, at M1's standing task weight; raising it
+everywhere destabilised the tuck.
+
+---
+
 ## Architecture
 
 ```
@@ -447,6 +524,8 @@ Milestone plan and gates: [`tasks/PLAN.md`](tasks/PLAN.md).
 | `src/dcm_planner.py` | M3: piecewise-linear ZMP through the footsteps + the DCM trajectory back-integrated from terminal rest |
 | `src/m3_walking.py` | M3 gate: 12 forward steps (`--in-place` re-runs M2's gate through the DCM controller) |
 | `src/m4_walk_reach.py` | M4 gate: walking with a Cartesian hand task (carry gates; reach reported as exploratory) |
+| `src/capstone_scene.py` | M5: pedestals, freejoint payload, two weld grasps with live relpose capture |
+| `src/m5_capstone.py` | M5 gate: the full walk → pick → carry → place sequence |
 | `tests/` | 97 tests: actuator semantics, model parity, FD-validated task Jacobians, QP force balance / friction / CoP / torque limits, gait timeline + swing continuity + ZMP measurement, DCM plan against its own ODE, the DCM control law, and the CoP box against the real foot geometry |
 
 The torque model is **generated at runtime, not committed** — Menagerie stays

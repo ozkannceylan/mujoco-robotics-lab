@@ -684,13 +684,15 @@ already losing balance*, which the next entry establishes.
 
 ---
 
-### M5 — Loco-Manipulation Capstone (2026-08-17) — **IN PROGRESS, gate not passed**
+### M5 — Loco-Manipulation Capstone (2026-08-17) — **GATE PASSED 4/4**
 
-Status: the sequence **walks, reaches, grasps, lifts and tucks reliably**, and
-carries the payload 0.64 m before falling on the transport leg. The gate asks
-for the payload placed within 50 mm of a target; it never gets to the place.
-Four real defects were found and fixed on the way — three of them in code that
-M1–M4 had already "validated", which is the interesting part.
+WALK → STOP → REACH → GRASP → LIFT → TUCK → WALK-CARRY → STOP → PLACE →
+RELEASE, no fall, payload placed **11.8 mm** from target, 53.7 N·m peak.
+
+Ten defects were found and fixed getting there, and the striking thing is how
+few of them were control problems: three were in code M1–M4 had already
+"validated", two were scene geometry the controller could not see, and two were
+the difference between commanding a hand and commanding the object in it.
 
 #### L-M5-a: The momentum task is an arm-task companion, not a global stabiliser
 - **Symptom**: the capstone's *first* walk — plain M3, no payload, no hand
@@ -780,3 +782,68 @@ placing both hands on opposing faces of the box. That makes the load itself
 symmetric rather than merely the arms holding it, which is the only version of
 this the controller has ever been shown to survive. Trimming the transport leg
 (6 → 4 steps) and tuning weights were both tried and neither is the answer.
+
+
+#### L-M5-g: Symmetric *arms* are not a symmetric *load*
+- Carrying on one arm — even with both arms held in mirror-image poses — walks
+  0.64 m and falls. What the balance controller responds to is where the mass
+  is, not how tidy the arms look.
+- **Fix**: a second weld. The right hand picks from the pedestal (the only hand
+  that can reach it), TUCK brings the load to the chest mid-line, and the left
+  hand joins it there — where it *can* reach. Carry distance went 0.64 → 0.95 m
+  on that change alone, and the fall moved from mid-carry to the walk's final
+  settling.
+- The carry pose is now derived from where the **payload** should ride
+  (`CARRY_PAYLOAD_LOCAL`), with both hand targets computed from it and mirrored
+  about the load. Hands follow the mass, not the other way round.
+
+#### L-M5-h: Two welds make a closed chain, and a closed chain cannot place
+- With both wrists welded, the arms and payload form a closed kinematic loop
+  the QP does not model. Commanding only the right hand to the place target
+  left the left arm — task disabled but still rigidly attached — dragging
+  against the motion: the payload reached halfway and was released in mid-air,
+  583 mm out.
+- **Fix**: open the left weld *before* the place. Pick one-handed, carry
+  two-handed, place one-handed. Each phase uses the grip the phase needs.
+
+#### L-M5-i: Command the object, not the hand — and buy precision only where it is measured
+Two separate errors, both landing on the one number the gate reads:
+- **Stale offset.** The hand target was computed from a hand→payload offset
+  measured once before the motion. The weld is deliberately compliant, so the
+  load settles in the grip over a 25 s sequence and that shift became a
+  systematic 55 mm outboard placement error. Re-measuring the offset live cut
+  it to 65 mm; **servoing the payload directly** — recomputing the hand target
+  every tick from the live offset toward a blended payload waypoint — took the
+  release to **18.9 mm**. The task is about the object, so close the loop
+  around the object.
+- **One weight does not fit two regimes.** M4's walking-safe hand weight (1e2)
+  was being used for the stationary reaches too, where M1 had validated 1e3 and
+  tracked to 7.08 mm; that alone was a ~60 mm droop on every standing reach.
+  But raising it everywhere destabilised the tuck (fall at t=13.9 s) — the tuck
+  moves both arms *and* the load. The high weight is now used only in the place
+  phase, the one phase whose accuracy is measured.
+
+#### L-M5-j: A placement is only as good as the shelf it lands on
+- At 18.9 mm release accuracy the payload still ended on the floor: the place
+  target sat 0.09 m in from a pedestal whose half-extent is 0.10 m, so a 30 mm
+  box overhung the inner edge by 20 mm, tipped, and slid off.
+- Widening the pedestal instead put it inside the robot's own standing space
+  and it fell with the torque saturated — the same collision class as L-M5-f.
+- **Fix**: move the *target*, not the furniture. The place inset is its own
+  parameter (0.05 m), safely inboard of the edge. Final placement **11.8 mm**.
+- **Takeaway**: the last 20 mm of a pick-and-place is a statics problem about
+  the support, not a controls problem about the arm. Check that the goal pose
+  is one the object can actually rest in.
+
+#### M5 gate
+
+| criterion | result | measured |
+|---|---|---|
+| Full sequence, no fall | PASS | 10 phases |
+| Payload within 50 mm of target | PASS | **11.8 mm** |
+| Payload actually transported | PASS | 0.384 m |
+| Torques within limits | PASS | 53.7 N·m (limit 139) |
+
+Post-condition asserts run on the **simulated** payload pose, not on the
+commanded one (Lab 5's lesson): within tolerance of the target *and* at least
+0.30 m from where it started.

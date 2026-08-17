@@ -212,45 +212,38 @@
       — the transient was a symptom), **L-M4-f (perturb what should not matter
       before believing a pass)**.
 
-## M5 — Loco-Manipulation Capstone — 🚧 IN PROGRESS (gate not passed)
-- [x] `src/capstone_scene.py` — pedestals, freejoint payload, and a weld grasp
-      built inactive. `set_weld(True)` captures the live hand→payload transform
-      into `eq_data` first (L-M5-b): MuJoCo's weld holds its **compile-time**
-      relpose, so activating it naively commands a 0.42 m snap rather than a
-      grasp.
+## M5 — Loco-Manipulation Capstone — ✅ DONE (2026-08-17), GATE PASSED 4/4
+- [x] `src/capstone_scene.py` — pedestals, freejoint payload, **two** weld
+      grasps (right wrist, left wrist) built inactive. `set_weld` captures the
+      live relative pose before closing (L-M5-b): MuJoCo's weld holds its
+      *compile-time* relpose, so a naive activation commands a 0.42 m snap.
 - [x] `lab8_common.attach_payload_to_pinocchio` — folds the payload's inertia
-      into the wrist's parent joint at grasp time and returns fresh `pin.Data`.
-      Frame ids, nq and nv are unchanged, so tasks and QP dimensions survive;
-      only M, J_com and A_g move. This is "payload in the QP's model" concretely.
-- [x] `lab8_common`: `robot_com` (pelvis subtree — `subtree_com[0]` silently
-      becomes the *scene's* CoM once props exist) and robot-only state slicing
-      in `mj_state_to_pin` / `standing_controller`.
+      into the wrist's parent joint at grasp time; frame ids/nq/nv unchanged so
+      tasks and QP dimensions survive, only M, J_com and A_g move.
+- [x] `lab8_common.robot_com` + robot-only state slicing — `subtree_com[0]`
+      quietly becomes the *scene's* CoM once props exist.
 - [x] `src/m5_capstone.py` — WALK → STOP → REACH → GRASP → LIFT → TUCK →
-      WALK-CARRY → STOP → PLACE, one task stack throughout, each phase a
-      configuration an earlier milestone validated.
-- [x] Two gait-planner defects fixed that only a *resumed* walk exposes
-      (L-M5-e): `first_swing` (step with the trailing foot) and `close_stance`
-      (end a walk with the feet together). M3's gate is unchanged by both —
-      re-run, still 4/4, 12 steps, 1.182 m.
-- [x] **Working**: walk to the pedestal, stop, reach (60 mm), grasp, lift, tuck
-      into the carry pose, and carry the payload **0.64 m**.
-- [ ] **Gate NOT passed**: the robot falls on the transport leg, so the payload
-      is never placed. Best run: 7 of 9 phases, payload moved 0.64 m, place
-      error 487 mm against a 50 mm gate, peak torque 62 N·m (not saturation).
-- [ ] **Next implementation step**: carry the payload with **both hands** — a
-      second weld to the left wrist, reach placing both hands on opposing faces
-      of the box. The blocker is M4's deferred finding (L-M4-f): an asymmetric
-      upper body is marginal while walking, and a load on one arm is asymmetric
-      by definition. Making the arms symmetric helped measurably (0.54 → 0.64 m)
-      but the *mass* stays one-sided. Trimming the carry leg and re-weighting
-      were both tried; neither is the answer.
-- [x] Evidence so far: `media/m5_capstone.mp4` + `media/m5_capstone_metrics.png`
-- [x] Lessons: L-M5-a (the momentum task is an arm-task companion, not a global
-      stabiliser), **L-M5-b (a MuJoCo weld snaps to its compile-time pose)**,
-      L-M5-c (lift and carry are different poses), L-M5-d (payload mass was not
-      the limit), L-M5-e (two planner defects only a resumed walk exposes),
-      **L-M5-f (the scene is part of the controller's world — read the contact
-      list before touching a gain)**.
+      WALK-CARRY → STOP → PLACE → RELEASE. One task stack throughout; each
+      phase is a configuration an earlier milestone validated.
+- [x] Two gait-planner defects only a *resumed* walk exposes (L-M5-e):
+      `first_swing` (step with the trailing foot) and `close_stance` (end a
+      walk with the feet together). M3's gate unchanged — re-run 4/4.
+- [x] **Gate — 4/4 PASS**:
+
+      | criterion | result | measured |
+      |---|---|---|
+      | Full sequence, no fall | PASS | 10 phases |
+      | Payload within 50 mm of target | PASS | **11.8 mm** |
+      | Payload actually transported | PASS | 0.384 m |
+      | Torques within limits | PASS | 53.7 N·m peak |
+
+- [x] Post-condition asserts on the **simulated** payload pose (Lab 5's
+      lesson): within tolerance of the target *and* ≥0.30 m from its start.
+- [x] Evidence: `media/m5_capstone.mp4` + `media/m5_capstone_metrics.png`
+- [x] Lessons L-M5-a … L-M5-j. The through-line: of ten defects, three were in
+      code M1–M4 had already exercised, two were scene geometry the controller
+      cannot see, and two were the difference between commanding a hand and
+      commanding the object in it.
 
 ## M6 — Documentation & Blog
 - [ ] docs/ + docs-turkish/ (ARCHITECTURE + CODE_WALKTHROUGH pattern)
@@ -259,24 +252,21 @@
 - [ ] Root README / MASTER_PLAN / status board / plan/LAB_08.md updates
 
 ## Current Focus
-> **M5 — Loco-Manipulation Capstone, continued.** The sequence walks, reaches,
-> grasps, lifts, tucks and carries 0.64 m; it falls on the transport leg and so
-> never places the payload. Everything before the carry is solid.
+> **M6 — Documentation & Blog.** M5 closed 2026-08-17; the G1 walks to a
+> pedestal, picks a payload up, carries it two-handed and places it 11.8 mm
+> from target without falling. M0–M5 all pass their gates.
 >
-> Start at the **two-handed carry**, not at gains — the single-arm carry has
-> been tried at two payload masses, two carry-leg lengths, symmetric and
-> asymmetric hand poses, and with the hand tasks off entirely:
-> 1. Add a second weld (left wrist ↔ payload) to `capstone_scene`, inactive.
-> 2. REACH places both hands on opposing faces of the box; GRASP closes both
->    welds, each capturing its own live relpose (L-M5-b).
-> 3. Re-run. The prediction is specific: M4 showed the controller survives a
->    *symmetric* upper body and not an asymmetric one, and two-handed carry is
->    the first configuration in which the payload's mass — not just the arms
->    holding it — is symmetric about the sagittal plane.
-> 4. If it still falls, the honest conclusion is that carrying while walking is
->    beyond this stack, and M5 should be re-scoped to a stationary
->    pick-and-place with the walk as a separate leg (and that call should be
->    made explicitly, the way Lab 7 scoped out its M4).
+> M6 is the last milestone and it is entirely writing:
+> 1. `docs/` + `docs-turkish/` — ARCHITECTURE + CODE_WALKTHROUGH, the pattern
+>    Labs 6–7 use.
+> 2. Lab README with per-milestone evidence tables (M0–M5 gate tables and media
+>    already exist in this file and in LESSONS — lift them, do not re-derive).
+> 3. **Blog post — write it now, not later.** Labs 3 and 4 deferred theirs and
+>    they are still unwritten months on; that is the one criterion this project
+>    has repeatedly failed. The material is unusually good: DCM walking, the
+>    centroidal-momentum finding, and a capstone whose ten defects were mostly
+>    *not* control problems.
+> 4. Root README / MASTER_PLAN / status board / `plan/LAB_08.md` status header.
 
 ## Blockers
 > None. OSQP verified (1.1.3). G1 menagerie assets present under
