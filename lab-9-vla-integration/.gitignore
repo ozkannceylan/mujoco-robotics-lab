@@ -1,0 +1,6 @@
+# Demonstration episodes: reproducible from their seeds via collect_demos.py,
+# and ~1 GB of uint8 images. The manifest IS committed, because that is what a
+# reader needs to check the dataset's shape and its train/val split.
+data/episodes/
+# CPU-trained checkpoints (~60 MB each). The training summaries are committed.
+models/*.pt
