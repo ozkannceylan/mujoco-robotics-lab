@@ -168,6 +168,34 @@ def load_g1_pinocchio() -> tuple[pin.Model, pin.Data]:
     return model, model.createData()
 
 
+def attach_payload_to_pinocchio(
+    model: pin.Model,
+    mass: float,
+    half_extent: float,
+    frame_name: str,
+    offset: np.ndarray,
+) -> pin.Data:
+    """Rigidly add a payload's inertia to `frame_name`'s parent joint.
+
+    Returns a **fresh** `pin.Data` — the model is modified in place, so any
+    data built before this call describes a robot that no longer exists.
+    `nq`, `nv` and every frame id are unchanged (the payload adds inertia to an
+    existing joint rather than a new degree of freedom), so tasks and QP
+    dimensions survive the change untouched; only the mass matrix, the CoM
+    Jacobian and the centroidal momentum matrix move.
+
+    This is what "fold the payload into the QP's model at grasp time" means
+    concretely: after the weld closes, the balance controller's idea of where
+    the CoM is has to include the 1.5 kg hanging off the wrist, or it is
+    balancing a robot it is not driving.
+    """
+    frame = model.frames[model.getFrameId(frame_name)]
+    inertia = pin.Inertia.FromBox(mass, 2 * half_extent, 2 * half_extent, 2 * half_extent)
+    placement = frame.placement * pin.SE3(np.eye(3), np.asarray(offset, dtype=float))
+    model.appendBodyToJoint(frame.parentJoint, inertia, placement)
+    return model.createData()
+
+
 # ---------------------------------------------------------------------------
 # State conversion
 # ---------------------------------------------------------------------------
@@ -187,14 +215,33 @@ def mj_state_to_pin(
     terms once the base actually moves, which is why it is done here once
     rather than at each call site.
     """
-    q = mj_qpos_to_pin(mj_data.qpos)
-    v = mj_data.qvel.copy()
+    # Slice to the robot. A scene may append free bodies after the G1 (M5's
+    # payload adds 7 qpos / 6 qvel); the robot is always first because it is
+    # the first body in the spec, so the leading NQ/NV entries are its state
+    # and everything after belongs to the scene.
+    q = mj_qpos_to_pin(mj_data.qpos[:NQ])
+    v = mj_data.qvel[:NV].copy()
     quat_wxyz = mj_data.qpos[3:7]
     rot = np.zeros(9)
     mujoco.mju_quat2Mat(rot, quat_wxyz)
     R = rot.reshape(3, 3)
     v[0:3] = R.T @ mj_data.qvel[0:3]
     return q, v
+
+
+def robot_com(mj_model: mujoco.MjModel, mj_data: mujoco.MjData) -> np.ndarray:
+    """Centre of mass of the **robot alone**, in world coordinates [m].
+
+    `subtree_com[0]` is the world body's subtree — every mass in the scene.
+    That is the same thing as the robot's CoM only while the robot is the
+    scene; once M5 adds a payload and pedestals it silently becomes something
+    else. The pelvis subtree is the robot and nothing but the robot, in every
+    scene this lab builds.
+    """
+    pelvis = mujoco.mj_name2id(mj_model, mujoco.mjtObj.mjOBJ_BODY, "pelvis")
+    if pelvis < 0:
+        return mj_data.subtree_com[0].copy()
+    return mj_data.subtree_com[pelvis].copy()
 
 
 def pin_point_to_world(point: np.ndarray) -> np.ndarray:
@@ -239,9 +286,8 @@ def clip_torques(tau: np.ndarray, mj_model: mujoco.MjModel) -> np.ndarray:
 
 
 def com_position(mj_model: mujoco.MjModel, mj_data: mujoco.MjData) -> np.ndarray:
-    """Whole-body centre of mass in world coordinates [m]."""
-    del mj_model
-    return mj_data.subtree_com[0].copy()
+    """Robot centre of mass in world coordinates [m]. See `robot_com`."""
+    return robot_com(mj_model, mj_data)
 
 
 def lipm_omega(com_height: float) -> float:

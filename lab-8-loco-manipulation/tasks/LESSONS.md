@@ -680,3 +680,103 @@ already losing balance*, which the next entry establishes.
   a result. Perturb the thing that *should not matter* — here, the circle's
   starting phase — before believing a pass. That test is what turned a
   celebration into an honest deferral.
+
+
+---
+
+### M5 — Loco-Manipulation Capstone (2026-08-17) — **IN PROGRESS, gate not passed**
+
+Status: the sequence **walks, reaches, grasps, lifts and tucks reliably**, and
+carries the payload 0.64 m before falling on the transport leg. The gate asks
+for the payload placed within 50 mm of a target; it never gets to the place.
+Four real defects were found and fixed on the way — three of them in code that
+M1–M4 had already "validated", which is the interesting part.
+
+#### L-M5-a: The momentum task is an arm-task companion, not a global stabiliser
+- **Symptom**: the capstone's *first* walk — plain M3, no payload, no hand
+  tasks — fell on the second step. M3's own gate walks twelve.
+- **Root cause**: the capstone stack adds `CentroidalAngularMomentumTask` for
+  the later carry phase, and it was left enabled throughout. Commanding
+  `L → 0` across a bare walk asks the QP to cancel the angular momentum
+  **walking itself generates**; the gait's roll momentum runs at ±2 kg·m²/s.
+  DCM error went 12.5 mm → 226.7 mm.
+- **Fix**: the momentum task is enabled only alongside an arm task. Each M5
+  phase is then exactly a configuration an earlier milestone validated —
+  approach walk = M3, standing reach = M1, carry walk = M4's carry.
+- **Takeaway**: M4 introduced this term *with* a hand task and never ran it
+  without one. A term validated inside one configuration is validated for that
+  configuration, not adopted into the stack.
+
+#### L-M5-b: A MuJoCo weld snaps to its compile-time pose, not the pose you close it at
+- **Symptom**: the instant the grasp activated, the payload leapt 0.115 m and
+  took the robot down.
+- **Root cause**: `mjEQ_WELD` holds body2 at the `relpose` stored in
+  `model.eq_data`, and that field is baked at **compile time** — from the rest
+  pose, where the hand is at x = −0.02 and the payload is at x = 0.40.
+  Activating the constraint therefore commanded a 0.42 m snap. `eq_active` is
+  a switch, not a "grasp here" instruction.
+- **Fix**: `CapstoneScene._capture_relative_pose` writes the live hand→payload
+  transform into `eq_data` before flipping `eq_active`. Plus a refusal: if the
+  hand is not actually within `GRASP_TOLERANCE_MM` of the grasp point, the
+  sequence raises rather than welding across a gap.
+- **Also**: the hand cannot reach the payload's *centre* — it is a solid box,
+  and commanding the wrist there just presses geoms together (93.7 mm residual
+  error). The grasp point is offset onto the robot's side of the box.
+
+#### L-M5-c: Lift and carry are different poses, and the transition needs its own phase
+- Walking straight from the lift left the load out where the pedestal was —
+  the right hand at y = −0.275 and the left at rest, which is precisely the
+  asymmetric upper body M4 measured as marginal (L-M4-f). A **TUCK** phase now
+  brings both hands into M4's symmetric carry pose before the gait starts.
+  Making that pose genuinely symmetric (±0.19 rather than −0.16/+0.20) bought
+  another 0.11 m of transport.
+
+#### L-M5-d: Payload mass was not the limit; the brief's sizing was right anyway
+- The first attempt used a 1.5 kg / 90 mm block. It stands fine and falls on
+  the carry leg every time — but so does 0.5 kg. Mass was not the driver, so
+  the reduction is kept only because `plan/LAB_08.md` asked for a "40 mm
+  cube-class object" and 1.5 kg was scope I invented.
+
+#### L-M5-e: Two gait-planner defects that only a *resumed* walk can expose
+Both were latent in M3 and M4, which each walk exactly once:
+- **The gait always swung the left foot first.** After an odd number of steps
+  the left foot is the *leading* one, so its landing — computed as
+  `stance_x + step_length` — is where it already stands. The first step of any
+  resumed walk was a zero-length step while the DCM plan expected a full
+  stride. `GaitSchedule(first_swing=...)`, and `make_plan` picks the trailing
+  foot; from a level stance this reduces to M3's original gait exactly.
+- **A walk ended mid-stride.** After twelve steps the feet sit 0.09 m apart in
+  x, so the next walk starts from a staggered stance no milestone validated.
+  `GaitSchedule(close_stance=True)` appends a step that brings the trailing
+  foot level, the way a real walk ends.
+
+#### L-M5-f: The scene is part of the controller's world
+- **Symptom**: the *identical* M3 controller walks 12 steps on the bare model
+  and fell on step 4 of the capstone scene, at x ≈ 0.41.
+- **Diagnosis**: not a control problem at all. Logging every contact involving
+  a scene prop named the culprit in one line —
+  `pick_pedestal ↔ right_hip_roll_link` at t = 3.47 s, then the ankle, then the
+  fall. The pedestal's inner face sat at y = −0.22, exactly where the hip
+  passes; its top at 0.72 m was also level with the walking wrists.
+- **Fix**: pedestals moved to y = −0.45 and lowered to 0.55 m, with the payload
+  set on the prop's *inner* edge so the reach stays short. The walk is then
+  clean: 12 steps, and the only prop contact in the whole run is the payload
+  resting on its pedestal.
+- **Takeaway**: when a controller that is known-good regresses in a new scene,
+  read the contact list before touching a gain. Two hours of balance-tuning
+  hypotheses were displaced by four lines of `mj_data.contact` output.
+
+#### Where it stands, and the honest diagnosis
+Everything up to and including the carry is solid; the transport leg is not.
+The failure is the same one M4 deferred (L-M4-f): an **asymmetric upper body**
+is marginal on this robot while walking, and a payload held on one arm is an
+asymmetric upper body by definition. Symmetry helps measurably (0.54 → 0.64 m
+of transport) but does not close it, because the *mass* stays on one side even
+when the hands are level.
+
+The next implementation step is therefore structural, not a gain: **carry the
+payload with both hands** — a second weld to the left wrist, with the reach
+placing both hands on opposing faces of the box. That makes the load itself
+symmetric rather than merely the arms holding it, which is the only version of
+this the controller has ever been shown to survive. Trimming the transport leg
+(6 → 4 steps) and tuning weights were both tried and neither is the answer.

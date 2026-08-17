@@ -100,6 +100,24 @@ class GaitSchedule:
             excursion that must be arrested inside one foot width. The G1's
             rest stance is 0.237 m; a walking gait wants noticeably less.
         step_height: Peak swing clearance [m].
+        close_stance: Append a final step that brings the trailing foot level
+            with the leading one, so the gait ends with the feet together.
+            Without it a walk ends mid-stride — after M3's twelve steps the
+            feet sit 0.09 m apart in x — and *the next* walk therefore starts
+            from a staggered stance no milestone ever validated. Measured: a
+            second walk diverged right after its first step, DCM error going
+            0.4 mm → 138 → 672 in half a second, at low torque (L-M5-e). A real
+            walk ends with the feet together; so does this one now.
+        first_swing: Frame of the foot that takes the first step. Defaults to
+            the left, which is right for a gait starting from a level stance —
+            and wrong for one **restarting mid-stride**. After an odd number of
+            steps the left foot is the *leading* one, and asking it to step
+            again produces a zero-length step (its landing is computed from the
+            trailing stance foot, which is exactly where it already stands)
+            while the DCM plan still expects the body to advance. Measured: a
+            second walk fell every time, at low torque, with the DCM diverging
+            to 218 mm RMS (L-M5-e). Callers that resume a gait should pass the
+            trailing foot.
         com_shift_ratio: How far toward the stance foot the CoM target moves
             **laterally**, as a fraction of the distance from the foot
             midpoint. 1.0 puts it directly over the stance foot.
@@ -122,6 +140,8 @@ class GaitSchedule:
         step_length: float = 0.0,
         step_width: float | None = None,
         step_height: float = 0.04,
+        first_swing: str | None = None,
+        close_stance: bool = False,
         com_shift_ratio: float = 1.0,
         com_forward_shift_ratio: float = 0.0,
     ) -> None:
@@ -139,6 +159,10 @@ class GaitSchedule:
         self.step_length = float(step_length)
         self.step_width = None if step_width is None else float(step_width)
         self.step_height = float(step_height)
+        if first_swing is not None and first_swing not in (left_foot_frame, right_foot_frame):
+            raise ValueError(f"first_swing must be a foot frame, got '{first_swing}'")
+        self.first_swing = first_swing or left_foot_frame
+        self.close_stance = bool(close_stance)
         self.com_shift_ratio = float(com_shift_ratio)
         self.com_forward_shift_ratio = float(com_forward_shift_ratio)
 
@@ -173,7 +197,10 @@ class GaitSchedule:
         t += self.t_initial
 
         for step in range(self.n_steps):
-            swing = self.left_frame if step % 2 == 0 else self.right_frame
+            other = (
+                self.right_frame if self.first_swing == self.left_frame else self.left_frame
+            )
+            swing = self.first_swing if step % 2 == 0 else other
             stance = self.right_frame if swing == self.left_frame else self.left_frame
             start = positions[swing].copy()
             landing = start.copy()
@@ -202,6 +229,35 @@ class GaitSchedule:
                 k: v.copy() for k, v in positions.items()
             }
             t += self.t_double
+
+        if self.close_stance and self.n_steps > 0:
+            # One extra swing: the trailing foot steps up **level** with the
+            # leading one rather than past it, leaving a symmetric stance.
+            leading, trailing = (
+                (self.left_frame, self.right_frame)
+                if positions[self.left_frame][0] > positions[self.right_frame][0]
+                else (self.right_frame, self.left_frame)
+            )
+            if abs(positions[leading][0] - positions[trailing][0]) > 1e-4:
+                start = positions[trailing].copy()
+                landing = start.copy()
+                landing[0] = positions[leading][0]
+                phase = (
+                    Phase.SINGLE_LEFT if trailing == self.left_frame
+                    else Phase.SINGLE_RIGHT
+                )
+                self._phases.append(GaitPhase(phase, t, t + self.t_single))
+                index = len(self._phases) - 1
+                self._swing_of_phase[index] = (trailing, start, landing)
+                self._foot_state[index] = {k: v.copy() for k, v in positions.items()}
+                t += self.t_single
+                positions[trailing] = landing
+
+                self._phases.append(GaitPhase(Phase.DOUBLE, t, t + self.t_double))
+                self._foot_state[len(self._phases) - 1] = {
+                    k: v.copy() for k, v in positions.items()
+                }
+                t += self.t_double
 
         self._phases.append(GaitPhase(Phase.DONE, t, t + self.t_initial))
         self._foot_state[len(self._phases) - 1] = {k: v.copy() for k, v in positions.items()}

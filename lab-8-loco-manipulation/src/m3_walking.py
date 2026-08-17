@@ -110,7 +110,8 @@ INPLACE_PLOT_PATH = MEDIA_DIR / "m3_inplace_metrics.png"
 RENDER_EVERY = int(round(1.0 / (RENDER_FPS * DT)))
 
 
-def make_plan(pin_model, pin_data, *, step_length: float, n_steps: int):
+def make_plan(pin_model, pin_data, *, step_length: float, n_steps: int,
+              close_stance: bool = False):
     """Gait schedule + DCM plan for the robot's **current** configuration.
 
     Split out of `build` because a caller may need to change the robot's pose
@@ -128,11 +129,18 @@ def make_plan(pin_model, pin_data, *, step_length: float, n_steps: int):
     # than its keyframe.
     com_height = float(com_home[2] - 0.5 * (left_home[2] + right_home[2]))
 
+    # Step with the **trailing** foot first. From a level stance the two are
+    # equivalent and this reduces to M3's original left-first gait; resuming a
+    # gait after a stop, it is the difference between walking and falling
+    # (L-M5-e).
+    first_swing = LEFT_FOOT if left_home[0] <= right_home[0] + 1e-4 else RIGHT_FOOT
     schedule = GaitSchedule(
         LEFT_FOOT, RIGHT_FOOT, left_home, right_home, com_home,
         n_steps=n_steps, t_initial=T_INITIAL, t_double=T_DOUBLE, t_single=T_SINGLE,
         step_length=step_length, step_height=STEP_HEIGHT,
         step_width=STEP_WIDTH if step_length > 0.0 else None,
+        first_swing=first_swing,
+        close_stance=close_stance,
     )
     plan = DCMPlan(schedule, com_height, com_home, settle_sweep=SETTLE_SWEEP)
     return schedule, plan

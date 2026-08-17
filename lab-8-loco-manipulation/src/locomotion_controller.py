@@ -28,7 +28,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from gait_planner import GaitReference, GaitSchedule, Phase
-from lab8_common import DT, foot_contact_state
+from lab8_common import DT, foot_contact_state, robot_com
 from wb_id_qp import ContactSpec, WholeBodyIDQP
 from wb_tasks import CoMTask, FramePositionTask, TaskStack
 
@@ -280,7 +280,7 @@ class SteppingController:
         self.log.tau_max.append(float(np.abs(tau).max()))
         self.log.pelvis_z.append(float(self.mj_data.qpos[2]))
 
-        com = self.mj_data.subtree_com[0]
+        com = robot_com(self.mj_model, self.mj_data)
         self.log.com_x.append(float(com[0]))
         if self.dcm_plan is None:
             com_target = reference.com_target[:2]

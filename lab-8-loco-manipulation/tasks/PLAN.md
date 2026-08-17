@@ -114,7 +114,16 @@ torque command authority.
   tuning was required before that was believed (L-M4-c).
 - Evidence: `media/m4_walk_reach.mp4` + `media/m4_hand_error.png`.
 
-### M5 — Loco-Manipulation Capstone
+### M5 — Loco-Manipulation Capstone 🚧 IN PROGRESS (2026-08-17)
+- **Status**: walk → stop → reach → grasp → lift → tuck → carry all work; the
+  robot transports the payload 0.64 m and then falls, so the place never
+  happens and the gate is not met. Four real defects fixed on the way
+  (LESSONS L-M5-a…f), three of them in code M1–M4 had already exercised.
+- **Deviation**: the grasp is a weld, as the brief allows ("grasp stays
+  SIMPLE") — the G1 model in this lab has no hand, and Lab 5 already validated
+  a real parallel-jaw grasp. What M5 tests is whether the *whole-body*
+  controller survives acquiring, carrying and releasing mass.
+- **Next**: two-handed carry (second weld), then re-scope if that fails.
 - Steps: scene with table + object (reuse Lab 5 sizing: 40 mm cube-class object or a
   handled payload attached via weld on contact — grasp stays SIMPLE per the brief);
   sequence state machine: WALK → STOP → REACH → GRASP (weld) → LIFT → WALK-CARRY →

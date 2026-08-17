@@ -102,8 +102,11 @@ class StandingController:
 
     def compute_torque(self, mj_data: mujoco.MjData) -> np.ndarray:
         """Return the clipped joint torque command (29,) for the current state."""
-        q_joints = mj_data.qpos[7:]
-        v_joints = mj_data.qvel[6:]
+        # Slice to the robot's own joints: a scene may append free bodies
+        # after the G1 (M5's payload), which lengthens qpos/qvel beyond the
+        # 29 actuated joints this controller drives.
+        q_joints = mj_data.qpos[7:7 + NU]
+        v_joints = mj_data.qvel[6:6 + NU]
 
         tau = self.kp * (self.q_nom - q_joints) + self.kd * (-v_joints)
 
@@ -112,7 +115,7 @@ class StandingController:
             pin.computeGeneralizedGravity(self.pin_model, self.pin_data, q)
             gravity = joint_torques_to_ctrl(self.pin_data.g)
             if self.gravity_mode is GravityMode.CONTACT_CONSISTENT:
-                gravity = gravity - mj_data.qfrc_constraint[6:]
+                gravity = gravity - mj_data.qfrc_constraint[6:6 + NU]
             tau = tau + gravity
 
         return clip_torques(tau, self.mj_model)

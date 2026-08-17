@@ -212,10 +212,45 @@
       — the transient was a symptom), **L-M4-f (perturb what should not matter
       before believing a pass)**.
 
-## M5 — Loco-Manipulation Capstone
-- [ ] WALK→REACH→GRASP(weld)→CARRY→PLACE sequence; payload mass in CoM model
-- [ ] Gate: no fall; object within 50 mm of target; object-pose post-condition assert
-- [ ] Evidence: `media/m5_capstone.mp4` + gate table
+## M5 — Loco-Manipulation Capstone — 🚧 IN PROGRESS (gate not passed)
+- [x] `src/capstone_scene.py` — pedestals, freejoint payload, and a weld grasp
+      built inactive. `set_weld(True)` captures the live hand→payload transform
+      into `eq_data` first (L-M5-b): MuJoCo's weld holds its **compile-time**
+      relpose, so activating it naively commands a 0.42 m snap rather than a
+      grasp.
+- [x] `lab8_common.attach_payload_to_pinocchio` — folds the payload's inertia
+      into the wrist's parent joint at grasp time and returns fresh `pin.Data`.
+      Frame ids, nq and nv are unchanged, so tasks and QP dimensions survive;
+      only M, J_com and A_g move. This is "payload in the QP's model" concretely.
+- [x] `lab8_common`: `robot_com` (pelvis subtree — `subtree_com[0]` silently
+      becomes the *scene's* CoM once props exist) and robot-only state slicing
+      in `mj_state_to_pin` / `standing_controller`.
+- [x] `src/m5_capstone.py` — WALK → STOP → REACH → GRASP → LIFT → TUCK →
+      WALK-CARRY → STOP → PLACE, one task stack throughout, each phase a
+      configuration an earlier milestone validated.
+- [x] Two gait-planner defects fixed that only a *resumed* walk exposes
+      (L-M5-e): `first_swing` (step with the trailing foot) and `close_stance`
+      (end a walk with the feet together). M3's gate is unchanged by both —
+      re-run, still 4/4, 12 steps, 1.182 m.
+- [x] **Working**: walk to the pedestal, stop, reach (60 mm), grasp, lift, tuck
+      into the carry pose, and carry the payload **0.64 m**.
+- [ ] **Gate NOT passed**: the robot falls on the transport leg, so the payload
+      is never placed. Best run: 7 of 9 phases, payload moved 0.64 m, place
+      error 487 mm against a 50 mm gate, peak torque 62 N·m (not saturation).
+- [ ] **Next implementation step**: carry the payload with **both hands** — a
+      second weld to the left wrist, reach placing both hands on opposing faces
+      of the box. The blocker is M4's deferred finding (L-M4-f): an asymmetric
+      upper body is marginal while walking, and a load on one arm is asymmetric
+      by definition. Making the arms symmetric helped measurably (0.54 → 0.64 m)
+      but the *mass* stays one-sided. Trimming the carry leg and re-weighting
+      were both tried; neither is the answer.
+- [x] Evidence so far: `media/m5_capstone.mp4` + `media/m5_capstone_metrics.png`
+- [x] Lessons: L-M5-a (the momentum task is an arm-task companion, not a global
+      stabiliser), **L-M5-b (a MuJoCo weld snaps to its compile-time pose)**,
+      L-M5-c (lift and carry are different poses), L-M5-d (payload mass was not
+      the limit), L-M5-e (two planner defects only a resumed walk exposes),
+      **L-M5-f (the scene is part of the controller's world — read the contact
+      list before touching a gain)**.
 
 ## M6 — Documentation & Blog
 - [ ] docs/ + docs-turkish/ (ARCHITECTURE + CODE_WALKTHROUGH pattern)
@@ -224,25 +259,24 @@
 - [ ] Root README / MASTER_PLAN / status board / plan/LAB_08.md updates
 
 ## Current Focus
-> **M5 — Loco-Manipulation Capstone.** M4 closed 2026-08-16: the G1 walks
-> 1.17 m over 12 steps while holding both hands on a Cartesian pose to 14.5 mm
-> RMS, and the whole-body stack now has a centroidal angular-momentum task with
-> a settable reference.
+> **M5 — Loco-Manipulation Capstone, continued.** The sequence walks, reaches,
+> grasps, lifts, tucks and carries 0.64 m; it falls on the transport leg and so
+> never places the payload. Everything before the carry is solid.
 >
-> Gate: WALK → REACH → GRASP(weld) → CARRY → PLACE with no fall, object within
-> 50 mm of target, and an object-pose post-condition assert (Lab 5's lesson:
-> DONE must verify the object actually moved).
->
-> Two things M4 hands over that shape M5's opening move:
-> 1. **The payload changes the plan.** M4 measured that bringing the arms
->    forward moves the CoM ~85 mm and that a gait plan built before that change
->    is unwalkable (L-M4-a). Grasping an object is the same event with mass
->    attached — replan after the grasp, and reach the pre-grasp pose under the
->    QP, not under joint PD.
-> 2. **Reach arrives with M4's deferral attached** (L-M4-f). M5's REACH phase
->    should happen *stopped*, which is M1's validated regime (7.08 mm), not
->    while walking. If a walking reach is ever needed, the open problem is the
->    asymmetric upper body's lateral margin, not the arm trajectory.
+> Start at the **two-handed carry**, not at gains — the single-arm carry has
+> been tried at two payload masses, two carry-leg lengths, symmetric and
+> asymmetric hand poses, and with the hand tasks off entirely:
+> 1. Add a second weld (left wrist ↔ payload) to `capstone_scene`, inactive.
+> 2. REACH places both hands on opposing faces of the box; GRASP closes both
+>    welds, each capturing its own live relpose (L-M5-b).
+> 3. Re-run. The prediction is specific: M4 showed the controller survives a
+>    *symmetric* upper body and not an asymmetric one, and two-handed carry is
+>    the first configuration in which the payload's mass — not just the arms
+>    holding it — is symmetric about the sagittal plane.
+> 4. If it still falls, the honest conclusion is that carrying while walking is
+>    beyond this stack, and M5 should be re-scoped to a stationary
+>    pick-and-place with the walk as a separate leg (and that call should be
+>    made explicitly, the way Lab 7 scoped out its M4).
 
 ## Blockers
 > None. OSQP verified (1.1.3). G1 menagerie assets present under
