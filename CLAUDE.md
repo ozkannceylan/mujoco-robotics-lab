@@ -19,7 +19,7 @@ Build a portfolio-ready robotics lab series using MuJoCo, progressing from simpl
 - Lab 6 (Dual-Arm Coordination) is complete — dual UR5e, weld-constraint cooperative carry, milestone-gated M0–M5
 - Lab 7 (Locomotion) is complete at M3d scope — G1 standing + weight shift; ZMP walking blocked by position actuators, deferred to Lab 8
 - Lab 8 (Whole-Body Loco-Manipulation) is complete — milestone-gated M0–M6, closed 2026-08-17; owns gait generation via torque control (Lab 7's actuator finding). Torque-actuated G1, model parity 1e-16; whole-body inverse-dynamics QP with contact wrenches, 7.08 mm hand tracking; in-place stepping with ZMP 100 % inside support; **DCM forward walking — 12 steps, 1.18 m, 6.2 mm DCM RMS**; walk + two-handed carry pose via centroidal angular-momentum control, 14.5 mm hand RMS; **loco-manipulation capstone — walk→pick→carry→place, payload 11.8 mm from target**; docs EN/TR + code walkthrough + blog post; 97 tests
-- Lab 9 (VLA) is planned — depends on Lab 8 controllers for demonstration data
+- Lab 9 (VLA) is in progress — milestone-gated M0–M6; kickoff 2026-08-17, **M0 PASS** (two-object language-conditioned scene, expert 40/40). Task set cut from the brief's 3–5 to `walk` + `pick` because Lab 8's capstone scores 1/8 off its tuned configuration; `carry` 1/12 and `place` 5/10, both documented with mechanisms
 - End goals: strengthen fundamentals for humanoid VLA work, prepare for robotics interviews, build a portfolio demo
 
 ---
@@ -379,11 +379,13 @@ Published (portfolio-ready, documented in main README):
       the acceleration level rather than the velocity level `plan/LAB_08.md` specifies.
 
 In progress (real work on disk, not yet portfolio-ready):
-- *(none)*
+- [ ] Lab 9: VLA Integration (`lab-9-vla-integration/`) — M0 DONE 2026-08-17 (gate 6/6;
+      expert 40/40 over 20 seeds x 2 objects). Language-conditioned ACT policy emitting
+      the task-space references Lab 8's whole-body QP consumes; balance is never learned.
+      Resume at `tasks/TODO.md` "Current Focus". Milestone-gated M0–M6.
 
 Future (no folder yet — planned in main README roadmap only):
-- [ ] Lab 9: VLA Integration — depends on Lab 8's controllers for demonstration data
-      (`m3_walking.py`, `m4_walk_reach.py`, `m5_capstone.py`)
+- *(none)*
 
 Platform transitions: Labs 1 uses custom 2-link. Labs 2–6 use UR5e + Robotiq 2F-85. Labs 7+ use Unitree G1 humanoid.
 

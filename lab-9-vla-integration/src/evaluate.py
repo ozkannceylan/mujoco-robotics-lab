@@ -83,8 +83,9 @@ def run_walk_episode(
     Returns:
         A result dict.
     """
-    from expert import approach_steps_for
+    from expert import REACH_STANDOFF, approach_steps_for
     from policy_runner import PolicyRunner, RolloutResult
+    from vla_scene import Randomisation
     from m5_capstone import Fell
 
     model, bank, _, _ = _load(checkpoint)
@@ -92,13 +93,16 @@ def run_walk_episode(
     runner = PolicyRunner(seed, target, model, bank, wide=wide)
     result = RolloutResult(seed=seed, target=target, instruction=text, task="walk")
 
-    # What the expert would have done, for the same instruction's object.
-    named = target
-    expert_steps = approach_steps_for(
-        float(runner.scene.object_position(named)[0]),
-        float(runner.scene.place_target[0]),
-    )
-    result.expert_pelvis_x = 0.036 + 0.101 * expert_steps
+    # Scored on the standoff actually achieved to the **named** object, not on
+    # a step count. The goal of the walk is to end up within reach of the thing
+    # the instruction named, and the two objects' correct stopping points are
+    # ~0.30 m apart, so going to the wrong one cannot pass.
+    named = "cup" if "cup" in text else "box"
+    named_x = float(runner.scene.object_position(named)[0])
+    marker_x = float(runner.scene.place_target[0])
+    expert_steps = approach_steps_for(named_x, marker_x)
+    result.expert_pelvis_x = 0.5 * (named_x + marker_x) - REACH_STANDOFF
+    result.walk_units_expert = expert_steps
 
     standing = 0
     try:
@@ -123,13 +127,22 @@ def run_walk_episode(
         runner.close()
 
     result.stop_error_m = abs(result.final_pelvis_x - result.expert_pelvis_x)
+    other = next(o for o in OBJECT_NAMES if o != named)
+    other_x = float(
+        Randomisation.sample(seed, wide=wide).object_xy(other)[0]
+    )
+    result.stop_error_other_m = abs(
+        result.final_pelvis_x - (0.5 * (other_x + marker_x) - REACH_STANDOFF)
+    )
     result.success = bool(
         not result.fell and result.stop_error_m < STOP_TOLERANCE_M
     )
     if not result.success and not result.reason:
+        closer = ("the other object" if result.stop_error_other_m < result.stop_error_m
+                  else "neither")
         result.reason = (
-            f"stopped at x={result.final_pelvis_x:.3f}, "
-            f"expert {result.expert_pelvis_x:.3f}"
+            f"stopped at x={result.final_pelvis_x:.3f}, want "
+            f"{result.expert_pelvis_x:.3f} ({closer} was closer)"
         )
     return result.__dict__
 

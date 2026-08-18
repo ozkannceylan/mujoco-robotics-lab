@@ -185,25 +185,37 @@ class TestLearning:
         """The optimisation path works end to end.
 
         Not a quality claim — a model that cannot memorise eight samples has a
-        wiring bug, and finding that here costs seconds instead of an epoch.
+        wiring bug, and finding that here costs a minute instead of an epoch.
+
+        Scored against the best **constant** predictor rather than the initial
+        loss: with N(0,1) targets the constant predictor already scores 0.76, so
+        a ratio to the starting loss cannot tell "memorised the batch" from
+        "learned its mean". Learning rate 1e-3 — at 3e-3 this transformer
+        destabilises and plateaus exactly at the constant predictor, which reads
+        like an architecture bug and is not one.
         """
         torch.manual_seed(0)
         model = _model()
         images, state, instruction = _batch(model, size=8)
         target = torch.randn(8, CHUNK_SIZE, model.action_dim)
+        baseline = float((target - target.mean(dim=0, keepdim=True)).abs().mean())
         optimiser = torch.optim.AdamW(
-            [p for p in model.parameters() if p.requires_grad], lr=3e-3
+            [p for p in model.parameters() if p.requires_grad], lr=1e-3
         )
-        first = None
-        for _ in range(60):
+        for _ in range(120):
             loss = (model(images, state, instruction) - target).abs().mean()
-            if first is None:
-                first = float(loss)
             optimiser.zero_grad(set_to_none=True)
             loss.backward()
+            torch.nn.utils.clip_grad_norm_(
+                [p for p in model.parameters() if p.requires_grad], 1.0
+            )
             optimiser.step()
-        assert float(loss) < 0.35 * first, (
-            f"loss went {first:.3f} -> {float(loss):.3f}; the model is not learning"
+        model.eval()
+        with torch.no_grad():
+            final = float((model(images, state, instruction) - target).abs().mean())
+        assert final < 0.5 * baseline, (
+            f"final {final:.3f} vs constant-predictor {baseline:.3f}: the model "
+            "is not distinguishing the samples"
         )
 
     def test_gradients_reach_every_trainable_block(self):

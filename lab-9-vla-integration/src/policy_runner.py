@@ -84,6 +84,9 @@ class RolloutResult:
     final_pelvis_x: float = 0.0
     expert_pelvis_x: float = 0.0
     stop_error_m: float = float("nan")
+    stop_error_other_m: float = float("nan")
+    walk_units_expert: int = 0
+    grasped_object: str = ""
     hand_error_mm: float = float("nan")
     duration_s: float = 0.0
     tau_max: float = 0.0

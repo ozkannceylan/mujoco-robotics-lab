@@ -1,0 +1,39 @@
+{
+  "params": {
+    "backbone": [
+      11176512,
+      8393728
+    ],
+    "decoder": [
+      4213760,
+      4213760
+    ],
+    "state_proj": [
+      81920,
+      81920
+    ],
+    "head": [
+      2313,
+      2313
+    ],
+    "total": [
+      15746889,
+      12964105
+    ]
+  },
+  "tokens_per_camera": 16,
+  "cameras": [
+    "head",
+    "wrist"
+  ],
+  "instruction_separation": {
+    "within_meaning": 0.9570883562167486,
+    "across_meaning": 0.8461249272028605,
+    "margin": 0.11096342901388812,
+    "groups": 4
+  },
+  "conditioning_delta": 0.002033233642578125,
+  "overfit_ratio": 0.2498502666100471,
+  "checkpoint_round_trip": 0.0,
+  "gate_passed": true
+}

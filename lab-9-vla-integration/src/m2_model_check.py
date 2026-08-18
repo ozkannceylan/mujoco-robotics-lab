@@ -120,19 +120,30 @@ def main() -> None:
     batch_state = torch.randn(8, STATE_DIM)
     batch_instruction = torch.randn(8, TEXT_EMBED_DIM)
     target = torch.randn(8, CHUNK_SIZE, model.action_dim)
+    # Scored against the best *constant* predictor — the per-dimension mean over
+    # the batch — not against the initial loss. With N(0,1) targets the constant
+    # predictor already scores 0.76, so a ratio to the starting loss cannot
+    # distinguish "memorised the batch" from "learned its mean".
+    baseline = float((target - target.mean(dim=0, keepdim=True)).abs().mean())
     optimiser = torch.optim.AdamW(
-        [p for p in model.parameters() if p.requires_grad], lr=3e-3
+        [p for p in model.parameters() if p.requires_grad], lr=1e-3
     )
     model.train()
-    first = None
-    for _ in range(60):
+    for _ in range(120):
         loss = (model(batch_images, batch_state, batch_instruction)
                 - target).abs().mean()
-        first = first if first is not None else float(loss)
         optimiser.zero_grad(set_to_none=True)
         loss.backward()
+        torch.nn.utils.clip_grad_norm_(
+            [p for p in model.parameters() if p.requires_grad], 1.0
+        )
         optimiser.step()
-    ratio = float(loss) / first
+    model.eval()
+    with torch.no_grad():
+        final = float(
+            (model(batch_images, batch_state, batch_instruction) - target).abs().mean()
+        )
+    ratio = final / baseline
 
     # -- checkpoint round trip ------------------------------------------
     stats = NormStats(
@@ -161,7 +172,8 @@ def main() -> None:
         ("Same instruction is deterministic", repeat < 1e-6, f"{repeat:.2e}"),
         ("Meanings separate further than paraphrases",
          separation["margin"] > 0.02, f"margin {separation['margin']:.3f}"),
-        ("Overfits one batch", ratio < 0.35, f"loss ratio {ratio:.3f}"),
+        ("Overfits one batch", ratio < 0.50,
+         f"{ratio:.3f} x the constant-predictor baseline"),
         ("Checkpoint round-trips predictions", round_trip < 1e-6,
          f"{round_trip:.2e}"),
     ]

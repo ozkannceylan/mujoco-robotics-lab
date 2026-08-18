@@ -20,7 +20,7 @@ An open curriculum for rebuilding robotics fundamentals in **MuJoCo**, with **Pi
 | 6   | Dual-arm coordination | Complete |
 | 7   | Locomotion fundamentals | Complete\*\* |
 | 8   | Whole-body loco-manipulation | Complete\*\*\* |
-| 9   | VLA integration | Planned |
+| 9   | VLA integration | In progress\*\*\*\* |
 
 Only labs marked **Complete** have published writeups and metrics in this README. Planned labs may have in-progress code on disk but are not yet portfolio-ready.
 
@@ -29,6 +29,8 @@ Only labs marked **Complete** have published writeups and metrics in this README
 \*\* **Lab 7** is signed off at M3d scope: static balance, push recovery, FK/IK validation, and quasi-static weight shifting all pass their gates. Dynamic ZMP walking (M4) was identified as structurally infeasible with the Menagerie G1's position actuators — the lab's M5 documentation and blog post explain the diagnostic work in full rather than papering over the limit.
 
 \*\*\* **Lab 8** takes up exactly where Lab 7 stopped, and tests its diagnosis. **M0 (2026-08-15)** re-actuates the G1 with torque motors instead of position servos and re-establishes a 10 s stand from outside the simulator. **M1** adds the whole-body inverse-dynamics QP — joint accelerations *and* contact wrenches as decision variables — so the standing robot tracks a hand circle to 7.08 mm RMS while balance stays a hard constraint. **M2** takes four torque-level steps in place. **M3 (2026-08-16) walks: 12 steps, 1.18 m, no fall** — the capstone Lab 7 abandoned, on the same robot, which settles the actuator-model question. It got there by replacing the CoM position reference with **divergent-component-of-motion tracking**, and then by fixing two things underneath the controller that mattered more than the controller did: the foot's centre-of-pressure model was a symmetric guess rather than the G1's real asymmetric sole, and the QP's solver tolerance was set below what the problem's conditioning can deliver. **M4 walks and works at the same time**: the same 12 steps while both hands hold a Cartesian carry pose to 14.5 mm RMS. The enabler was a *missing term*, not a weight — no hand-task weight both walked and tracked, and the failures were non-monotonic, which is the tell. Regulating **centroidal angular momentum** took the identical hand task from falling on step 7 to the full distance with three times better tracking. **M5 (2026-08-17) is the capstone**: one continuous 25-second episode in which the robot walks to a pedestal, picks up a payload, brings it to its chest and secures it with the second hand, carries it, and sets it down **11.8 mm** from the target without falling. Its ten defects are the lab's most useful result — three were in code M0–M4 had already exercised, two were scene geometry the balance controller cannot see (a pedestal at hip height felled a controller that walks 12 steps on bare ground), and two were the difference between commanding a hand and commanding the object held in it. **M6 (2026-08-17)** closes the lab with architecture docs (EN/TR), a code walkthrough and the blog post. 97 tests. See [`lab-8-loco-manipulation/`](lab-8-loco-manipulation/).
+
+\*\*\*\* **Lab 9** is the destination the series was built toward: a language-conditioned ACT policy driving the torque-controlled G1. **M0 (2026-08-17)** builds a two-object randomised scene with egocentric cameras and freezes the observation/action contract — the state vector deliberately excludes the pelvis's world x, y and yaw, because a policy handed its own coordinates dead-reckons every task here and ignores both camera and instruction. Its finding is about the *expert*: Lab 8's capstone gate is 4/4 on one configuration and **1/8** over a randomised scene, so each task was measured separately and the set cut to what the expert can actually demonstrate — `walk` + `pick` at 40/40 against `carry` at 1/12 and `place` at 5/10, each cut written up with its mechanism. See [`lab-9-vla-integration/`](lab-9-vla-integration/).
 
 ---
 
@@ -278,6 +280,14 @@ mujoco-robotics-lab/
 │   ├── blog/                     #   "The Humanoid Walked Once I Stopped Telling It Where to Stand"
 │   ├── tests/                    #   97 tests (parity, FD Jacobians, QP constraints, DCM)
 │   ├── media/                    #   Per-milestone videos + metric plots
+│   └── README.md                 #   Lab overview
+│
+├── lab-9-vla-integration/        # Lab 9: VLA Integration (in progress)
+│   ├── src/                      #   scene, contract, expert, dataset, ACT, training, eval
+│   ├── docs/                     #   ARCHITECTURE.md + CODE_WALKTHROUGH.md
+│   ├── docs-turkish/             #   ARCHITECTURE_TR.md
+│   ├── tests/                    #   scene/contract + model/checkpoint
+│   ├── media/                    #   Per-milestone gate evidence
 │   └── README.md                 #   Lab overview
 │
 ├── plan/                         # Lab briefs (LAB_01–LAB_09) + MASTER_PLAN.md
