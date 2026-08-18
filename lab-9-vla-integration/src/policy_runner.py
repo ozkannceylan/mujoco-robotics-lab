@@ -65,6 +65,15 @@ MAX_EPISODE_S: float = 22.0
 #: How close the hand must be to the object before a grasp request is honoured.
 GRASP_GATE_MM: float = GRASP_TOLERANCE_MM
 
+#: Column of the gait command inside a `task`-head action.
+_GAIT_COLUMN: int = 6
+
+#: Fraction of a walk unit's polls, taken from its end, that the stop decision
+#: is averaged over. The unit cannot be interrupted, so the decision is about
+#: whether to take *another* one, and the most recent observations are the ones
+#: that bear on it.
+STOP_DECISION_TAIL: float = 0.34
+
 
 @dataclass
 class RolloutResult:
@@ -181,8 +190,26 @@ class PolicyRunner(Capstone):
         self._inferences += 1
         if self.model.action_head == "joint":
             return chunk
+        # The whole chunk's gait plan is kept, not just its first entry. The
+        # policy predicts the stop accurately *inside* the chunk and hedges it at
+        # the head: two frames before the expert stops, the true chunk is
+        # [0, 0, ...] and the prediction is [0.99, 0.99, 0.99, 0.00, 0.00, ...].
+        # Reading only the first action therefore discards the one prediction
+        # that says when to stop. See tasks/LESSONS.md § L-M3-d.
+        self.last_gait_plan = chunk[:, _GAIT_COLUMN].copy()
         position, yaw = pelvis_frame(self.mj_data)
         return decode_task_action(chunk[0], position, yaw)
+
+    def gait_intent(self) -> float:
+        """How much of the next chunk the policy plans to spend walking.
+
+        Returns:
+            Mean of the chunk's gait channel, in [0, 1] — "the fraction of the
+            next two seconds I expect to still be walking". A scalar readout of
+            the policy's own plan rather than of its next single action.
+        """
+        plan = getattr(self, "last_gait_plan", None)
+        return 1.0 if plan is None else float(np.clip(plan, 0.0, 1.0).mean())
 
     @staticmethod
     def _task_id(instruction: str) -> int:
@@ -236,16 +263,61 @@ class PolicyRunner(Capstone):
         for _ in range(ticks):
             self._step()
 
-    def walk_unit(self) -> None:
-        """Execute one Lab 8 gait unit: a step plus its closing step."""
+    def walk_unit(self, instruction: str) -> list[float]:
+        """Execute one Lab 8 gait unit, polling the policy **while walking**.
+
+        The decision to stop has to be made from a mid-stride observation,
+        because that is the only kind the demonstrations contain. The expert
+        never pauses during an approach, so a robot standing in a closed stance
+        with the objects still far away is a state no training frame covers —
+        and polling only between units asks the policy for a judgement on
+        exactly that state. Measured against a run that polled only at unit
+        boundaries: the gait command decayed 1.00 -> 0.85 over six units without
+        ever crossing the threshold, and was identical for both instructions.
+
+        A biped cannot be told to stop mid-step, so the gait commands are
+        collected here and acted on by the caller at the unit boundary. A unit
+        is one step plus its closing step, which is the configuration Lab 8
+        validated (L-M5-e).
+
+        Args:
+            instruction: The command to condition on while walking.
+
+        Returns:
+            Every gait value the policy emitted during the unit.
+        """
+        import m3_walking as m3
+        from locomotion_controller import SteppingController
+
         self.phase = "walk"
         for task in self.hand_tasks.values():
             task.enabled = False
         self.hand_target = None
         self.momentum_task.enabled = False
-        # `walk` is Lab 8's own method: it plans a DCM trajectory through the
-        # footsteps, builds a SteppingController, and runs it to completion.
-        self.walk(WALK_UNIT_STEPS, "walk")
+
+        q, v = mj_state_to_pin(self.mj_data)
+        self.stack.update_dynamics(q, v)
+        schedule, plan = m3.make_plan(
+            self.pin_model, self.pin_data,
+            step_length=m3.STEP_LENGTH, n_steps=WALK_UNIT_STEPS,
+            close_stance=True,
+        )
+        self.dcm_task.omega = plan.omega
+        controller = SteppingController(
+            self.mj_model, self.mj_data, self.pin_model, self.pin_data,
+            schedule, self.qp, self.stack, self.dcm_task, self.swing_task,
+            dcm_plan=plan, vrp_shrink=m3.VRP_SHRINK,
+        )
+
+        gaits: list[float] = []
+        ticks = int(schedule.total_duration / DT)
+        for tick in range(ticks):
+            controller.update_targets(tick * DT)
+            self._step(controller)
+            if tick and tick % POLICY_DECIMATION == 0:
+                self.infer(instruction)
+                gaits.append(self.gait_intent())
+        return gaits
 
     def joint_tick(self, chunk: np.ndarray, ticks: int = POLICY_DECIMATION) -> None:
         """Execute the brief's literal action space: joint targets under PD.

@@ -289,3 +289,54 @@ Evidence: `media/m0_scene.png`, `media/m0_expert_rollout.mp4`, `media/m0_gate.js
   re-simulation.
 - **Takeaway**: persist the primitive a label was derived from. The derivation is
   the part most likely to be wrong.
+
+#### L-M3-d: A chunk predictor hedges a rare, sharp transition at the chunk head
+- After the relabelling, the policy still walked past the objects. Reading its
+  *whole* predicted chunk rather than its first action explained why. Two frames
+  before the expert stops, the true chunk is `[0, 0, …]` and the prediction is
+  `[0.99, 0.99, 0.99, 0.00, 0.00, …]` — the stop is there, placed about nine
+  steps late.
+- The head of the chunk is where the transition is rarest: only the handful of
+  frames straddling the stop have it at index 0, while every frame within two
+  seconds of the stop has it *somewhere*. The model learns where it is well and
+  when it is imminent poorly.
+- **Fix**: decide from the chunk's mean — "the fraction of the next two seconds I
+  expect to still be walking" — instead of from its first entry. Stopping
+  accuracy on near-object episodes went from 0.21 m of error to **0.001 m**.
+- **Takeaway**: an action-chunking policy predicts a *plan*. Reading only the
+  first action throws away most of it, and specifically throws away the part that
+  says when the current behaviour ends.
+
+## M4 — Closed-loop evaluation (2026-08-18)
+
+#### L-M4-a: The policy ignores the instruction, and the demonstrations are why
+- Measured directly on stored validation frames, feeding the identical
+  observation with each of the two instructions:
+
+  | quantity | difference between "red cup" and "blue box" |
+  |---|---|
+  | right-hand target | **0.3 mm** |
+  | gait command | **0.0018** |
+
+  The language conditioning contributes essentially nothing. In closed loop the
+  robot walks to the *nearer* object's stopping distance under either
+  instruction, which is correct half the time by construction.
+- The two-object scene was designed at M0 specifically to make language
+  necessary, and it does — *in principle*. What makes it unnecessary in practice
+  is the **expert's own behaviour**: the expert walks until the named object is
+  the one in front of it, so by the time the `pick` segment begins, "reach for
+  the nearest object" is the correct action in every training frame. And in the
+  `walk` segment the instruction only discriminates during the handful of frames
+  around the stop; everywhere else both instructions want `gait = 1`.
+- So the shortcut is available and cheap, and behaviour cloning takes it. This is
+  causal confusion of the ordinary kind: the state already encodes the decision
+  that was made at the start of the episode, and predicting the next action from
+  the state never requires recovering *why*.
+- **Takeaway**: a scene in which two instructions demand different actions is not
+  enough. The **demonstrations** have to contain states where the correct action
+  differs under the two instructions *and the state does not reveal which one is
+  in force*. Ours mostly do not, and no amount of model capacity fixes that.
+- The fix is a data-collection change, not a training one: the expert would have
+  to be positioned so that both objects are equally reachable at the moment of
+  the reach, so the instruction is the only thing that can select the target.
+  That is a re-collection, recorded here as the follow-up.

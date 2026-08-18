@@ -41,6 +41,7 @@ from pathlib import Path
 import numpy as np
 
 from lab9_common import CHECKPOINT_DIR, MEDIA_DIR, OBJECT_NAMES, instruction_label
+from policy_runner import STOP_DECISION_TAIL
 
 __all__ = ["run_walk_episode", "run_pick_episode", "evaluate"]
 
@@ -109,18 +110,27 @@ def run_walk_episode(
     result.expert_pelvis_x = 0.5 * (named_x + marker_x) - REACH_STANDOFF
     result.walk_units_expert = expert_steps
 
-    standing = 0
     try:
-        while result.walk_units < MAX_WALK_UNITS and standing < STAND_TO_FINISH:
-            action = runner.infer(text)
-            result.gait_commands.append(round(float(action.gait), 3))
-            if action.gait > 0.5:
-                runner.walk_unit()
-                result.walk_units += 1
-                standing = 0
-            else:
-                runner.stand_tick(action)
-                standing += 1
+        # The first decision is made standing at the start line, which *is* a
+        # state the demonstrations contain (every walk segment begins there).
+        # Every decision after that is made from mid-stride observations
+        # collected inside the unit, because the expert never pauses during an
+        # approach and a paused robot mid-approach is off-distribution.
+        runner.infer(text)
+        keep_walking = runner.gait_intent() > 0.5
+        result.gait_commands.append(round(runner.gait_intent(), 3))
+        while keep_walking and result.walk_units < MAX_WALK_UNITS:
+            gaits = runner.walk_unit(text)
+            result.walk_units += 1
+            result.gait_commands.extend(round(g, 3) for g in gaits)
+            # Decide from the tail of the unit's polls. A single low sample is
+            # noise; the mean over the last third is the policy's settled
+            # intent at the moment the next step would be committed.
+            tail = gaits[-max(1, int(len(gaits) * STOP_DECISION_TAIL)):]
+            keep_walking = bool(tail) and float(np.mean(tail)) > 0.5
+        # Settle standing so the stopping position is a resting one.
+        for _ in range(STAND_TO_FINISH):
+            runner.stand_tick(runner.infer(text))
     except Fell as exc:
         result.fell = True
         result.reason = str(exc)
