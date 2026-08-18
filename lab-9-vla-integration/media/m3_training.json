@@ -1,0 +1,23 @@
+{
+  "task_text": {
+    "action_head": "task",
+    "conditioning": "text",
+    "epochs": 30,
+    "best_val_l1": 0.00884738492454882,
+    "final": {
+      "epoch": 30,
+      "train_l1_norm": 0.03468971192763236,
+      "seconds": 253.7,
+      "val_l1": 0.009425626529493566,
+      "baseline_l1": 0.0952848147232123,
+      "per_task": {
+        "walk": 0.0022219803989476836,
+        "pick": 0.021940209014078223
+      },
+      "hand_mm": 5.036445600645883,
+      "gait_err": 0.036612187657360136,
+      "grasp_err": 0.011800899466669018
+    },
+    "wall_minutes": 128.0
+  }
+}

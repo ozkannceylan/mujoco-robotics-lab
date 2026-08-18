@@ -11,10 +11,14 @@ scored on whether the named object actually rose.
 **Position-randomised.** The same policy over the wider object-placement range,
 which no training episode was drawn from.
 
-**Instruction swap.** The same initial state, the other object's instruction. If
-the behaviour does not follow, the policy is not reading its instruction and
-every success rate above is a statement about the scene rather than the
-language.
+**The instruction contrast.** The scene a seed produces is identical whichever
+object is named — the randomisation places both — so the `seen` condition
+already runs two different instructions over the same initial state. The
+contrast is therefore a *paired* measurement over those episodes rather than a
+separate set of rollouts: for each seed, how far apart do the two instructions
+put the robot, against how far apart the correct answers are. A policy that
+ignores its instruction scores zero on this no matter how good its success rate
+looks.
 
 **The joint-head ablation.** The brief's literal action space — 29 joint targets
 tracked by PD — against Lab 7's prediction that it cannot stabilise this robot.
@@ -77,7 +81,8 @@ def run_walk_episode(
         target: Which object the *scene* is asked about.
         checkpoint: Trained policy.
         wide: Wider object placement.
-        instruction: Override the instruction — used by the swap test.
+        instruction: Override the instruction; used for the held-out paraphrase
+            condition, and available for any manual contrast run.
         variant: Paraphrase index.
 
     Returns:
@@ -161,7 +166,8 @@ def run_pick_episode(
         target: Which object the scene is set up around.
         checkpoint: Trained policy.
         wide: Wider object placement.
-        instruction: Override the instruction — used by the swap test.
+        instruction: Override the instruction; used for the held-out paraphrase
+            condition, and available for any manual contrast run.
         variant: Paraphrase index.
 
     Returns:
@@ -273,7 +279,7 @@ def evaluate(
     checkpoint: Path,
     episodes: int,
     workers: int = 3,
-    conditions: tuple[str, ...] = ("seen", "wide", "swap", "paraphrase"),
+    conditions: tuple[str, ...] = ("seen", "wide", "paraphrase"),
 ) -> list[dict]:
     """Run every evaluation condition.
 
@@ -292,7 +298,6 @@ def evaluate(
     for index in range(episodes):
         for target in OBJECT_NAMES:
             seed = base + index
-            other = next(o for o in OBJECT_NAMES if o != target)
             if "seen" in conditions:
                 for kind in ("walk", "pick"):
                     jobs.append((kind, seed, target, str(checkpoint), False,
@@ -301,13 +306,6 @@ def evaluate(
                 for kind in ("walk", "pick"):
                     jobs.append((kind, seed + 1000, target, str(checkpoint), True,
                                  None, 0, "wide"))
-            if "swap" in conditions:
-                # Same scene, the *other* object's instruction. Success is then
-                # defined against the object actually named.
-                jobs.append(("walk", seed, other, str(checkpoint), False,
-                             instruction_label("walk", other, 0), 0, "swap"))
-                jobs.append(("pick", seed, other, str(checkpoint), False,
-                             instruction_label("pick", other, 0), 0, "swap"))
             if "paraphrase" in conditions:
                 # Held-out wording, never seen in training.
                 for kind in ("walk", "pick"):
@@ -325,6 +323,54 @@ def evaluate(
                   f"{'OK ' if result['success'] else 'FAIL'} "
                   f"{result['reason'][:42]}")
     return results
+
+
+def instruction_contrast(results: list[dict]) -> dict:
+    """Paired test: does naming the other object change what the policy does?
+
+    For each seed the two `seen` episodes share an identical scene and differ
+    only in which object the instruction names. The walk task has a continuous
+    answer — where to stop — so the contrast is the ratio of the separation the
+    policy produced to the separation it should have. The pick task has a
+    discrete one: did it grasp the object that was named.
+
+    Args:
+        results: Episode dicts from :func:`evaluate`.
+
+    Returns:
+        The contrast statistics, or an empty dict if there are no pairs.
+    """
+    seen = [r for r in results if r["condition"] == "seen"]
+    walk = {}
+    for row in (r for r in seen if r["task"] == "walk"):
+        walk.setdefault(row["seed"], {})[row["target"]] = row
+    ratios, commanded, produced = [], [], []
+    for pair in walk.values():
+        if len(pair) != 2:
+            continue
+        first, second = (pair[name] for name in sorted(pair))
+        want = abs(first["expert_pelvis_x"] - second["expert_pelvis_x"])
+        got = abs(first["final_pelvis_x"] - second["final_pelvis_x"])
+        if want < 1e-6:
+            continue
+        commanded.append(want)
+        produced.append(got)
+        ratios.append(got / want)
+
+    picks = [r for r in seen if r["task"] == "pick" and r["grasped"]]
+    correct = sum(1 for r in picks if r["grasped_object"] == r["target"])
+
+    if not ratios and not picks:
+        return {}
+    return {
+        "walk_pairs": len(ratios),
+        "mean_commanded_separation_m": float(np.mean(commanded)) if commanded else 0.0,
+        "mean_produced_separation_m": float(np.mean(produced)) if produced else 0.0,
+        "separation_ratio": float(np.mean(ratios)) if ratios else 0.0,
+        "grasps": len(picks),
+        "grasped_the_named_object": correct,
+        "grasp_accuracy": correct / len(picks) if picks else float("nan"),
+    }
 
 
 def summarise(results: list[dict]) -> dict:
@@ -358,7 +404,7 @@ def plot(summary: dict, path: Path) -> None:
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    conditions = [c for c in ("seen", "wide", "paraphrase", "swap") if c in summary]
+    conditions = [c for c in ("seen", "wide", "paraphrase") if c in summary]
     figure, axis = plt.subplots(figsize=(9, 4.6))
     width = 0.35
     positions = np.arange(len(conditions))
@@ -394,7 +440,7 @@ def main() -> None:
     parser.add_argument("--episodes", type=int, default=8)
     parser.add_argument("--workers", type=int, default=3)
     parser.add_argument("--conditions", nargs="*",
-                        default=["seen", "wide", "swap", "paraphrase"])
+                        default=["seen", "wide", "paraphrase"])
     parser.add_argument("--out", type=str, default="m4")
     args = parser.parse_args()
 
@@ -403,6 +449,7 @@ def main() -> None:
         conditions=tuple(args.conditions),
     )
     summary = summarise(results)
+    contrast = instruction_contrast(results)
 
     print("\n" + "=" * 70)
     print(f"{'condition':<14}{'task':<7}{'success':<12}{'rate':<9}falls")
@@ -414,9 +461,22 @@ def main() -> None:
                   f"{entry['rate']:.0%}{'':<5}{entry.get('falls', '')}")
     print("=" * 70)
 
+    if contrast:
+        print("\ninstruction contrast (paired, same scene, two instructions)")
+        print(f"  walk: commanded separation "
+              f"{contrast['mean_commanded_separation_m']:.3f} m, produced "
+              f"{contrast['mean_produced_separation_m']:.3f} m "
+              f"-> ratio {contrast['separation_ratio']:.2f} "
+              f"over {contrast['walk_pairs']} pairs")
+        print(f"  pick: grasped the named object "
+              f"{contrast['grasped_the_named_object']}/{contrast['grasps']}")
+
     MEDIA_DIR.mkdir(parents=True, exist_ok=True)
     (MEDIA_DIR / f"{args.out}_summary.json").write_text(
-        json.dumps({"summary": summary, "results": results}, indent=2, default=str)
+        json.dumps(
+            {"summary": summary, "contrast": contrast, "results": results},
+            indent=2, default=str,
+        )
     )
     with (MEDIA_DIR / f"{args.out}_episodes.csv").open("w", newline="") as handle:
         fields = sorted({k for r in results for k in r})

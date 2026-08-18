@@ -249,3 +249,43 @@ Evidence: `media/m0_scene.png`, `media/m0_expert_rollout.mp4`, `media/m0_gate.js
 | Meanings separate further than paraphrases | PASS | margin 0.111 |
 | Overfits one batch | PASS | 0.250 × the constant-predictor baseline |
 | Checkpoint round-trips predictions | PASS | 0.0 |
+
+## M3 — Training (2026-08-18)
+
+#### L-M3-a: A label that is a function of the instruction teaches nothing
+- The first training run reached a validation error 0.099x the predict-the-mean
+  baseline, with 5.0 mm hand-target error. Every number looked excellent.
+- In closed loop the policy walked to the 6-unit cap on **every** episode and
+  never stopped. It was not broken: the demonstrations' `walk` segment ended
+  where the expert stopped, and every frame in it carried `gait = 1`. The stop
+  itself was labelled `pick`. So the gait bit was a pure function of the
+  instruction label, the policy learned exactly that, and *when to stop* was
+  never a decision anywhere in the training signal.
+- **Fix**: move the stop phase into the `walk` task, so a walk demonstration ends
+  with the robot standing and the transition has to be predicted from vision.
+- **Takeaway**: check that each output dimension varies *within* an instruction,
+  not just across instructions. A validation loss cannot see this — the label was
+  perfectly predictable and the model predicted it perfectly.
+
+#### L-M3-b: Idle frames make a behaviour-cloning policy a fixed point
+- The `pick` policy predicted the hand target as its own current hand position,
+  for 25 consecutive polls, 188 mm from the object. It never started reaching.
+- The `pick` segment began at the expert's *stop* phase, where the hand tasks are
+  disabled and the recorded action is therefore "leave the hand where it is". And
+  the observation of a stopped robot with a resting arm is identical whether it
+  has been standing for 0.1 s or 5 s — nothing observable says the reach should
+  begin. "Stay put" is a self-fulfilling prediction: acting on it reproduces the
+  observation that produced it.
+- **Fix**: start the `pick` segment at the reach. Every frame in it then has a
+  hand that is moving somewhere.
+- **Takeaway**: an action that reproduces its own observation is an absorbing
+  state for behaviour cloning. Do not label one unless the policy is supposed to
+  stay there.
+
+#### L-M3-c: Store the raw labels, not just the derived ones
+- Both fixes above are relabellings of the same 12,180 frames. Because each
+  episode stores its **per-frame phase** alongside the derived task segments,
+  fixing them cost a `--reslice` pass over the manifest instead of 40 minutes of
+  re-simulation.
+- **Takeaway**: persist the primitive a label was derived from. The derivation is
+  the part most likely to be wrong.

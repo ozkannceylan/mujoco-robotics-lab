@@ -311,6 +311,12 @@ class PolicyRunner(Capstone):
         # able to see.
         self.scene.set_target(nearest)
         self._attach_payload()
+        # Re-anchor the balance reference once, here and nowhere else in the
+        # standing mode: picking mass up is a step change in the centroidal
+        # model, and the frozen divergent-component target was set for a robot
+        # that was not holding anything. Lab 8's expert does the same at its
+        # grasp (`_freeze_balance` inside the grasp hold).
+        self._freeze_balance()
         return True
 
     def _attach_payload(self) -> None:

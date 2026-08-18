@@ -178,9 +178,28 @@ def approach_steps_for(
 #: Which Lab 8 phase belongs to which Lab 9 task label. Phases not listed here
 #: (the settle, the release tail) are recorded but belong to no task and are
 #: dropped when the episode is sliced.
+#: Which Lab 8 phase belongs to which Lab 9 task label.
+#:
+#: The boundary is at the **reach**, not at the stop, and both halves of that
+#: matter. Putting `stop_at_pick` in `walk` gives the walk task a terminal
+#: gait=0 state, so *when to stop* becomes a decision the policy makes from
+#: vision; with the stop in `pick`, the gait bit is a pure function of the
+#: instruction label and the policy can never learn to stop (measured: it walked
+#: to the 6-unit cap on every episode, correctly).
+#:
+#: Keeping the idle frames out of `pick` matters for the opposite reason. Those
+#: frames are labelled "leave the hand where it is", and the observation at a
+#: stopped robot with a resting arm is identical whether it has been standing
+#: for 0.1 s or 5 s. Trained on them, the policy predicts its own current hand
+#: position and never starts — a fixed point, measured at 188 mm from the object
+#: for 25 consecutive polls.
+#:
+#: What is left is a genuine language problem: the *same* observation demands
+#: "stand still" under "walk to the red cup" and "start reaching" under "pick up
+#: the red cup". The instruction is the only thing that separates them.
 PHASE_TO_TASK: dict[str, str] = {
     "walk_to_pick": "walk",
-    "stop_at_pick": "pick",
+    "stop_at_pick": "walk",
     "reach": "pick",
     "grasp": "pick",
     "lift": "pick",

@@ -44,7 +44,7 @@ from lab9_common import (
 )
 from observations import JOINT_ACTION_DIM, TASK_ACTION_DIM
 
-__all__ = ["collect", "episode_path", "load_manifest", "VAL_FRACTION"]
+__all__ = ["collect", "episode_path", "load_manifest", "reslice", "VAL_FRACTION"]
 
 #: Fraction of *seeds* held out for validation. Splitting by seed, never by
 #: frame: two frames 100 ms apart in the same episode are near-duplicates, and a
@@ -190,6 +190,47 @@ def collect(
     return manifest
 
 
+def reslice(root: Path = DATA_DIR) -> dict:
+    """Recompute every episode's task segments from its stored phase labels.
+
+    Each episode stores its per-frame phase, so changing which phase belongs to
+    which task is a relabelling rather than a re-collection — 40 minutes of
+    simulation that does not have to happen again. Storing the phase alongside
+    the derived segments is the reason.
+
+    Args:
+        root: Dataset directory.
+
+    Returns:
+        The updated manifest.
+    """
+    import expert as expert_module
+
+    manifest = load_manifest(root)
+    changed = 0
+    for episode in manifest["episodes"]:
+        path = episode_path(root, episode["seed"], episode["target"])
+        with np.load(path, allow_pickle=False) as data:
+            phases = [str(p) for p in data["phase"]]
+        bounds: dict[str, list[int]] = {}
+        for index, phase in enumerate(phases):
+            task = expert_module.PHASE_TO_TASK.get(phase)
+            if task is None:
+                continue
+            if task not in bounds:
+                bounds[task] = [index, index + 1]
+            else:
+                bounds[task][1] = index + 1
+        segments = {task: list(span) for task, span in bounds.items()}
+        if segments != episode["segments"]:
+            changed += 1
+        episode["segments"] = segments
+    manifest["resliced"] = True
+    (root / MANIFEST).write_text(json.dumps(manifest, indent=2))
+    print(f"resliced {changed} of {len(manifest['episodes'])} episodes")
+    return manifest
+
+
 def load_manifest(root: Path = DATA_DIR) -> dict:
     """Read the dataset manifest.
 
@@ -253,7 +294,13 @@ def main() -> None:
     parser.add_argument("--workers", type=int, default=3)
     parser.add_argument("--wide", action="store_true")
     parser.add_argument("--root", type=Path, default=DATA_DIR)
+    parser.add_argument("--reslice", action="store_true",
+                        help="recompute task segments from stored phases and exit")
     args = parser.parse_args()
+
+    if args.reslice:
+        report(reslice(args.root))
+        return
 
     manifest = collect(
         args.seeds, root=args.root, workers=args.workers,
