@@ -340,3 +340,66 @@ Evidence: `media/m0_scene.png`, `media/m0_expert_rollout.mp4`, `media/m0_gate.js
   to be positioned so that both objects are equally reachable at the moment of
   the reach, so the instruction is the only thing that can select the target.
   That is a re-collection, recorded here as the follow-up.
+
+#### L-M4-b: The reach converges and then stops converging
+- The `pick` policy is not inert — it tracks the reach. Over one episode the hand
+  closes from 188 mm to 84 mm in about 3.5 s, following commanded targets that
+  lead it by roughly 10 mm per poll.
+- Then it **plateaus at 82.6 mm** and stays there for the remaining 35 polls,
+  against a 70 mm grasp gate and an expert that reaches 15.2 ± 7.3 mm. The grasp
+  bit never rises above 0.06.
+- The mechanism is compounding error, and the plateau is the same absorbing state
+  as L-M3-b in a new place: a hand hovering 83 mm from the object never occurs in
+  a demonstration, because the expert's reach is smooth and fast and passes
+  straight through that distance. Off the demonstration manifold the policy's
+  commanded target collapses onto its own current hand position, and acting on
+  that keeps it there.
+- The expert reaches in 1.3 s; the policy is still short after 7 s. Under-
+  committing per step is what opens the gap in the first place — each command
+  moves the hand about two thirds as far as the expert's did.
+- **Takeaway**: behaviour cloning fails at the *end* of a motion, not the start.
+  Nothing in the demonstrations says what to do from a state the expert never
+  visited, and the nearest thing the policy knows is "hold".
+
+#### M4 gate — FAILED
+
+| criterion | result | measured |
+|---|---|---|
+| > 70 % success on seen configurations | **FAIL** | 25 % (3/12) overall; walk 50 % (3/6), pick 0 % (0/6) |
+| > 40 % on position-randomised | **FAIL** | 25 % (3/12); walk 50 %, pick 0 % |
+| Held-out paraphrases | — | 25 % (3/12), identical to seen — the wording is not the problem |
+| Instruction changes the behaviour | **FAIL** | commanded stopping separation 0.159 m, produced **0.000 m** (ratio 0.00, 3 pairs) |
+| No falls | partial | 2 falls in 18 pick episodes; 0 in 18 walk episodes |
+
+Walk at exactly 50 % across all three conditions is the signature, not a
+coincidence: the policy stops at the *near* object's distance whichever object is
+named, and which object is near is randomised 50/50.
+
+#### M5 gate — inference PASSED, task FAILED
+
+| criterion | result | measured |
+|---|---|---|
+| Free-form sentence in, no task index on the path | PASS | instruction embedded by the frozen tower; nothing else selects behaviour |
+| Inference > 10 Hz | **PASS** | **37.0 Hz** float32 (27.1 ms), **38.4 Hz** dynamically quantised (26.0 ms) |
+| Episode succeeds on simulated state | **FAIL** | walked to 0.253 m and stopped, never grasped, payload unmoved |
+| No fall | PASS | 51 N·m peak of a 139 N·m limit |
+
+Dynamic quantisation buys 4 % here rather than the large factor INT8 gives on a
+GPU: the backbone is convolutional and stays float, so only the decoder's linear
+layers are quantised. The brief's ">10 Hz on an RTX 4050 with INT8" is met on
+four CPU cores without it.
+
+Evidence: `media/m4_success_rates.png`, `media/m4_episodes.csv`,
+`media/m5_capstone.mp4`, `media/m5_capstone.json`.
+
+#### Not run: the joint-head ablation
+
+`tasks/PLAN.md` deviation 3 promised to train the brief's literal 29-DOF joint
+action space and measure it against Lab 7's prediction that a joint-position
+reference cannot stabilise this robot. The code path exists
+(`policy_runner.joint_tick`, with Lab 8's standing gains and gravity
+compensation so the comparison is about the action space rather than a strawman
+controller) and the head trains from the same dataset, but the run was not made:
+it is ~50 minutes of training plus ~20 of evaluation, and the primary policy's
+own result had already turned into the lab's headline. Recorded as unmeasured
+rather than quietly dropped.

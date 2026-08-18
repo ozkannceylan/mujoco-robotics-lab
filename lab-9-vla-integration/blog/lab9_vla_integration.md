@@ -232,7 +232,116 @@ are near-duplicates — same lighting, same object placement, the robot a few
 millimetres along. Split by frame and your validation loss measures memorisation.
 It will look excellent.
 
-<!-- RESULTS -->
+## What it learned, and what it didn't
+
+The policy trains cleanly. Twenty-four epochs, 110 minutes, validation error at
+**0.11×** what predicting the training mean would score, hand-target error
+**4.1 mm**. Every curve is the shape you want.
+
+In closed loop it walks to the object and stops in the right place — and then
+does not pick anything up.
+
+| condition | walk | pick |
+|---|---|---|
+| seen configurations | 3/6 (50%) | 0/6 |
+| position-randomised (wider than training) | 3/6 (50%) | 0/6 |
+| held-out paraphrases | 3/6 (50%) | 0/6 |
+
+The lab's gate wanted >70% on seen and >40% on randomised. It failed. What makes
+the failure worth the nine labs is that it is *legible* — I know precisely why,
+in two separate mechanisms.
+
+### Fifty percent is not a coincidence
+
+Look at the walk column. Exactly 50%, in all three conditions.
+
+The robot stops at the **nearer** object's distance regardless of which object
+the instruction names, and which object is nearer is randomised 50/50. It is
+scoring chance on a binary choice.
+
+I checked it directly, feeding one stored observation through the policy twice
+with the two different instructions:
+
+| quantity | difference between "the red cup" and "the blue box" |
+|---|---|
+| right-hand target | **0.3 mm** |
+| gait command | **0.0018** |
+
+The language conditioning contributes essentially nothing. The paired closed-loop
+test says the same thing in metres: the two instructions should put the robot
+0.159 m apart, and they put it **0.000 m** apart.
+
+Here is the part I did not see coming. I designed the two-object scene at
+milestone zero *specifically* so language would be necessary, and wrote a note
+to myself that this was the one thing to get right before collecting data. The
+scene does make language necessary. **The demonstrations don't.**
+
+The expert walks until the named object is the one in front of it. So by the
+time the reach begins, "reach for the nearest object" is the correct action in
+every single training frame — the instruction is redundant given the state. And
+during the walk, the instruction only discriminates for the handful of frames
+around the stop; everywhere else both instructions want the same thing.
+
+Behaviour cloning takes the cheap route, as it should. The shortcut is available
+because the *expert's own competence* removed the ambiguity that the language was
+supposed to resolve. Two objects in the scene is a necessary condition and not a
+sufficient one: what you need is demonstration *states* where the correct action
+differs under the two instructions and the state does not reveal which one is in
+force.
+
+That is a data-collection fix, not a training one, and it is the first thing I
+would change.
+
+### The reach converges, and then stops converging
+
+The pick fails differently, and the trace is worth reading:
+
+```
+poll  0:  hand 188 mm from the cup
+poll 24:  hand 102 mm
+poll 36:  hand  84 mm
+poll 48:  hand  84 mm
+poll 69:  hand  83 mm     grasp gate is 70 mm; the expert reaches 15 mm
+```
+
+It is not inert. It tracks the reach for three and a half seconds, closing a
+hundred millimetres. Then it stops, twelve millimetres short of the gate, and
+holds there for the remaining thirty-five polls.
+
+A hand hovering 83 mm from an object never occurs in a demonstration — the
+expert's reach is smooth and fast and goes straight through that distance in a
+tenth of a second. Off the demonstration manifold, the policy's commanded target
+collapses onto its own current hand position, and acting on that keeps it exactly
+where it is. It is the same absorbing state that bit me during labelling, arrived
+at from a different direction.
+
+The reason it ends up off-manifold at all is that each command moves the hand
+about two thirds as far as the expert's did. Under-commit slightly, every step,
+and you drift somewhere the expert never was.
+
+### What did work
+
+The walking half of this is genuinely good, and worth separating from the rest.
+The policy decides *when to stop* from vision, and when it is right it is very
+right — stopping error **0.001 m** against a target it has to infer from a
+128-pixel image. Getting there took two protocol corrections, and the second is
+the more interesting.
+
+An action-chunking policy predicts twenty future actions. I was reading the first
+one. Two frames before the expert stops, the true chunk is `[0, 0, …]` and the
+prediction is `[0.99, 0.99, 0.99, 0.00, 0.00, …]` — the stop is *in there*, placed
+about nine steps late. The head of the chunk is where a rare transition is
+rarest, so that is exactly where the model hedges it. Reading the chunk's mean
+instead — "what fraction of the next two seconds do I expect to be walking" —
+took stopping error from 0.21 m to 0.001 m without touching the weights.
+
+An action-chunking policy predicts a *plan*. Reading only its first action throws
+away the part that says when the current behaviour ends.
+
+Inference runs at **37 Hz** on four CPU cores, 38 Hz dynamically quantised. The
+brief asked for 10 Hz on a GPU with INT8. The control loop is limited by
+software rendering at 97 ms a frame, not by the network.
+
 
 ## What nine labs taught me
 

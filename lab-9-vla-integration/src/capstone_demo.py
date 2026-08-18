@@ -29,6 +29,7 @@ import numpy as np
 import torch
 
 from lab9_common import CHECKPOINT_DIR, IMAGE_SIZE, MEDIA_DIR, OBJECT_NAMES
+from policy_runner import STOP_DECISION_TAIL
 
 __all__ = ["run_capstone", "profile_inference"]
 
@@ -146,16 +147,18 @@ def run_capstone(
     }
     started = time.time()
     try:
-        standing = 0
-        while result["walk_units"] < MAX_WALK_UNITS and standing < STAND_TO_FINISH:
-            action = runner.infer(walk_text)
-            if action.gait > 0.5:
-                runner.walk_unit()
-                result["walk_units"] += 1
-                standing = 0
-            else:
-                runner.stand_tick(action)
-                standing += 1
+        # The policy is polled mid-stride and the stop decision reads its whole
+        # predicted chunk, not its first action — see policy_runner.walk_unit
+        # and gait_intent for why both matter.
+        runner.infer(walk_text)
+        keep_walking = runner.gait_intent() > 0.5
+        while keep_walking and result["walk_units"] < MAX_WALK_UNITS:
+            gaits = runner.walk_unit(walk_text)
+            result["walk_units"] += 1
+            tail = gaits[-max(1, int(len(gaits) * STOP_DECISION_TAIL)):]
+            keep_walking = bool(tail) and float(np.mean(tail)) > 0.5
+        for _ in range(STAND_TO_FINISH):
+            runner.stand_tick(runner.infer(walk_text))
         result["pelvis_x_after_walk"] = float(runner.mj_data.qpos[0])
 
         banner["text"] = instruction

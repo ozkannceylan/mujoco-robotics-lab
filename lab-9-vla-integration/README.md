@@ -1,6 +1,6 @@
 # Lab 9 — VLA Integration
 
-> **Status:** 🚧 In progress — **M0 complete** (2026-08-17)
+> **Status:** ✅ Closed 2026-08-18 — **M0–M3 and M5's inference gate passed; M4 and M5's task gate failed, with the cause measured.**
 > **Platform:** Unitree G1 under torque control (Lab 8) + ACT policy + frozen CLIP text tower
 > **Goal:** one sentence in, autonomous loco-manipulation out — the destination
 > the whole series was built toward.
@@ -19,12 +19,19 @@ to do, and Lab 8's whole-body QP keeps the robot upright while it does it.
 | # | Milestone | Gate | Status |
 |---|---|---|---|
 | M0 | Scene, cameras, obs/action contract | expert success ≥ 70 %, cameras render, codecs exact | ✅ **PASS** |
-| M1 | Demonstration dataset | ≥ 50 demos/task, integrity, no seed leakage | 🚧 |
-| M2 | Model | shapes, overfit-one-batch, language changes the action | 🚧 |
-| M3 | Training | val error beats predict-the-mean | ⏳ |
-| M4 | Closed-loop evaluation | > 70 % seen, > 40 % randomised, instruction swap works | ⏳ |
-| M5 | Capstone + inference profiling | free-form language → autonomous episode, > 10 Hz | ⏳ |
-| M6 | Documentation & blog | docs EN/TR + blog | ⏳ |
+| M1 | Demonstration dataset | ≥ 50 demos/task, integrity, no seed leakage | ✅ **PASS** |
+| M2 | Model | shapes, overfit-one-batch, language changes the action | ✅ **PASS** |
+| M3 | Training | val error beats predict-the-mean | ✅ **PASS** |
+| M4 | Closed-loop evaluation | > 70 % seen, > 40 % randomised, instruction changes behaviour | ❌ **FAIL** |
+| M5 | Capstone + inference profiling | free-form language → episode, > 10 Hz | ⚠️ inference **PASS**, task **FAIL** |
+| M6 | Documentation & blog | docs EN/TR + blog | ✅ **PASS** |
+
+**The headline is a negative result with a measured cause.** The policy trains
+cleanly — validation error 0.11× the predict-the-mean baseline, 4.1 mm
+hand-target error — walks to the object and stops within **1 mm** of the right
+place, runs inference at **37 Hz** on four CPU cores, and then **ignores its
+instruction** and never completes a grasp. Both failures are traced to specific,
+stated mechanisms below rather than reported as a score.
 
 ---
 
@@ -165,6 +172,236 @@ lateral with the arm folded.
 reaching to 29–30 mm where the box reached to 7–11 mm from the identical
 controller. Scaling the offset by the target's own half-extent: **36/40 →
 40/40**.
+
+---
+
+## M1 — Demonstration Dataset ✅
+
+```bash
+MUJOCO_GL=egl python3 lab-9-vla-integration/src/collect_demos.py --seeds 60
+MUJOCO_GL=egl python3 lab-9-vla-integration/src/dataset.py --grid
+```
+
+| Criterion | Result | Measured |
+|---|---|---|
+| ≥ 50 demonstrations per task | PASS | **120 per task** (240 total) |
+| Every attempted episode succeeded | PASS | 120 / 120 |
+| Integrity checks | PASS | no NaNs, shapes and dtypes as declared |
+| Train/val split leaks no seed | PASS | 48 / 12, intersection empty |
+| Randomisation visibly varies | PASS | contact sheet below |
+
+12,180 frames · 244 MB · 38.4 min on 4 cores. One expert rollout per seed,
+**sliced by phase** into its labelled task segments — rendering dominates
+collection, so a rollout is expensive and a task label is free.
+
+![M1 dataset](media/m1_dataset_grid.png)
+
+Two things stored deliberately. The action is the **expert's command**, not the
+achieved state: behaviour cloning imitates what the expert did, and on a
+compliant, disturbed system the two differ. And each frame keeps its **phase
+label** alongside the derived task segment — which is what later made two
+labelling bugs a `--reslice` pass instead of 40 minutes of re-simulation.
+
+---
+
+## M2 — Model ✅
+
+```bash
+python3 lab-9-vla-integration/src/m2_model_check.py
+```
+
+| Criterion | Result | Measured |
+|---|---|---|
+| Parameter count reported | PASS | 15.75 M total, 12.96 M trainable |
+| Token count derived from image size | PASS | 16 tokens/camera at 128 px |
+| Instruction changes the action | PASS | max delta 0.0020 |
+| Same instruction is deterministic | PASS | 0.0 |
+| Meanings separate further than paraphrases | PASS | margin **0.111** |
+| Overfits one batch | PASS | 0.250 × the constant-predictor baseline |
+| Checkpoint round-trips predictions | PASS | 0.0 |
+
+The instruction bank puts paraphrases of one command at cosine 0.957 and
+commands that mean different things at 0.846. Both properties are needed and
+they pull opposite ways, so both are checked before training rather than
+inferred from a bad success rate after.
+
+**The overfit check failed first, and the model was not at fault.** It plateaued
+at exactly the constant-predictor level — the signature of a network that cannot
+distinguish its inputs. Sweeping the learning rate before reading the token
+assembly: 0.19 at 1e-3, 0.17 at 3e-4, 0.15 at 1e-4, plateau at 3e-3. The check's
+own optimiser was destabilising the transformer.
+
+---
+
+## M3 — Training ✅
+
+```bash
+python3 lab-9-vla-integration/src/train.py --epochs 24
+python3 lab-9-vla-integration/src/m3_train_report.py
+```
+
+| Criterion | Result | Measured |
+|---|---|---|
+| Validation beats predict-the-mean | PASS | **0.11 ×** baseline |
+| Hand-target error in raw units | PASS | **4.1 mm** |
+| Both tasks learned separately | PASS | walk 0.002, pick 0.021 |
+| Validation seeds never trained on | PASS | split by scene seed |
+| Training curves recorded | PASS | below |
+
+24 epochs, 110 minutes on 4 CPU cores, no GPU.
+
+![M3 training](media/m3_training_curves.png)
+
+### Two labelling bugs a validation loss cannot see
+
+The first training run scored *better* than this one and did nothing useful in
+closed loop. Both causes were labels, and neither is visible in a loss curve.
+
+**The gait bit was a pure function of the instruction.** Every frame of a `walk`
+demonstration carried `gait = 1`, because the expert's stop was labelled `pick`.
+So *when to stop* appeared nowhere in the training signal, the policy learned the
+label perfectly, and it walked to the step cap on every episode — correctly. The
+stop phase now belongs to `walk`.
+
+**The pick policy predicted its own current hand position**, for 25 consecutive
+polls, 188 mm from the object. The `pick` segment began at the expert's stop,
+where the hand tasks are disabled and the recorded action is "leave the hand
+where it is". Acting on that reproduces the observation that produced it — an
+absorbing state. The segment now starts at the reach.
+
+What is left is a genuine language problem: the same observation — stopped
+robot, resting arm — demands *stand still* under "walk to the red cup" and
+*start reaching* under "pick up the red cup".
+
+---
+
+## M4 — Closed-Loop Evaluation ❌
+
+```bash
+MUJOCO_GL=egl python3 lab-9-vla-integration/src/evaluate.py --episodes 3
+```
+
+| Criterion | Result | Measured |
+|---|---|---|
+| > 70 % on seen configurations | **FAIL** | 25 % (3/12) — walk 50 % (3/6), pick 0 % (0/6) |
+| > 40 % on position-randomised | **FAIL** | 25 % (3/12) — walk 50 %, pick 0 % |
+| Held-out paraphrases | — | 25 % (3/12), identical to seen |
+| Instruction changes the behaviour | **FAIL** | commanded separation 0.159 m, produced **0.000 m** |
+| No falls | partial | 2 falls in 18 pick episodes, 0 in 18 walk episodes |
+
+![M4 success rates](media/m4_success_rates.png)
+
+Per-episode records: [`media/m4_episodes.csv`](media/m4_episodes.csv).
+
+### The policy ignores its instruction, and the demonstrations are why
+
+Walk sitting at exactly 50 % in all three conditions is the signature, not a
+coincidence: the robot stops at the **near** object's distance whichever object
+is named, and which one is near is randomised 50/50. It is scoring chance on a
+binary choice.
+
+Fed one stored observation with each of the two instructions:
+
+| quantity | difference between "red cup" and "blue box" |
+|---|---|
+| right-hand target | **0.3 mm** |
+| gait command | **0.0018** |
+
+The two-object scene was built at M0 precisely to make language necessary, and
+it does — *in principle*. What makes it unnecessary in practice is the **expert's
+own competence**: it walks until the named object is the one in front of it, so
+by the time the reach begins "reach for the nearest object" is correct in every
+training frame. And during the walk, the instruction only discriminates for the
+handful of frames around the stop.
+
+The shortcut is available and cheap, and behaviour cloning takes it. A scene in
+which two instructions demand different actions is a necessary condition, not a
+sufficient one: the **demonstrations** must contain states where the correct
+action differs under the two instructions *and the state does not reveal which
+one is in force*. Fixing it is a re-collection, not a retrain.
+
+### The reach converges, then stops converging
+
+```
+poll  0:  hand 188 mm from the cup
+poll 24:  hand 102 mm
+poll 36:  hand  84 mm
+poll 48:  hand  84 mm
+poll 69:  hand  83 mm      grasp gate 70 mm; the expert reaches 15.2 ± 7.3 mm
+```
+
+Not inert — it tracks the reach for 3.5 s, closing 100 mm, then plateaus 12 mm
+short of the gate and holds for the remaining 35 polls. Each command moves the
+hand about two thirds as far as the expert's did; under-commit every step and
+the trajectory drifts somewhere the expert never was. A hand hovering 83 mm from
+the object appears in no demonstration, and off the manifold the commanded
+target collapses onto the current hand position. The same absorbing state,
+reached from a different direction.
+
+### What did work: stopping
+
+When the named object is the near one, the policy stops **0.001 m** from the
+correct standoff — a distance it has to infer from a 128 px image. Getting there
+took two protocol corrections.
+
+The policy is polled **mid-stride**, not between walk units: the expert never
+pauses during an approach, so a robot standing with the objects still far away
+is off-distribution.
+
+And the stop decision reads the **whole predicted chunk**, not its first action.
+Two frames before the expert stops, the true chunk is `[0, 0, …]` and the
+prediction is `[0.99, 0.99, 0.99, 0.00, 0.00, …]` — the stop is in there, placed
+about nine steps late. The head of a chunk is where a rare transition is rarest,
+so that is exactly where the model hedges it. Reading the chunk mean instead took
+stopping error from 0.21 m to 0.001 m without touching a weight.
+
+---
+
+## M5 — Capstone and Inference Profiling ⚠️
+
+```bash
+MUJOCO_GL=egl python3 lab-9-vla-integration/src/capstone_demo.py \
+    --instruction "pick up the red cup"
+```
+
+| Criterion | Result | Measured |
+|---|---|---|
+| Free-form sentence in, no task index anywhere | PASS | instruction embedded by the frozen tower; nothing else selects behaviour |
+| Inference > 10 Hz | **PASS** | **37.0 Hz** float32 (27.1 ms) · **38.4 Hz** dynamically quantised (26.0 ms) |
+| Episode succeeds on simulated state | **FAIL** | walked to 0.253 m and stopped; never grasped |
+| No fall | PASS | 51 N·m peak of a 139 N·m limit |
+
+Video: [`media/m5_capstone.mp4`](media/m5_capstone.mp4)
+
+Dynamic quantisation buys 4 % rather than the large factor INT8 gives on a GPU —
+the backbone is convolutional and stays float, so only the decoder's linear
+layers quantise. The brief's ">10 Hz with INT8 on an RTX 4050" is met on four CPU
+cores without it. The control loop is limited by software **rendering** at 97 ms
+a frame, not by the network, and those two costs are reported separately for that
+reason.
+
+### Not run: the joint-head ablation
+
+`tasks/PLAN.md` promised to train the brief's literal 29-DOF joint action space
+and measure it against Lab 7's prediction that a joint-position reference cannot
+stabilise this robot. The code path exists (`policy_runner.joint_tick`, with
+Lab 8's standing gains and gravity compensation so the comparison is about the
+action space rather than a strawman controller) and the head trains from the same
+dataset, but the run was not made. Recorded as unmeasured rather than quietly
+dropped.
+
+---
+
+## What I would change first
+
+1. **Re-collect so the instruction is load-bearing in the *data*.** Position the
+   expert so both objects are equally reachable at the reach, and have it walk to
+   a target-independent stopping point. Then "reach for the nearest object"
+   stops being a valid policy and the instruction is the only discriminator.
+2. **Close the reach.** The plateau is compounding error; DAgger-style
+   correction, or demonstrations that include recoveries from off-nominal hand
+   positions, is the standard remedy.
+3. **Then** the joint-head ablation, which is cheap once the primary works.
 
 ---
 

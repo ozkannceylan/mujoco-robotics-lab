@@ -1,6 +1,13 @@
 # Lab 9: VLA Integration
 
-> **Status:** Not Started  
+> **Status:** ⚠️ Closed 2026-08-18 at measured scope — M0–M3 and M5's inference
+> gate passed; **M4 and M5's task gate failed, with the cause measured**. The
+> policy trains cleanly (val 0.11x the mean baseline, 4.1 mm hand error), stops
+> within 1 mm of the right place, runs at 37 Hz on CPU — and ignores its
+> instruction (0.3 mm difference in the hand target between the two commands),
+> because the expert's own behaviour makes language redundant in the data.
+> Scope cut to 2 tasks (`walk`, `pick`) from 3–5: `carry` 1/12 and `place` 5/10
+> for the *expert*. Results: `lab-9-vla-integration/README.md`.  
 > **Prerequisites:** Lab 8 (whole-body loco-manipulation), humanoid_vla project  
 > **Platform:** Unitree G1 on MuJoCo + Cloud GPU for training  
 > **Capstone Demo:** "Pick up the red cup" — language command → autonomous execution

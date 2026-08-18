@@ -20,7 +20,7 @@ An open curriculum for rebuilding robotics fundamentals in **MuJoCo**, with **Pi
 | 6   | Dual-arm coordination | Complete |
 | 7   | Locomotion fundamentals | Complete\*\* |
 | 8   | Whole-body loco-manipulation | Complete\*\*\* |
-| 9   | VLA integration | In progress\*\*\*\* |
+| 9   | VLA integration | Closed at measured scope\*\*\*\* |
 
 Only labs marked **Complete** have published writeups and metrics in this README. Planned labs may have in-progress code on disk but are not yet portfolio-ready.
 
@@ -30,7 +30,7 @@ Only labs marked **Complete** have published writeups and metrics in this README
 
 \*\*\* **Lab 8** takes up exactly where Lab 7 stopped, and tests its diagnosis. **M0 (2026-08-15)** re-actuates the G1 with torque motors instead of position servos and re-establishes a 10 s stand from outside the simulator. **M1** adds the whole-body inverse-dynamics QP — joint accelerations *and* contact wrenches as decision variables — so the standing robot tracks a hand circle to 7.08 mm RMS while balance stays a hard constraint. **M2** takes four torque-level steps in place. **M3 (2026-08-16) walks: 12 steps, 1.18 m, no fall** — the capstone Lab 7 abandoned, on the same robot, which settles the actuator-model question. It got there by replacing the CoM position reference with **divergent-component-of-motion tracking**, and then by fixing two things underneath the controller that mattered more than the controller did: the foot's centre-of-pressure model was a symmetric guess rather than the G1's real asymmetric sole, and the QP's solver tolerance was set below what the problem's conditioning can deliver. **M4 walks and works at the same time**: the same 12 steps while both hands hold a Cartesian carry pose to 14.5 mm RMS. The enabler was a *missing term*, not a weight — no hand-task weight both walked and tracked, and the failures were non-monotonic, which is the tell. Regulating **centroidal angular momentum** took the identical hand task from falling on step 7 to the full distance with three times better tracking. **M5 (2026-08-17) is the capstone**: one continuous 25-second episode in which the robot walks to a pedestal, picks up a payload, brings it to its chest and secures it with the second hand, carries it, and sets it down **11.8 mm** from the target without falling. Its ten defects are the lab's most useful result — three were in code M0–M4 had already exercised, two were scene geometry the balance controller cannot see (a pedestal at hip height felled a controller that walks 12 steps on bare ground), and two were the difference between commanding a hand and commanding the object held in it. **M6 (2026-08-17)** closes the lab with architecture docs (EN/TR), a code walkthrough and the blog post. 97 tests. See [`lab-8-loco-manipulation/`](lab-8-loco-manipulation/).
 
-\*\*\*\* **Lab 9** is the destination the series was built toward: a language-conditioned ACT policy driving the torque-controlled G1. **M0 (2026-08-17)** builds a two-object randomised scene with egocentric cameras and freezes the observation/action contract — the state vector deliberately excludes the pelvis's world x, y and yaw, because a policy handed its own coordinates dead-reckons every task here and ignores both camera and instruction. Its finding is about the *expert*: Lab 8's capstone gate is 4/4 on one configuration and **1/8** over a randomised scene, so each task was measured separately and the set cut to what the expert can actually demonstrate — `walk` + `pick` at 40/40 against `carry` at 1/12 and `place` at 5/10, each cut written up with its mechanism. See [`lab-9-vla-integration/`](lab-9-vla-integration/).
+\*\*\*\* **Lab 9** is the destination the series was built toward: a language-conditioned ACT policy driving the torque-controlled G1, emitting the task-space references Lab 8's whole-body QP consumes so balance is never a learned quantity. **M0–M3 pass**: a two-object randomised scene whose state vector deliberately excludes the pelvis's world x/y/yaw (a policy handed its own coordinates dead-reckons every task here), 240 demonstrations from Lab 8's controller, a 15.8 M-parameter ACT policy, and training to **0.11×** the predict-the-mean baseline with **4.1 mm** hand-target error. **M4 and M5's task gate fail, and the cause is measured rather than guessed.** The policy walks to the object and stops within **1 mm** of the right place, and runs inference at **37 Hz** on four CPU cores against a 10 Hz bar — then ignores its instruction (**0.3 mm** difference in the hand target between "the red cup" and "the blue box") and never closes a grasp. The two-object scene makes language necessary in principle; the *expert's own competence* makes it redundant in the data, because it walks until the named object is the one in front of it, so "reach for the nearest object" is correct in every training frame. Walk sits at exactly 50 % because that is chance on a binary choice. Its M0 finding is about the expert too: Lab 8's capstone is 4/4 on its one tuned configuration and **1/8** over a randomised scene, so the task set was cut to what the expert can demonstrate — `walk`+`pick` at 40/40 against `carry` 1/12 and `place` 5/10. See [`lab-9-vla-integration/`](lab-9-vla-integration/).
 
 ---
 
@@ -282,7 +282,7 @@ mujoco-robotics-lab/
 │   ├── media/                    #   Per-milestone videos + metric plots
 │   └── README.md                 #   Lab overview
 │
-├── lab-9-vla-integration/        # Lab 9: VLA Integration (in progress)
+├── lab-9-vla-integration/        # Lab 9: VLA Integration (closed at measured scope)
 │   ├── src/                      #   scene, contract, expert, dataset, ACT, training, eval
 │   ├── docs/                     #   ARCHITECTURE.md + CODE_WALKTHROUGH.md
 │   ├── docs-turkish/             #   ARCHITECTURE_TR.md
@@ -301,7 +301,7 @@ mujoco-robotics-lab/
 ```
 
 Each lab is self-contained with its own source code, models, documentation, and
-media. Test coverage varies by lab: labs 1–5, 7 and 8 ship pytest suites, while lab 6
+media. Test coverage varies by lab: labs 1–5 and 7–9 ship pytest suites, while lab 6
 is verified through numerical milestone gates (M0–M5) rather than unit tests.
 New labs follow the same structure.
 

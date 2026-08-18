@@ -36,7 +36,7 @@ _Status refreshed 2026-08-13 (project review). This table is the single source o
 | 6 | Dual-Arm Coordination | Two arms cooperatively carry an object (weld-constraint) | ✅ Complete (milestone-gated M0–M5; unit tests intentionally removed) |
 | 7 | Locomotion Fundamentals | Standing balance + quasi-static weight shift (M0–M3d); ZMP walking documented as structurally infeasible with position actuators | ✅ Complete at M3d scope (34 tests; M4 blocked by design) |
 | 8 | Whole-Body Loco-Manipulation | Walk while carrying an object | ✅ Complete (2026-08-17) — **M0–M6 PASS**; walks 12 steps / 1.18 m under torque control, and the capstone picks, carries two-handed and places a payload **11.8 mm** from target (97 tests, docs EN/TR + blog) |
-| 9 | VLA Integration | "Pick up the red cup" — end-to-end language-to-action | 🚧 In Progress — **M0 PASS** (expert 40/40 over 20 seeds x 2 objects); task set cut to `walk` + `pick` from measurement |
+| 9 | VLA Integration | "Pick up the red cup" — end-to-end language-to-action | ⚠️ Closed 2026-08-18 at measured scope — M0–M3 PASS, M4/M5 task gate FAIL. Trains to 0.11x the mean baseline and stops within 1 mm of target; **ignores its instruction** (0.3 mm hand-target difference) because the expert's behaviour makes language redundant in the data. 48 tests |
 
 ### Lab 8 dependency note (from Lab 7 outcome)
 
@@ -130,7 +130,7 @@ mujoco-robotics-lab/
 ├── lab-6-dual-arm/                # No tests/ — milestone-gated verification instead
 ├── lab-7-locomotion/
 ├── lab-8-loco-manipulation/       # Complete (M0-M6); torque G1, ID QP, DCM walking, capstone
-└── lab-9-vla-integration/        # In progress (M0 done); two-object scene, ACT policy over Lab 8's QP
+└── lab-9-vla-integration/        # Closed at measured scope; two-object scene, ACT policy over Lab 8's QP
 ```
 
 ---
@@ -187,7 +187,7 @@ Every blog post:
 | Manipulation | 5–6 | ✅ Complete (2026-03/05; Lab 5 fully closed 2026-08-13) | |
 | Locomotion | 7 | ✅ Complete at M3d scope (2026-05) | M4 ZMP walking blocked → moved to Lab 8 |
 | Whole-Body | 8 | ✅ Complete (2026-08-17) — M0–M6 | Owns gait generation via torque control; **M3 retired Lab 7's deferred walking capstone** (12 steps, 1.18 m); M4 added centroidal angular-momentum control (hand 14.5 mm RMS while walking); M5 sequenced them into walk→pick→carry→place (payload 11.8 mm from target); M6 shipped docs EN/TR + blog. 97 tests |
-| VLA | 9 | 🚧 In progress (kickoff 2026-08-17) — M0 PASS | Builds on humanoid_vla's ACT design; expert is Lab 8's controller. Scope cut to 2 tasks because Lab 8's capstone scores 1/8 off its tuned configuration |
+| VLA | 9 | ⚠️ Closed 2026-08-18 at measured scope | M0–M3 PASS; M4/M5 task gate FAIL with the mechanism measured (the demonstrations do not force language use). Inference 37 Hz on CPU. Follow-up is a re-collection, not a retrain |
 
 ---
 

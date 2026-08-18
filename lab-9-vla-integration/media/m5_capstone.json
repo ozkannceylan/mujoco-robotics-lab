@@ -1,0 +1,55 @@
+{
+  "primary": {
+    "instruction": "pick up the red cup",
+    "seed": 300,
+    "named_object": "cup",
+    "walk_units": 2,
+    "grasped": false,
+    "grasped_object": "",
+    "fell": false,
+    "reason": "",
+    "checkpoint": "/home/user/mujoco-robotics-lab/lab-9-vla-integration/models/act_task_text.pt",
+    "trained_epoch": 24,
+    "pelvis_x_after_walk": 0.25254171634236444,
+    "lift_m": 1.4620670674148073e-07,
+    "distractor_moved_m": 3.083424244925778e-09,
+    "duration_s": 16.89999999999767,
+    "wall_s": 150.0,
+    "inferences": 168,
+    "tau_max": 50.997852685938255,
+    "success": false,
+    "video": "/home/user/mujoco-robotics-lab/lab-9-vla-integration/media/m5_capstone.mp4",
+    "frames": 512
+  },
+  "others": [
+    {
+      "instruction": "pick up the blue box",
+      "seed": 300,
+      "named_object": "box",
+      "walk_units": 2,
+      "grasped": false,
+      "grasped_object": "",
+      "fell": false,
+      "reason": "",
+      "checkpoint": "/home/user/mujoco-robotics-lab/lab-9-vla-integration/models/act_task_text.pt",
+      "trained_epoch": 24,
+      "pelvis_x_after_walk": 0.25254389762374574,
+      "lift_m": 0.0,
+      "distractor_moved_m": 1.1517568740565213e-07,
+      "duration_s": 16.89999999999767,
+      "wall_s": 53.1,
+      "inferences": 168,
+      "tau_max": 50.997852685938255,
+      "success": false
+    }
+  ],
+  "profile": {
+    "threads": 4,
+    "float32_ms": 27.057218551635742,
+    "float32_hz": 36.958713922926314,
+    "int8_dynamic_ms": 26.041825612386067,
+    "int8_dynamic_hz": 38.39976562643051,
+    "chunk_size": 20,
+    "actions_per_second_float32": 739.1742784585263
+  }
+}
