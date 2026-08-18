@@ -155,3 +155,97 @@
 reach error 15.2 ± 7.3 mm (max 27.0) · lift height 90 ± 6 mm
 
 Evidence: `media/m0_scene.png`, `media/m0_expert_rollout.mp4`, `media/m0_gate.json`.
+
+---
+
+## M1 — Demonstration dataset (2026-08-18)
+
+#### L-M1-a: Slice the episode, do not re-simulate the task
+- Rendering dominates collection on this machine — ~97 ms per frame, twice per
+  captured tick for two cameras — so an episode is expensive and a task is not.
+- Every expert rollout is captured once at 10 Hz and **sliced by phase** into its
+  labelled task segments, so 120 simulations yielded 240 demonstrations
+  (120 `walk`, 120 `pick`) and 12,180 frames in 38 minutes on 4 cores.
+- **Takeaway**: when the cost is in the rollout rather than the task, the unit of
+  work is the rollout. Label the segments afterwards.
+
+#### L-M1-b: Split by scene seed, never by frame
+- Two captured frames 100 ms apart in the same episode are near-duplicates: the
+  robot has moved a few millimetres and the lighting, object colours and object
+  placement are *identical*.
+- A frame-level train/validation split therefore reports a validation loss that
+  measures memorisation, and it looks excellent — which is exactly why it is
+  dangerous. The split here is by scene seed (48 train / 12 validation), and
+  `build_datasets` raises if the two sets ever intersect.
+- **Takeaway**: the unit of independence in a demonstration set is the episode's
+  *scene*, not its frames.
+
+#### L-M1-c: Store the expert's command, not the achieved state
+- Behaviour cloning imitates what the expert *did*. On this system the two are
+  not the same: the grasp weld is compliant by design, the balance controller is
+  continuously correcting, and the achieved hand position lags the commanded one.
+- Training on the achieved state teaches the policy to reproduce its own past
+  rather than to act. The recorded action is the effective target of each hand
+  task at that tick — and for a hand whose task is *disabled*, its current
+  position, because "leave it where it is" is the honest label for a limb the
+  expert is not commanding.
+- **Takeaway**: the label is the controller's input, not its output.
+
+#### L-M1-d: Write only successful episodes
+- A failed episode is a recording of a robot falling over, and its frames are
+  indistinguishable from a good episode's until the moment it goes down. Half of
+  such a set would teach the policy the failure.
+- 120 of 120 attempts succeeded, which is what M0's expert gate bought.
+
+## M2 — Model (2026-08-18)
+
+#### L-M2-a: A failed overfit-one-batch check can be the check's fault
+- The model plateaued at exactly the constant-predictor level on eight samples.
+  That reads as an architecture bug — the network cannot distinguish its inputs
+  — and it was tempting to go looking for one in the token assembly.
+- Sweeping the learning rate first: ratio 0.19 at 1e-3, 0.17 at 3e-4, 0.15 at
+  1e-4, and a plateau at 3e-3. **The optimiser was destabilising the
+  transformer**, and the architecture was fine.
+- Two changes came out of it. The check runs at 1e-3, and it scores against the
+  best *constant* predictor rather than against the initial loss: with N(0,1)
+  targets the constant predictor already scores 0.76, so a ratio to the starting
+  loss cannot distinguish "memorised the batch" from "learned its mean".
+- **Takeaway**: before suspecting the model, check that the thing measuring it is
+  not the thing that is broken. And pick a baseline the metric can actually
+  separate from failure.
+
+#### L-M2-b: Check the conditioning separates *meanings*, not just strings
+- The obvious diagnostic — mean pairwise cosine similarity of the instruction
+  bank — reads 0.866 and says nothing useful, because every sentence in this
+  vocabulary shares most of its structure.
+- The quantity that matters is the *contrast*: paraphrases of the same command sit
+  at 0.957, commands that mean different things at 0.846, a margin of 0.111.
+  Paraphrase robustness and instruction separability pull in opposite directions,
+  and a policy cannot follow instructions its conditioning cannot tell apart.
+- Both are checked before training, not inferred from a bad success rate after.
+- **Takeaway**: a single aggregate over a similarity matrix hides the structure
+  the model actually needs. Compare within-group against across-group.
+
+#### M1 gate
+
+| criterion | result | measured |
+|---|---|---|
+| ≥ 50 demonstrations per task | PASS | **120 per task** (240 total) |
+| Every attempted episode succeeded | PASS | 120 / 120 |
+| Integrity checks | PASS | no NaNs, shapes and dtypes as declared |
+| Train/val split leaks no seed | PASS | 48 / 12, intersection empty |
+| Randomisation visibly varies | PASS | `media/m1_dataset_grid.png` |
+
+12,180 frames · 7,860 labelled `walk`, 4,320 `pick` · 244 MB · 38.4 min on 4 cores
+
+#### M2 gate
+
+| criterion | result | measured |
+|---|---|---|
+| Parameter count reported | PASS | 15.75 M total, 12.96 M trainable |
+| Token count derived from image size | PASS | 16 tokens/camera at 128 px |
+| Instruction changes the action | PASS | max delta 0.0020 |
+| Same instruction is deterministic | PASS | 0.0 |
+| Meanings separate further than paraphrases | PASS | margin 0.111 |
+| Overfits one batch | PASS | 0.250 × the constant-predictor baseline |
+| Checkpoint round-trips predictions | PASS | 0.0 |

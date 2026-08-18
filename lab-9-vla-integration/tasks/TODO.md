@@ -44,19 +44,25 @@
 - [x] Tests: `tests/test_scene_and_contract.py` — 30 tests
 - [x] Lessons: L-M0-a … L-M0-f
 
-## M1 — Demonstration dataset
-- [ ] 1.1 `collect_demos.py` (multi-process, phase slicing)
-- [ ] 1.2 storage + manifest + train-split-only normalisation stats
-- [ ] 1.3 `dataset.py` (chunks, pad mask, seed-level split)
-- [ ] Gate: ≥ 50 demos/task, integrity checks, no seed leakage
-- [ ] Evidence: `media/m1_dataset_grid.png`
+## M1 — Demonstration dataset — ✅ DONE (2026-08-18), GATE PASSED 5/5
+- [x] 1.1 `collect_demos.py` — 120 episodes (60 seeds x 2 objects), phase-sliced
+- [x] 1.2 manifest + normalisation statistics fitted on the train split only
+- [x] 1.3 `dataset.py` — chunked windows, pad masks, **seed-level** split
+- [x] Gate: 120 demos/task (want >= 50); 120/120 episodes succeeded; no seed
+      leakage (48 train / 12 val); 12,180 frames, 244 MB, 38.4 min on 4 cores
+- [x] Evidence: `media/m1_dataset_grid.png`, `data/manifest.json`
+- [x] Lessons: L-M1-a … L-M1-d
 
-## M2 — Model
-- [ ] 2.1 `text_encoder.py` + instruction bank
-- [ ] 2.2 `act_policy.py` (derived token count, two cameras, both heads)
-- [ ] Gate: param count, shape tests, overfit-one-batch, text changes the output,
-      checkpoint round-trip
-- [ ] Evidence: printed model table, tests green
+## M2 — Model — ✅ DONE (2026-08-18), GATE PASSED 7/7
+- [x] 2.1 `text_encoder.py` + instruction bank baked into the checkpoint
+- [x] 2.2 `act_policy.py` — 15.75 M params (12.96 M trainable), two cameras,
+      token count derived from the image size, both action heads
+- [x] Gate: shapes, determinism, instruction sensitivity, meaning-vs-paraphrase
+      margin 0.111, overfit 0.250 x the constant-predictor baseline, checkpoint
+      round-trip exact
+- [x] Evidence: `media/m2_model.json`, `tests/test_model.py`
+- [x] Lessons: L-M2-a (a failed overfit check can be the check's fault — 3e-3
+      destabilises this transformer), L-M2-b
 
 ## M3 — Training
 - [ ] 3.1 `train.py`
@@ -86,17 +92,17 @@
 - [ ] Root README / MASTER_PLAN / CLAUDE.md / tasks/todo.md / plan/LAB_09.md
 
 ## Current Focus
-> **M1 — demonstration dataset.** M0 closed 2026-08-17 with a 100 % expert over
-> 20 seeds x 2 objects.
+> **M3 — training**, then M4's closed-loop evaluation. M0–M2 all passed.
 >
-> The task set is **two** tasks, not the brief's three-to-five: `walk to the
-> {object}` and `pick up the {object}`. `carry` and `place` were cut at M0 because
-> the *expert* cannot perform them (1/12 and 5/10) — see L-M0-c and L-M0-e. The
-> numbers are in the write-up; neither was dropped quietly.
+> Training is the wall-clock pole: ~4 min/epoch on 4 CPU cores, so the primary
+> run (task head, text conditioning, 30 epochs) is ~2 hours. The checkpoint is
+> saved on every validation improvement, so evaluation can start against the
+> current best at any point.
 >
-> For M1: slice each episode by phase into its two labelled segments, split
-> train/val **by seed** (never by frame), and compute normalisation statistics on
-> the train split only.
+> The gate is **not** "the loss went down" — a policy that has learned the
+> dataset's average pose also produces a smooth, falling curve. It is whether
+> validation error beats the predict-the-mean baseline by a clear margin on
+> scene seeds never trained on.
 
 ## Blockers
 > None. torch 2.13.0+cpu and torchvision 0.28.0+cpu installed; HuggingFace

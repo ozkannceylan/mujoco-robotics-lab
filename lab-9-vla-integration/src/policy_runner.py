@@ -214,13 +214,23 @@ class PolicyRunner(Capstone):
     def stand_tick(self, action, ticks: int = POLICY_DECIMATION) -> None:
         """Hold balance and track the policy's hand targets for one policy period.
 
+        The balance reference is frozen only on *entering* the standing mode,
+        not on every policy period. `_freeze_balance` sets the DCM target to the
+        divergent component's current value, so calling it at 10 Hz replaces the
+        feedback that was correcting the drift with a fresh snapshot of the
+        drift itself. Measured while scoping M0: re-anchoring a motion in short
+        segments made the robot fall three seconds *earlier* than leaving the
+        reference alone (tasks/LESSONS.md § L-M0-d).
+
         Args:
             action: The decoded action.
             ticks: Control ticks to run.
         """
+        entering = self.phase != "stand"
         self.phase = "stand"
         self._sync_kinematics()
-        self._freeze_balance()
+        if entering:
+            self._freeze_balance()
         self._apply_hands(action)
         self.momentum_task.enabled = False
         for _ in range(ticks):

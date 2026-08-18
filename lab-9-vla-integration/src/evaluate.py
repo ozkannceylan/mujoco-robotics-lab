@@ -237,7 +237,12 @@ def run_pick_episode(
             )) * 1000.0
         except Exception:  # noqa: BLE001 - a fallen robot has no useful reading
             pass
-        result.grasped_object = getattr(runner.scene, "target", "")
+        # Only meaningful if a grasp actually closed; the scene always has a
+        # target selected, and reporting it unconditionally would read as "it
+        # picked the cup" on an episode that picked nothing.
+        result.grasped_object = (
+            getattr(runner.scene, "target", "") if result.grasped else ""
+        )
         runner.close()
 
     result.success = bool(
